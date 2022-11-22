@@ -1,7 +1,11 @@
 
 #HPC path for a ReEDS case I loaded in. Eventually start to move to test in this folder
 testpath = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs/_ercot_seq/inputs_case")
-load = h5open(joinpath(testpath,"load.h5"), "r") 
+test_year = 2012
+
+ReEDS2PRAS.pras_system_from_mapping(testpath,test_year)
+
+# load_info = h5read(joinpath(testpath,"load.h5"), "data") 
 #have to figure how to go from this to relevant pras object
 
 #we can get the regions from this
