@@ -28,6 +28,9 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
     
     #generation capacity
 
+    #we will need a disaggreggation helper fxn. Possibly a couple
+    #possibly need to load in EIA860 data?
+
     #for thermal, we need outage stuff
 
     #for vg, we need profiles
