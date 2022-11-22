@@ -22,7 +22,7 @@ module ReEDS2PRAS
 #################################################################################
 # import HTTP
 # import JSON
-import ArchGDAL
+# import ArchGDAL
 import DataFrames
 # import XLSX
 import CSV
