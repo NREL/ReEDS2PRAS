@@ -4,6 +4,7 @@ testpath = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs/_ercot_seq")
 test_year = 2012
 
 ReEDS2PRAS.make_pras_system_from_mapping_info(testpath,test_year)
+ReEDS2PRAS.make_pras_system_from_mapping_info(testpath,2020)
 
 # load_info = h5read(joinpath(testpath,"load.h5"), "data") 
 #have to figure how to go from this to relevant pras object
