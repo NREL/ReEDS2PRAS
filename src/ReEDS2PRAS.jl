@@ -34,6 +34,6 @@ import HDF5
 # Includes
 #################################################################################
 # include("main/naerm_data_service.jl") 
-# include("main/assign_assets_to_regions.jl")
+include("main/utils.jl")
 include("main/pras_system_from_mapping.jl")
 end

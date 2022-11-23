@@ -50,31 +50,29 @@ function process_lines(ReEDSfilepath::String)
     return (line_base_cap_data)
 end
 
-function split_generator_types(ReEDSfilepath::String)
+function split_generator_types(ReEDSfilepath::String,Year::Int64)
     tech_types = joinpath(ReEDSfilepath,"inputs_case","tech-subset-table.csv")
     tech_types_data = DataFrames.DataFrame(CSV.File(tech_types));
 
     vg_types = tech_types_data[findall(!ismissing, tech_types_data[:,"VRE"]),"Column1"]
     storage_types = tech_types_data[findall(!ismissing, tech_types_data[:,"STORAGE"]),"Column1"]
 
+    vg_types = clean_names(vg_types)
+    storage_types = clean_names(storage_types)
+    vg_types = expand_types(vg_types,15)
+
     capacities = joinpath(ReEDSfilepath,"outputs","cap.csv")
     capacity_data = DataFrames.DataFrame(CSV.File(capacities))
-    println(capacity_data)
-    # return thermals,storages,vg
+    annual_data = capacity_data[capacity_data.Dim3.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative
+
+    #clear vg capacity on a regex, though there might be a better way...
+
+    vg_capacity = annual_data[(findall(in(vg_types),annual_data.Dim1)),:]
+    storage_capacity = annual_data[(findall(in(storage_types),annual_data.Dim1)),:]
+    thermal_capacity = annual_data[(findall(!in(vcat(vg_types,storage_types)),annual_data.Dim1)),:]
+
+    return(thermal_capacity,storage_capacity,vg_capacity)
 end
-
-function process_thermal_generators(ReEDSfilepath::String)
-
-end
-
-function process_storages(ReEDSfilepath::String)
-    
-end
-
-function process_vg(ReEDSfilepath::String)
-    
-end
-
 
 function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
     #######################################################
@@ -110,6 +108,8 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
     line_base_cap_data = process_lines(ReEDSfilepath)
 
     #generation capacity
+    @info "splitting thermal, storage, vg generator types..."
+    split_generator_types(ReEDSfilepath,Year)
 
     #we will need a disaggreggation helper fxn. Possibly a couple
     #possibly need to load in EIA860 data?
