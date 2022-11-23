@@ -8,8 +8,8 @@
 
 function process_lines(ReEDSfilepath::String)
     @info "Processing lines..."
-    line_cap_base_csv_location = joinpath(ReEDSfilepath,"trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
-    line_cap_additional_csv_location = joinpath(ReEDSfilepath,"trancap_fut.csv")
+    line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
+    line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
 
     line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
     line_additional_cap_data = DataFrames.DataFrame(CSV.File(line_cap_additional_csv_location;select=["*r","rr","trtype","MW"]));
@@ -50,6 +50,32 @@ function process_lines(ReEDSfilepath::String)
     return (line_base_cap_data)
 end
 
+function split_generator_types(ReEDSfilepath::String)
+    tech_types = joinpath(ReEDSfilepath,"inputs_case","tech-subset-table.csv")
+    tech_types_data = DataFrames.DataFrame(CSV.File(tech_types));
+
+    vg_types = tech_types_data[findall(!ismissing, tech_types_data[:,"VRE"]),"Column1"]
+    storage_types = tech_types_data[findall(!ismissing, tech_types_data[:,"STORAGE"]),"Column1"]
+
+    capacities = joinpath(ReEDSfilepath,"outputs","cap.csv")
+    capacity_data = DataFrames.DataFrame(CSV.File(capacities))
+    println(capacity_data)
+    # return thermals,storages,vg
+end
+
+function process_thermal_generators(ReEDSfilepath::String)
+
+end
+
+function process_storages(ReEDSfilepath::String)
+    
+end
+
+function process_vg(ReEDSfilepath::String)
+    
+end
+
+
 function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
     #######################################################
     # Loading the necessary mapping files and data
@@ -58,7 +84,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
     @info "Fetching ReEDS case data to build PRAS System..."
 
     #load-related information
-    load_info = h5read(joinpath(ReEDSfilepath,"load.h5"), "data") 
+    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","load.h5"), "data") 
     load_data = load_info["block0_values"]
     regions = load_info["axis0"]
     

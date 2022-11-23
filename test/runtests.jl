@@ -8,6 +8,6 @@ using Test
 using HDF5
 
 @testset "ReEDS2PRAS" begin
-    include("ercot/testlinesonly.jl")
+    # include("ercot/testlinesonly.jl")
     include("ercot/toyercot.jl")
 end
