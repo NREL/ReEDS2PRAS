@@ -6,7 +6,7 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function process_lines(ReEDSfilepath::String)
+function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
     @info "Processing lines..."
     line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
     line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
@@ -47,7 +47,76 @@ function process_lines(ReEDSfilepath::String)
     #         push!(line_base_cap_data,line_additional_cap_data[idx,:])
     #     end
     # end
-    return (line_base_cap_data)
+    
+    # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
+    # indices PRAS expects
+    system_line_idx = []
+    for (idx,pca_from,pca_to) in zip(range(1,length= DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"*r"],line_base_cap_data[:,"rr"])
+        from_idx = findfirst(x->x==pca_from,regions)
+        to_idx = findfirst(x->x==pca_to,regions)
+        if (~(isnothing(from_idx)) && ~(isnothing(to_idx)))
+            push!(system_line_idx,idx)
+            if (from_idx > to_idx)
+                line_base_cap_data[idx,"*r"] = pca_to
+                line_base_cap_data[idx,"rr"] = pca_from
+            end
+        end
+    end
+    system_line_cap_data = line_base_cap_data[system_line_idx,:];
+    gdf = DataFrames.groupby(system_line_cap_data, ["*r","rr","trtype"]) #split-apply-combine b/c all entries are currently being repeated.
+    #To-Do to handle this better
+    system_line_cap_data = DataFrames.combine(gdf, :MW => Statistics.mean);
+    line_names = system_line_cap_data[!,"*r"].*"_".*system_line_cap_data[!,"rr"];
+    line_categories = string.(system_line_cap_data[!,"trtype"]);
+
+    #######################################################
+    # Collecting all information to make PRAS Lines
+    #######################################################
+    n_lines = DataFrames.nrow(system_line_cap_data);
+    line_forward_capacity_array = Matrix{Int64}(undef, n_lines, N);
+    line_backward_capacity_array = Matrix{Int64}(undef, n_lines, N);
+
+    λ_lines = Matrix{Float64}(undef, n_lines, N); 
+    μ_lines = Matrix{Float64}(undef, n_lines, N); 
+    for (idx,line_cap) in enumerate(system_line_cap_data[!,"MW_mean"])
+        line_forward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N);
+        line_backward_capacity_array[idx,:] = line_forward_capacity_array[idx,:];
+
+        λ_lines[idx,:] .= 0.0; 
+        μ_lines[idx,:] .= 1.0; 
+    end
+
+    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_categories, line_forward_capacity_array, line_backward_capacity_array, λ_lines ,μ_lines);
+
+    #######################################################
+    # PRAS Interfaces
+    #######################################################
+    @info "Processing Interfaces in the mapping file..."
+    num_interfaces = DataFrames.nrow(system_line_cap_data);
+
+    interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
+    start_id = Array{Int64}(undef,num_interfaces); 
+    for i in 1: num_interfaces
+        i==1 ? start_id[i] = 1 : start_id[i] =start_id[i-1]+1
+        interface_line_idxs[i] = range(start_id[i], length=1)
+    end
+
+    interface_regions_from = [findfirst(x->x==system_line_cap_data[i,"*r"],regions) for i in 1:num_interfaces];
+    interface_regions_to = [findfirst(x->x==system_line_cap_data[i,"rr"],regions) for i in 1:num_interfaces];
+    #######################################################
+    # Collecting all information to make PRAS Interfaces
+    #######################################################
+    @info "Making PRAS Interfaces..."
+    interface_forward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
+    interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
+    for i in 1:num_interfaces
+        interface_forward_capacity_array[i,:] .=  line_forward_capacity_array[i,:]
+        interface_backward_capacity_array[i,:] =  line_backward_capacity_array[i,:]
+    end
+
+    new_interfaces = PRAS.Interfaces{N,PRAS.MW}(interface_regions_from, interface_regions_to, interface_forward_capacity_array, interface_backward_capacity_array);
+
+    return (new_lines,new_interfaces,interface_line_idxs)
 end
 
 function split_generator_types(ReEDSfilepath::String,Year::Int64)
@@ -72,7 +141,6 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
 
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
-
 
 function create_generators_from_data(gen_matrix,gen_names,gen_categories,regions)
     n_gen,N = size(gen_matrix)[1],size(gen_matrix)[2];
@@ -153,9 +221,37 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
         region_load[idx,:]=floor.(Int,load_year[idx,:]); #converts to int
     end
     new_regions = PRAS.Regions{N,PRAS.MW}(regions, region_load);
+
+    #######################################################
+    # PRAS Region Gen Index 
+    # **TODO: Figure out how to not take in account "0.0" gen_mw_max generators!!
+    # **TODO : If fuel info is available, figure out how to not count them to avoid double counting.
+    #######################################################
+    @info "Processing Generator to region mapping..."
+    gens=[];
+    start_id = Array{Int64}(undef,num_areas); 
+    area_gen_idxs = Array{UnitRange{Int64},1}(undef,num_areas); 
+
+    # for (idx,area_name) in enumerate(regions)
+    #     gs=[]
+    #     for ic_key in keys(mapping_metadata)
+    #         if (ic_key != "mapping_file")
+    #             if haskey(mapping_metadata[ic_key]["asset_idx_mapping"],area_name)
+    #                 push!(gs, get_generators(mapping_dict[ic_key],mapping_metadata[ic_key]["asset_idx_mapping"][area_name],area_name,ic_key))
+    #             end
+    #         end
+    #     end
+    #     push!(gens,gs)
+    #     idx==1 ? start_id[idx] = 1 : start_id[idx] =start_id[idx-1]+num_of_pca_generators(gens[idx-1])
+    #     if (num_of_pca_generators(gens[idx]) != 0)
+    #         area_gen_idxs[idx] = range(start_id[idx], length=num_of_pca_generators(gens[idx]))
+    #     else
+    #         area_gen_idxs[idx] = range(start_id[idx], length=0)
+    #     end
+    # end
     
     #lines
-    line_base_cap_data = process_lines(ReEDSfilepath);
+    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,8760);
 
     #generation capacity
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
