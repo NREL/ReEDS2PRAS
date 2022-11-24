@@ -120,7 +120,7 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
 end
 
 function split_generator_types(ReEDSfilepath::String,Year::Int64)
-    tech_types = joinpath(ReEDSfilepath,"inputs_case","tech-subset-table.csv")
+    tech_types = joinpath(ReEDSfilepath,"inputs_case","tech-subset-table.csv");
     tech_types_data = DataFrames.DataFrame(CSV.File(tech_types));
 
     vg_types = tech_types_data[findall(!ismissing, tech_types_data[:,"VRE"]),"Column1"]
@@ -142,15 +142,15 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function create_generators_from_data(gen_matrix,gen_names,gen_categories,regions)
+function create_generators_from_data(gen_matrix,gen_names,gen_categories)
     n_gen,N = size(gen_matrix)[1],size(gen_matrix)[2];
     gen_cap_array = Matrix{Int64}(undef, n_gen, N);
     λ_gen = Matrix{Float64}(undef, n_gen, N);
     μ_gen = Matrix{Float64}(undef, n_gen, N);
     for idx in 1:n_gen
         gen_cap_array[idx,:] = floor.(Int,gen_matrix[idx,:]); #converts to int
-        λ_gen[idx,:] .= 0.0; #evetually this will have to call to Sinnott's data 
-        μ_gen[idx,:] .= 1.0;
+        λ_gen[idx,:] .= 0.01; #eventually this will have to call to Sinnott's data 
+        μ_gen[idx,:] .= 0.2;
     end
 
 
@@ -163,38 +163,46 @@ function process_thermals(thermal_builds::DataFrames.DataFrame, N::Int)
     thermal_capacities = thermal_builds[!,"Val"]#want capacities
 
     #get regions and convert them to appropriate data where relevant
-    thermal_categories = [string(thermal_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(thermal_builds)]
-    thermal_regions = thermal_builds[!,"Dim2"]
+    # thermal_categories = [string(thermal_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(thermal_builds)]
+    thermal_categories = string.(thermal_builds[!,"Dim1"])
+    thermal_regions = string.(thermal_builds[!,"Dim2"])
 
     thermal_cap_factors = ones(length(thermal_names),N)
 
-    return(create_generators_from_data(thermal_capacities.*thermal_cap_factors, thermal_names, thermal_categories, thermal_regions))
+    return(create_generators_from_data(thermal_capacities.*thermal_cap_factors, thermal_names, thermal_categories),thermal_regions)
 end
 
 function process_vg(vg_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int)
     #get the vector of appropriate indices
-    vg_names = [string(vg_builds[!,"Dim1"][i])*"_"*string(vg_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(vg_builds)]
-    vg_capacities = vg_builds[!,"Val"]#want capacities
+    vg_names = [string(vg_builds[!,"Dim1"][i])*"_"*string(vg_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(vg_builds)];
+    vg_capacities = vg_builds[!,"Val"];#want capacities
 
     #get regions and convert them to appropriate data where relevant
-    vg_categories = [string(vg_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(vg_builds)]
-    vg_regions = vg_builds[!,"Dim2"]
-    #pull in mapping info
-
-    #once mapped, do we need to groupby/sum the resulting profiles as mapped?
+    vg_categories = string.(vg_builds[!,"Dim1"]);#[string(vg_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(vg_builds)]
+    vg_regions = string.(vg_builds[!,"Dim2"]);
+    
+    #pull in mapping info for the regions, since vg is originally not assigned by region
+    region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
+    region_mapper_df = DataFrames.DataFrame(CSV.File(region_mapper));
+    for (idx,region) in enumerate(vg_regions)
+        slicer = findfirst(isequal(region), region_mapper_df[:,"rs"]);
+        if !isnothing(slicer)
+            vg_regions[idx] = region_mapper_df[slicer,"*r"]
+        end
+    end
 
     #load in recf
     cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","recf.h5"), "data")
     indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],))
     cap_factors = cf_info["block0_values"]
-    # indices = findall(i->(i==(slicer-1)),load_info["axis1_label0"]) #I think b/c julia indexes from 1 we need -1 here
+
     retained_cap_factors = cap_factors[indices,1:N] #slice recf, just take first year for now until more is known
     
     #return the profiles
-    return(create_generators_from_data(vg_capacities.*retained_cap_factors, vg_names, vg_categories, vg_regions))
+    return(create_generators_from_data(vg_capacities.*retained_cap_factors, vg_names, vg_categories),vg_regions)
 end
 
-function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
+function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, CaseLabel::String)
     #######################################################
     # Loading the necessary mapping files and data
     #######################################################
@@ -227,30 +235,6 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
     # **TODO: Figure out how to not take in account "0.0" gen_mw_max generators!!
     # **TODO : If fuel info is available, figure out how to not count them to avoid double counting.
     #######################################################
-    @info "Processing Generator to region mapping..."
-    gens=[];
-    start_id = Array{Int64}(undef,num_areas); 
-    area_gen_idxs = Array{UnitRange{Int64},1}(undef,num_areas); 
-
-    # for (idx,area_name) in enumerate(regions)
-    #     gs=[]
-    #     for ic_key in keys(mapping_metadata)
-    #         if (ic_key != "mapping_file")
-    #             if haskey(mapping_metadata[ic_key]["asset_idx_mapping"],area_name)
-    #                 push!(gs, get_generators(mapping_dict[ic_key],mapping_metadata[ic_key]["asset_idx_mapping"][area_name],area_name,ic_key))
-    #             end
-    #         end
-    #     end
-    #     push!(gens,gs)
-    #     idx==1 ? start_id[idx] = 1 : start_id[idx] =start_id[idx-1]+num_of_pca_generators(gens[idx-1])
-    #     if (num_of_pca_generators(gens[idx]) != 0)
-    #         area_gen_idxs[idx] = range(start_id[idx], length=num_of_pca_generators(gens[idx]))
-    #     else
-    #         area_gen_idxs[idx] = range(start_id[idx], length=0)
-    #     end
-    # end
-    
-    #lines
     new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,8760);
 
     #generation capacity
@@ -265,8 +249,9 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
     vg_tup = process_vg(vg,ReEDSfilepath,N);
     thermal_tup = process_thermals(thermal,N);
 
-    gen_tup = [vcat(a,b) for (a,b) in zip(vg_tup,thermal_tup)];
-    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(gen_tup[1],gen_tup[2],gen_tup[3],gen_tup[4],gen_tup[5]); #there's probably a way to better unpack this
+    gen_tup = [vcat(a,b) for (a,b) in zip(thermal_tup[1],vg_tup[1])];
+    area_gen_idxs,region_order = sort_gens(vcat(thermal_tup[2],vg_tup[2]),regions,length(regions))
+    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(gen_tup[1][region_order],gen_tup[2][region_order],gen_tup[3][region_order,:],gen_tup[4][region_order,:],gen_tup[5][region_order,:]); #there's probably a way to better unpack this
 
     #######################################################
     # PRAS Timestamps
@@ -333,9 +318,11 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64)
                                                             
     area_genstor_idxs = fill(1:0, num_areas);
 
-    # pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
-    #                         area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
+    pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
+                            area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
 
-    # return(pras_system)
-    return(new_gen_stors)
+    #save PRAS system somewhere we can use it?
+    PRAS.savemodel(pras_system,joinpath(ReEDSfilepath,"outputs",CaseLabel*".pras"))
+    return(pras_system)
+    # return(new_gen_stors)
 end
