@@ -160,7 +160,7 @@ function create_generators_from_data(gen_matrix,gen_names,gen_categories)
     end
 
 
-    return (gen_names, gen_categories, gen_cap_array , λ_gen ,μ_gen);
+    return (gen_names,gen_categories,gen_cap_array,λ_gen,μ_gen);
 end
 
 function process_thermals(thermal_builds::DataFrames.DataFrame, N::Int)
@@ -208,6 +208,48 @@ function process_vg(vg_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int
     return(create_generators_from_data(vg_capacities.*retained_cap_factors, vg_names, vg_categories),vg_regions)
 end
 
+function process_storages(storage_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int,regions::Vector,Year::Int64)
+    #get the vector of appropriate indices
+    @info "handling power capacity of storages"
+    storage_names = [string(storage_builds[!,"Dim1"][i])*"_"*string(storage_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(storage_builds)];
+    storage_capacities = storage_builds[!,"Val"];#want capacities
+    storage_cap_factors = ones(length(storage_names),N);
+    #get regions and convert them to appropriate data where relevant
+    storage_categories = string.(storage_builds[!,"Dim1"]);#[string(vg_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(vg_builds)]
+    storage_regions = string.(storage_builds[!,"Dim2"]);
+    region_stor_capacity_idxs,stor_capacity_region_order = sort_gens(storage_regions,regions,length(regions))
+    stor_names,stor_categories,stor_discharge_cap_array,λ_stor,μ_stor= create_generators_from_data(storage_capacities[stor_capacity_region_order].*storage_cap_factors, storage_names[stor_capacity_region_order], storage_categories[stor_capacity_region_order]);
+    stor_charge_cap_array = stor_discharge_cap_array #make this equal for now
+    
+    @info "handling energy capacity of storages"
+    storage_energy_capacities = joinpath(ReEDSfilepath,"outputs","stor_energy_cap.csv")
+    storage_energy_capacity_data = DataFrames.DataFrame(CSV.File(storage_energy_capacities))
+    annual_data = storage_energy_capacity_data[storage_energy_capacity_data.Dim4.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative    
+    
+    gdf = DataFrames.groupby(annual_data, ["Dim1","Dim3"]) #split-apply-combine to handle differently vintaged entries
+    annual_data_sum = DataFrames.combine(gdf, :Val => sum);
+    storage_energy_capacity_regions = string.(annual_data_sum[!,"Dim3"]);
+    #reorder to ensure proper order!
+    region_stor_idxs,stor_region_order = sort_gens(storage_energy_capacity_regions,regions,length(regions))
+    stor_energy_cap_array = annual_data_sum[stor_region_order,"Val_sum"].*storage_cap_factors
+    stor_energy_cap_array = floor.(Int, stor_energy_cap_array)#go to int
+
+    #now we can do the matrix math on the sorted vector of energy capacities
+    # stor_energy_cap_array = stor_discharge_cap_array #this is a terrible idea, but for now
+    
+    #efficiency and carryover; fill all as ones for now
+    stor_chrg_eff_array = ones(length(stor_names),N);
+    stor_dischrg_eff_array = ones(length(stor_names),N);
+    stor_cryovr_eff = ones(length(stor_names),N);
+
+    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(stor_names,stor_categories,
+                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
+                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
+                                                λ_stor,μ_stor);
+
+    return(new_storage,region_stor_idxs)
+end
+
 function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, CaseLabel::String)
     #######################################################
     # Loading the necessary mapping files and data
@@ -246,7 +288,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #generation capacity
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
     thermal,storage,vg = split_generator_types(ReEDSfilepath,Year);
-    
+
     #pull the generators into appropriate STRUCTS, with defaults
 
     #for thermal, we need outage stuff
@@ -269,30 +311,11 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
 
     #######################################################
     # PRAS Storages
-    # No Storages in this system for now
+    # Storages are added 11.28
     #######################################################
-    @info "Processing Storages [EMPTY FOR NOW]..."
-    stor_names = String[];
-    stor_categories = String[];
-
-    n_stor = 0;
-
-    stor_charge_cap_array = Matrix{Int64}(undef, n_stor, N);
-    stor_discharge_cap_array = Matrix{Int64}(undef, n_stor, N);
-    stor_energy_cap_array = Matrix{Int64}(undef, n_stor, N);
-    stor_chrg_eff_array = Matrix{Float64}(undef, n_stor, N);
-    stor_dischrg_eff_array  = Matrix{Float64}(undef, n_stor, N);
-    stor_cryovr_eff = ones(n_stor,N);
-    λ_stor = Matrix{Float64}(undef, n_stor, N); 
-    μ_stor = Matrix{Float64}(undef, n_stor, N);
-
-    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(stor_names,stor_categories,
-                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
-                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
-                                                λ_stor,μ_stor);
-
-    area_stor_idxs = fill(1:0, num_areas);
-
+    @info "Processing Storages..."
+    new_storage,area_stor_idxs = process_storages(storage,ReEDSfilepath,N,regions,Year)
+    
     #######################################################
     # PRAS GeneratorStorages
     # No GeneratorStorages in this system
