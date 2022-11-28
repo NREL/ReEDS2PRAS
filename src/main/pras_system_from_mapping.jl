@@ -37,6 +37,7 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
             end
         end
     end
+    line_base_cap_data[!, "direction"] = ones(size(line_base_cap_data)[1])
     # Adding additional capacities to base capacities
     # for (idx,pca_from,pca_to,add_cap) in zip(range(1, length= DataFrames.nrow(line_additional_cap_data)),line_additional_cap_data[:,"r"],line_additional_cap_data[:,"rr"],line_additional_cap_data[:,"MW"])
     #     temp_idx = findall(x->x==pca_from, line_base_cap_data[!,"r"])
@@ -50,7 +51,7 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
     
     # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
     # indices PRAS expects
-    system_line_idx = []
+    system_line_idx,back_idx = [],[]
     for (idx,pca_from,pca_to) in zip(range(1,length= DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"*r"],line_base_cap_data[:,"rr"])
         from_idx = findfirst(x->x==pca_from,regions)
         to_idx = findfirst(x->x==pca_to,regions)
@@ -59,40 +60,45 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
             if (from_idx > to_idx)
                 line_base_cap_data[idx,"*r"] = pca_to
                 line_base_cap_data[idx,"rr"] = pca_from
+                line_base_cap_data[idx,"direction"] = 2.
+                push!(back_idx,idx)
             end
         end
     end
+    #order is assumed preserved in splitting these dfs for now but should likely be checked
     system_line_cap_data = line_base_cap_data[system_line_idx,:];
-    gdf = DataFrames.groupby(system_line_cap_data, ["*r","rr","trtype"]) #split-apply-combine b/c all entries are currently being repeated.
-    #To-Do to handle this better
-    system_line_cap_data = DataFrames.combine(gdf, :MW => Statistics.mean);
-    line_names = system_line_cap_data[!,"*r"].*"_".*system_line_cap_data[!,"rr"];
-    line_categories = string.(system_line_cap_data[!,"trtype"]);
+    system_line_naming_data = line_base_cap_data[back_idx,:]; #these are only backward
+    
+    # gdf = DataFrames.groupby(system_line_cap_data, ["*r","rr","trtype"]) #split-apply-combine b/c all entries are currently being repeated.
+    # #To-Do to handle this better
+    # system_line_cap_data = DataFrames.combine(gdf, :MW => Statistics.mean);
+    line_names = system_line_naming_data[!,"*r"].*"_".*system_line_naming_data[!,"rr"];
+    line_categories = string.(system_line_naming_data[!,"trtype"]);
 
     #######################################################
     # Collecting all information to make PRAS Lines
     #######################################################
-    n_lines = DataFrames.nrow(system_line_cap_data);
+    n_lines = DataFrames.nrow(system_line_naming_data);
     line_forward_capacity_array = Matrix{Int64}(undef, n_lines, N);
     line_backward_capacity_array = Matrix{Int64}(undef, n_lines, N);
 
     λ_lines = Matrix{Float64}(undef, n_lines, N); 
     μ_lines = Matrix{Float64}(undef, n_lines, N); 
-    for (idx,line_cap) in enumerate(system_line_cap_data[!,"MW_mean"])
-        line_forward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N);
-        line_backward_capacity_array[idx,:] = line_forward_capacity_array[idx,:];
+    for (idx,line_cap) in enumerate(system_line_naming_data[!,"MW"])
+        line_forward_capacity_array[idx,:] = fill.(floor.(Int,system_line_cap_data[idx,"MW"]),1,N)#fill.(floor.(Int,line_cap),1,N);
+        line_backward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N);#line_forward_capacity_array[idx,:];
 
         λ_lines[idx,:] .= 0.0; 
         μ_lines[idx,:] .= 1.0; 
     end
 
-    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_categories, line_forward_capacity_array, line_backward_capacity_array, λ_lines ,μ_lines);
+    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_categories, line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
 
     #######################################################
     # PRAS Interfaces
     #######################################################
     @info "Processing Interfaces in the mapping file..."
-    num_interfaces = DataFrames.nrow(system_line_cap_data);
+    num_interfaces = DataFrames.nrow(system_line_naming_data);
 
     interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
     start_id = Array{Int64}(undef,num_interfaces); 
@@ -101,8 +107,8 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
         interface_line_idxs[i] = range(start_id[i], length=1)
     end
 
-    interface_regions_from = [findfirst(x->x==system_line_cap_data[i,"*r"],regions) for i in 1:num_interfaces];
-    interface_regions_to = [findfirst(x->x==system_line_cap_data[i,"rr"],regions) for i in 1:num_interfaces];
+    interface_regions_from = [findfirst(x->x==system_line_naming_data[i,"*r"],regions) for i in 1:num_interfaces];
+    interface_regions_to = [findfirst(x->x==system_line_naming_data[i,"rr"],regions) for i in 1:num_interfaces];
     #######################################################
     # Collecting all information to make PRAS Interfaces
     #######################################################
