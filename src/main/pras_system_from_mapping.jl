@@ -72,7 +72,7 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
     # gdf = DataFrames.groupby(system_line_cap_data, ["*r","rr","trtype"]) #split-apply-combine b/c all entries are currently being repeated.
     # #To-Do to handle this better
     # system_line_cap_data = DataFrames.combine(gdf, :MW => Statistics.mean);
-    line_names = system_line_naming_data[!,"*r"].*"_".*system_line_naming_data[!,"rr"];
+    line_names = system_line_naming_data[!,"*r"].*"_".*system_line_naming_data[!,"rr"].*"_".*system_line_naming_data[!,"trtype"];
     line_categories = string.(system_line_naming_data[!,"trtype"]);
 
     #######################################################
@@ -130,6 +130,8 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     tech_types_data = DataFrames.DataFrame(CSV.File(tech_types));
 
     vg_types = tech_types_data[findall(!ismissing, tech_types_data[:,"VRE"]),"Column1"]
+    deleteat!(vg_types, findall(x->x=="csp-ns",vg_types)) #csp-ns causes problems, so delete for now
+
     storage_types = tech_types_data[findall(!ismissing, tech_types_data[:,"STORAGE"]),"Column1"]
 
     #clean vg/storage capacity on a regex, though there might be a better way...    
@@ -164,6 +166,7 @@ function create_generators_from_data(gen_matrix,gen_names,gen_categories)
 end
 
 function process_thermals(thermal_builds::DataFrames.DataFrame, N::Int)
+    thermal_builds = thermal_builds[(thermal_builds.Dim1.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     #get the vector of appropriate indices
     thermal_names = [string(thermal_builds[!,"Dim1"][i])*"_"*string(thermal_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(thermal_builds)]
     thermal_capacities = thermal_builds[!,"Val"]#want capacities
@@ -201,7 +204,6 @@ function process_vg(vg_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int
     cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","recf.h5"), "data")
     indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],))
     cap_factors = cf_info["block0_values"]
-
     retained_cap_factors = cap_factors[indices,1:N] #slice recf, just take first year for now until more is known
     
     #return the profiles
@@ -258,10 +260,10 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "Fetching ReEDS case data to build PRAS System..."
 
     #load-related information
-    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","load.h5"), "data") ;
+    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","load.h5"), "data");
     load_data = load_info["block0_values"];
     regions = load_info["axis0"];
-    
+
     slicer = findfirst(isequal(Year), load_info["axis1_level0"]);
     indices = findall(i->(i==(slicer-1)),load_info["axis1_label0"]); #I think b/c julia indexes from 1 we need -1 here
     #probably want some kind of assert/error here if indices are empty that states the year is invalid
