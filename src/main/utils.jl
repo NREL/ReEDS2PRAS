@@ -58,3 +58,19 @@ function makeidxlist(collectionidxs::Vector{Int}, n_collections::Int)
     return idxlist
 
 end
+
+#Borrowed & modified from PLEXOS2PRAS 
+#only have FOR right now, so just make simple assumption about MTTR being 24 hours (IDK, whatever)
+
+function FOR_to_transitionprobs(for_raw::Float64) 
+
+    # raw MTTR is in hours, raw FOR is a fraction
+    mttr = 24. #input for now 
+    μ = 1 ./ mttr
+    # μ[mttrs .== 0] .= one(V) # Interpret zero MTTR as μ = 1.
+    # fors = for_raw ./ 100
+    λ = μ .* for_raw ./ (1 .- for_raw)
+    # λ[fors .== 0] .= zero(V) # Interpret zero FOR as λ = 0.
+    return λ, μ
+
+end

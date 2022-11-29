@@ -150,22 +150,34 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function create_generators_from_data(gen_matrix,gen_names,gen_categories)
+function create_generators_from_data!(gen_matrix,gen_names,gen_categories,FOR_data)
+    #grab the FORS
     n_gen,N = size(gen_matrix)[1],size(gen_matrix)[2];
     gen_cap_array = Matrix{Int64}(undef, n_gen, N);
     λ_gen = Matrix{Float64}(undef, n_gen, N);
     μ_gen = Matrix{Float64}(undef, n_gen, N);
     for idx in 1:n_gen
         gen_cap_array[idx,:] = floor.(Int,gen_matrix[idx,:]); #converts to int
-        λ_gen[idx,:] .= 0.01; #eventually this will have to call to Sinnott's data 
-        μ_gen[idx,:] .= 0.2;
+        
+        #use conditional to set failure and recovery probabilities for generators
+        #eventually this will have to call to Sinnott's data & be much more sophisticated
+        if gen_categories[idx] in FOR_data[!,"Column1"]
+            for_idx = findfirst(x->x==gen_categories[idx],FOR_data[!,"Column1"])#get the idx
+            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+            lambda,mu = FOR_to_transitionprobs(gen_for)#run the helper fxn
+            λ_gen[idx,:] .= lambda;
+            μ_gen[idx,:] .= mu;
+        else
+            λ_gen[idx,:] .= 0.01; 
+            μ_gen[idx,:] .= 0.2;
+        end
     end
 
 
     return (gen_names,gen_categories,gen_cap_array,λ_gen,μ_gen);
 end
 
-function process_thermals(thermal_builds::DataFrames.DataFrame, N::Int)
+function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int)
     thermal_builds = thermal_builds[(thermal_builds.Dim1.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     #get the vector of appropriate indices
     thermal_names = [string(thermal_builds[!,"Dim1"][i])*"_"*string(thermal_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(thermal_builds)]
@@ -178,10 +190,10 @@ function process_thermals(thermal_builds::DataFrames.DataFrame, N::Int)
 
     thermal_cap_factors = ones(length(thermal_names),N)
 
-    return(create_generators_from_data(thermal_capacities.*thermal_cap_factors, thermal_names, thermal_categories),thermal_regions)
+    return(create_generators_from_data!(thermal_capacities.*thermal_cap_factors,thermal_names,thermal_categories,FOR_data),thermal_regions)
 end
 
-function process_vg(vg_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int)
+function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int)
     #get the vector of appropriate indices
     vg_names = [string(vg_builds[!,"Dim1"][i])*"_"*string(vg_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(vg_builds)];
     vg_capacities = vg_builds[!,"Val"];#want capacities
@@ -207,10 +219,10 @@ function process_vg(vg_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int
     retained_cap_factors = cap_factors[indices,1:N] #slice recf, just take first year for now until more is known
     
     #return the profiles
-    return(create_generators_from_data(vg_capacities.*retained_cap_factors, vg_names, vg_categories),vg_regions)
+    return(create_generators_from_data!(vg_capacities.*retained_cap_factors,vg_names,vg_categories,FOR_data),vg_regions)
 end
 
-function process_storages(storage_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int,regions::Vector,Year::Int64)
+function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int,regions::Vector,Year::Int64)
     #get the vector of appropriate indices
     @info "handling power capacity of storages"
     storage_names = [string(storage_builds[!,"Dim1"][i])*"_"*string(storage_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(storage_builds)];
@@ -220,7 +232,7 @@ function process_storages(storage_builds::DataFrames.DataFrame,ReEDSfilepath::St
     storage_categories = string.(storage_builds[!,"Dim1"]);#[string(vg_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(vg_builds)]
     storage_regions = string.(storage_builds[!,"Dim2"]);
     region_stor_capacity_idxs,stor_capacity_region_order = sort_gens(storage_regions,regions,length(regions))
-    stor_names,stor_categories,stor_discharge_cap_array,λ_stor,μ_stor= create_generators_from_data(storage_capacities[stor_capacity_region_order].*storage_cap_factors, storage_names[stor_capacity_region_order], storage_categories[stor_capacity_region_order]);
+    stor_names,stor_categories,stor_discharge_cap_array,λ_stor,μ_stor= create_generators_from_data!(storage_capacities[stor_capacity_region_order].*storage_cap_factors,storage_names[stor_capacity_region_order],storage_categories[stor_capacity_region_order],FOR_data);
     stor_charge_cap_array = stor_discharge_cap_array #make this equal for now
     
     @info "handling energy capacity of storages"
@@ -264,6 +276,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     load_data = load_info["block0_values"];
     regions = load_info["axis0"];
 
+    #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
     slicer = findfirst(isequal(Year), load_info["axis1_level0"]);
     indices = findall(i->(i==(slicer-1)),load_info["axis1_label0"]); #I think b/c julia indexes from 1 we need -1 here
     #probably want some kind of assert/error here if indices are empty that states the year is invalid
@@ -293,11 +306,16 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
 
     #pull the generators into appropriate STRUCTS, with defaults
 
+    @info "reading in ReEDS generator-type forced outage data..."
+    # is it important to also handle planned outages?
+    forced_outage_path = joinpath(ReEDSfilepath,"inputs_case","outage_forced.csv") #there is also a _prm file, not sure which is right?
+    forced_outage_data = DataFrames.DataFrame(CSV.File(forced_outage_path,header=false));
+
     #for thermal, we need outage stuff
     #for thermal, we will need a disaggreggation helper fxn. Possibly a couple. May need EIA860 data
     #for vg, we need profiles
-    vg_tup = process_vg(vg,ReEDSfilepath,N);
-    thermal_tup = process_thermals(thermal,N);
+    vg_tup = process_vg(vg,forced_outage_data,ReEDSfilepath,N);
+    thermal_tup = process_thermals(thermal,forced_outage_data,N);
 
     gen_tup = [vcat(a,b) for (a,b) in zip(thermal_tup[1],vg_tup[1])];
     area_gen_idxs,region_order = sort_gens(vcat(thermal_tup[2],vg_tup[2]),regions,length(regions))
@@ -316,7 +334,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # Storages are added 11.28
     #######################################################
     @info "Processing Storages..."
-    new_storage,area_stor_idxs = process_storages(storage,ReEDSfilepath,N,regions,Year)
+    new_storage,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
     
     #######################################################
     # PRAS GeneratorStorages
