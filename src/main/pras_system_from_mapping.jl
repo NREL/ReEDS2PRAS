@@ -8,12 +8,17 @@
 
 function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
     @info "Processing lines..."
-    line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
-    line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
+    if isfile(joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv"))
+        line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
+        line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
 
-    line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
-    line_additional_cap_data = DataFrames.DataFrame(CSV.File(line_cap_additional_csv_location;select=["*r","rr","trtype","MW"]));
-    
+        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
+        line_additional_cap_data = DataFrames.DataFrame(CSV.File(line_cap_additional_csv_location;select=["*r","rr","trtype","MW"]));
+    else
+        @info "---> default file read for transmission capacity fails, try reading alternative file structure"
+        line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init.csv"); #there is also a _prm file, not sure which is right?
+        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
+    end
     ####################################################### 
     # PRAS lines
     # ToDO: Do we need to handle HVDC lines differently?
