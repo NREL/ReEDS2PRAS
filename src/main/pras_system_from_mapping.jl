@@ -8,12 +8,17 @@
 
 function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
     @info "Processing lines..."
-    line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
-    line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
+    if isfile(joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv"))
+        line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
+        line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
 
-    line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
-    line_additional_cap_data = DataFrames.DataFrame(CSV.File(line_cap_additional_csv_location;select=["*r","rr","trtype","MW"]));
-    
+        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
+        line_additional_cap_data = DataFrames.DataFrame(CSV.File(line_cap_additional_csv_location;select=["*r","rr","trtype","MW"]));
+    else
+        @info "---> default file read for transmission capacity fails, try reading alternative file structure"
+        line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init.csv"); #there is also a _prm file, not sure which is right?
+        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
+    end
     ####################################################### 
     # PRAS lines
     # ToDO: Do we need to handle HVDC lines differently?
@@ -37,6 +42,7 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
             end
         end
     end
+    line_base_cap_data[!, "direction"] = ones(size(line_base_cap_data)[1])
     # Adding additional capacities to base capacities
     # for (idx,pca_from,pca_to,add_cap) in zip(range(1, length= DataFrames.nrow(line_additional_cap_data)),line_additional_cap_data[:,"r"],line_additional_cap_data[:,"rr"],line_additional_cap_data[:,"MW"])
     #     temp_idx = findall(x->x==pca_from, line_base_cap_data[!,"r"])
@@ -50,7 +56,7 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
     
     # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
     # indices PRAS expects
-    system_line_idx = []
+    system_line_idx,back_idx = [],[]
     for (idx,pca_from,pca_to) in zip(range(1,length= DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"*r"],line_base_cap_data[:,"rr"])
         from_idx = findfirst(x->x==pca_from,regions)
         to_idx = findfirst(x->x==pca_to,regions)
@@ -59,40 +65,45 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
             if (from_idx > to_idx)
                 line_base_cap_data[idx,"*r"] = pca_to
                 line_base_cap_data[idx,"rr"] = pca_from
+                line_base_cap_data[idx,"direction"] = 2.
+                push!(back_idx,idx)
             end
         end
     end
+    #order is assumed preserved in splitting these dfs for now but should likely be checked
     system_line_cap_data = line_base_cap_data[system_line_idx,:];
-    gdf = DataFrames.groupby(system_line_cap_data, ["*r","rr","trtype"]) #split-apply-combine b/c all entries are currently being repeated.
-    #To-Do to handle this better
-    system_line_cap_data = DataFrames.combine(gdf, :MW => Statistics.mean);
-    line_names = system_line_cap_data[!,"*r"].*"_".*system_line_cap_data[!,"rr"];
-    line_categories = string.(system_line_cap_data[!,"trtype"]);
+    system_line_naming_data = line_base_cap_data[back_idx,:]; #these are only backward
+    
+    # gdf = DataFrames.groupby(system_line_cap_data, ["*r","rr","trtype"]) #split-apply-combine b/c all entries are currently being repeated.
+    # #To-Do to handle this better
+    # system_line_cap_data = DataFrames.combine(gdf, :MW => Statistics.mean);
+    line_names = system_line_naming_data[!,"*r"].*"_".*system_line_naming_data[!,"rr"].*"_".*system_line_naming_data[!,"trtype"];
+    line_categories = string.(system_line_naming_data[!,"trtype"]);
 
     #######################################################
     # Collecting all information to make PRAS Lines
     #######################################################
-    n_lines = DataFrames.nrow(system_line_cap_data);
+    n_lines = DataFrames.nrow(system_line_naming_data);
     line_forward_capacity_array = Matrix{Int64}(undef, n_lines, N);
     line_backward_capacity_array = Matrix{Int64}(undef, n_lines, N);
 
     λ_lines = Matrix{Float64}(undef, n_lines, N); 
     μ_lines = Matrix{Float64}(undef, n_lines, N); 
-    for (idx,line_cap) in enumerate(system_line_cap_data[!,"MW_mean"])
-        line_forward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N);
-        line_backward_capacity_array[idx,:] = line_forward_capacity_array[idx,:];
+    for (idx,line_cap) in enumerate(system_line_naming_data[!,"MW"])
+        line_forward_capacity_array[idx,:] = fill.(floor.(Int,system_line_cap_data[idx,"MW"]),1,N)#fill.(floor.(Int,line_cap),1,N);
+        line_backward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N);#line_forward_capacity_array[idx,:];
 
         λ_lines[idx,:] .= 0.0; 
         μ_lines[idx,:] .= 1.0; 
     end
 
-    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_categories, line_forward_capacity_array, line_backward_capacity_array, λ_lines ,μ_lines);
+    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_categories, line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
 
     #######################################################
     # PRAS Interfaces
     #######################################################
     @info "Processing Interfaces in the mapping file..."
-    num_interfaces = DataFrames.nrow(system_line_cap_data);
+    num_interfaces = DataFrames.nrow(system_line_naming_data);
 
     interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
     start_id = Array{Int64}(undef,num_interfaces); 
@@ -101,8 +112,8 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
         interface_line_idxs[i] = range(start_id[i], length=1)
     end
 
-    interface_regions_from = [findfirst(x->x==system_line_cap_data[i,"*r"],regions) for i in 1:num_interfaces];
-    interface_regions_to = [findfirst(x->x==system_line_cap_data[i,"rr"],regions) for i in 1:num_interfaces];
+    interface_regions_from = [findfirst(x->x==system_line_naming_data[i,"*r"],regions) for i in 1:num_interfaces];
+    interface_regions_to = [findfirst(x->x==system_line_naming_data[i,"rr"],regions) for i in 1:num_interfaces];
     #######################################################
     # Collecting all information to make PRAS Interfaces
     #######################################################
@@ -124,6 +135,8 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     tech_types_data = DataFrames.DataFrame(CSV.File(tech_types));
 
     vg_types = tech_types_data[findall(!ismissing, tech_types_data[:,"VRE"]),"Column1"]
+    deleteat!(vg_types, findall(x->x=="csp-ns",vg_types)) #csp-ns causes problems, so delete for now
+
     storage_types = tech_types_data[findall(!ismissing, tech_types_data[:,"STORAGE"]),"Column1"]
 
     #clean vg/storage capacity on a regex, though there might be a better way...    
@@ -142,22 +155,35 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function create_generators_from_data(gen_matrix,gen_names,gen_categories)
+function create_generators_from_data!(gen_matrix,gen_names,gen_categories,FOR_data)
+    #grab the FORS
     n_gen,N = size(gen_matrix)[1],size(gen_matrix)[2];
     gen_cap_array = Matrix{Int64}(undef, n_gen, N);
     λ_gen = Matrix{Float64}(undef, n_gen, N);
     μ_gen = Matrix{Float64}(undef, n_gen, N);
     for idx in 1:n_gen
         gen_cap_array[idx,:] = floor.(Int,gen_matrix[idx,:]); #converts to int
-        λ_gen[idx,:] .= 0.01; #eventually this will have to call to Sinnott's data 
-        μ_gen[idx,:] .= 0.2;
+        
+        #use conditional to set failure and recovery probabilities for generators
+        #eventually this will have to call to Sinnott's data & be much more sophisticated
+        if gen_categories[idx] in FOR_data[!,"Column1"]
+            for_idx = findfirst(x->x==gen_categories[idx],FOR_data[!,"Column1"])#get the idx
+            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+            lambda,mu = FOR_to_transitionprobs(gen_for)#run the helper fxn
+            λ_gen[idx,:] .= lambda;
+            μ_gen[idx,:] .= mu;
+        else
+            λ_gen[idx,:] .= 0.01; 
+            μ_gen[idx,:] .= 0.2;
+        end
     end
 
 
-    return (gen_names, gen_categories, gen_cap_array , λ_gen ,μ_gen);
+    return (gen_names,gen_categories,gen_cap_array,λ_gen,μ_gen);
 end
 
-function process_thermals(thermal_builds::DataFrames.DataFrame, N::Int)
+function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int)
+    thermal_builds = thermal_builds[(thermal_builds.Dim1.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     #get the vector of appropriate indices
     thermal_names = [string(thermal_builds[!,"Dim1"][i])*"_"*string(thermal_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(thermal_builds)]
     thermal_capacities = thermal_builds[!,"Val"]#want capacities
@@ -169,10 +195,10 @@ function process_thermals(thermal_builds::DataFrames.DataFrame, N::Int)
 
     thermal_cap_factors = ones(length(thermal_names),N)
 
-    return(create_generators_from_data(thermal_capacities.*thermal_cap_factors, thermal_names, thermal_categories),thermal_regions)
+    return(create_generators_from_data!(thermal_capacities.*thermal_cap_factors,thermal_names,thermal_categories,FOR_data),thermal_regions)
 end
 
-function process_vg(vg_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int)
+function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int)
     #get the vector of appropriate indices
     vg_names = [string(vg_builds[!,"Dim1"][i])*"_"*string(vg_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(vg_builds)];
     vg_capacities = vg_builds[!,"Val"];#want capacities
@@ -195,11 +221,52 @@ function process_vg(vg_builds::DataFrames.DataFrame,ReEDSfilepath::String,N::Int
     cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","recf.h5"), "data")
     indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],))
     cap_factors = cf_info["block0_values"]
-
     retained_cap_factors = cap_factors[indices,1:N] #slice recf, just take first year for now until more is known
     
     #return the profiles
-    return(create_generators_from_data(vg_capacities.*retained_cap_factors, vg_names, vg_categories),vg_regions)
+    return(create_generators_from_data!(vg_capacities.*retained_cap_factors,vg_names,vg_categories,FOR_data),vg_regions)
+end
+
+function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int,regions::Vector,Year::Int64)
+    #get the vector of appropriate indices
+    @info "handling power capacity of storages"
+    storage_names = [string(storage_builds[!,"Dim1"][i])*"_"*string(storage_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(storage_builds)];
+    storage_capacities = storage_builds[!,"Val"];#want capacities
+    storage_cap_factors = ones(length(storage_names),N);
+    #get regions and convert them to appropriate data where relevant
+    storage_categories = string.(storage_builds[!,"Dim1"]);#[string(vg_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(vg_builds)]
+    storage_regions = string.(storage_builds[!,"Dim2"]);
+    region_stor_capacity_idxs,stor_capacity_region_order = sort_gens(storage_regions,regions,length(regions))
+    stor_names,stor_categories,stor_discharge_cap_array,λ_stor,μ_stor= create_generators_from_data!(storage_capacities[stor_capacity_region_order].*storage_cap_factors,storage_names[stor_capacity_region_order],storage_categories[stor_capacity_region_order],FOR_data);
+    stor_charge_cap_array = stor_discharge_cap_array #make this equal for now
+    
+    @info "handling energy capacity of storages"
+    storage_energy_capacities = joinpath(ReEDSfilepath,"outputs","stor_energy_cap.csv")
+    storage_energy_capacity_data = DataFrames.DataFrame(CSV.File(storage_energy_capacities))
+    annual_data = storage_energy_capacity_data[storage_energy_capacity_data.Dim4.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative    
+    
+    gdf = DataFrames.groupby(annual_data, ["Dim1","Dim3"]) #split-apply-combine to handle differently vintaged entries
+    annual_data_sum = DataFrames.combine(gdf, :Val => sum);
+    storage_energy_capacity_regions = string.(annual_data_sum[!,"Dim3"]);
+    #reorder to ensure proper order!
+    region_stor_idxs,stor_region_order = sort_gens(storage_energy_capacity_regions,regions,length(regions))
+    stor_energy_cap_array = annual_data_sum[stor_region_order,"Val_sum"].*storage_cap_factors
+    stor_energy_cap_array = floor.(Int, stor_energy_cap_array)#go to int
+
+    #now we can do the matrix math on the sorted vector of energy capacities
+    # stor_energy_cap_array = stor_discharge_cap_array #this is a terrible idea, but for now
+    
+    #efficiency and carryover; fill all as ones for now
+    stor_chrg_eff_array = ones(length(stor_names),N);
+    stor_dischrg_eff_array = ones(length(stor_names),N);
+    stor_cryovr_eff = ones(length(stor_names),N);
+
+    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(stor_names,stor_categories,
+                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
+                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
+                                                λ_stor,μ_stor);
+
+    return(new_storage,region_stor_idxs)
 end
 
 function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, CaseLabel::String)
@@ -210,10 +277,11 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "Fetching ReEDS case data to build PRAS System..."
 
     #load-related information
-    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","load.h5"), "data") ;
+    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","load.h5"), "data");
     load_data = load_info["block0_values"];
     regions = load_info["axis0"];
-    
+
+    #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
     slicer = findfirst(isequal(Year), load_info["axis1_level0"]);
     indices = findall(i->(i==(slicer-1)),load_info["axis1_label0"]); #I think b/c julia indexes from 1 we need -1 here
     #probably want some kind of assert/error here if indices are empty that states the year is invalid
@@ -240,14 +308,19 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #generation capacity
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
     thermal,storage,vg = split_generator_types(ReEDSfilepath,Year);
-    
+
     #pull the generators into appropriate STRUCTS, with defaults
+
+    @info "reading in ReEDS generator-type forced outage data..."
+    # is it important to also handle planned outages?
+    forced_outage_path = joinpath(ReEDSfilepath,"inputs_case","outage_forced.csv") #there is also a _prm file, not sure which is right?
+    forced_outage_data = DataFrames.DataFrame(CSV.File(forced_outage_path,header=false));
 
     #for thermal, we need outage stuff
     #for thermal, we will need a disaggreggation helper fxn. Possibly a couple. May need EIA860 data
     #for vg, we need profiles
-    vg_tup = process_vg(vg,ReEDSfilepath,N);
-    thermal_tup = process_thermals(thermal,N);
+    vg_tup = process_vg(vg,forced_outage_data,ReEDSfilepath,N);
+    thermal_tup = process_thermals(thermal,forced_outage_data,N);
 
     gen_tup = [vcat(a,b) for (a,b) in zip(thermal_tup[1],vg_tup[1])];
     area_gen_idxs,region_order = sort_gens(vcat(thermal_tup[2],vg_tup[2]),regions,length(regions))
@@ -263,30 +336,11 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
 
     #######################################################
     # PRAS Storages
-    # No Storages in this system for now
+    # Storages are added 11.28
     #######################################################
-    @info "Processing Storages [EMPTY FOR NOW]..."
-    stor_names = String[];
-    stor_categories = String[];
-
-    n_stor = 0;
-
-    stor_charge_cap_array = Matrix{Int64}(undef, n_stor, N);
-    stor_discharge_cap_array = Matrix{Int64}(undef, n_stor, N);
-    stor_energy_cap_array = Matrix{Int64}(undef, n_stor, N);
-    stor_chrg_eff_array = Matrix{Float64}(undef, n_stor, N);
-    stor_dischrg_eff_array  = Matrix{Float64}(undef, n_stor, N);
-    stor_cryovr_eff = ones(n_stor,N);
-    λ_stor = Matrix{Float64}(undef, n_stor, N); 
-    μ_stor = Matrix{Float64}(undef, n_stor, N);
-
-    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(stor_names,stor_categories,
-                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
-                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
-                                                λ_stor,μ_stor);
-
-    area_stor_idxs = fill(1:0, num_areas);
-
+    @info "Processing Storages..."
+    new_storage,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
+    
     #######################################################
     # PRAS GeneratorStorages
     # No GeneratorStorages in this system
