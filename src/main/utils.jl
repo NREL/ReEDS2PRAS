@@ -61,7 +61,6 @@ end
 
 #Borrowed & modified from PLEXOS2PRAS 
 #only have FOR right now, so just make simple assumption about MTTR being 24 hours (IDK, whatever)
-
 function FOR_to_transitionprobs(for_raw::Float64) 
 
     # raw MTTR is in hours, raw FOR is a fraction
@@ -74,3 +73,28 @@ function FOR_to_transitionprobs(for_raw::Float64)
     return λ, μ
 
 end
+
+### disaggregation of capacity is not yet implemented ###
+
+# function Load_and_agg_ReEDS_EIA_NEMS_db(ReEDS_directory::String)
+#     EIA_NEMS_loc = joinpath(ReEDS_directory,"inputs","capacity_data","ReEDS_generator_database_final_EIA-NEMS.csv"); #there is also a _prm file, not sure which is right?
+#     EIA_NEMS_data = DataFrames.DataFrame(CSV.File(ReEDS_directory));
+
+#     #run a split-apply-combine to get ICAPs by resource type
+
+#     #max, average capacities by resource type? But we need to compare w/ 
+# end
+
+
+
+# function disagg_existing_capacity(eia_nems_db::DataFrames.DataFrame,retired_capacity,)
+#     #pass each region-gentype capacity, filter against EIA-NEMS and retirement info
+#     #then return disaggregated region-gentype existing capacity and newbuild remainder
+
+#     return (existing_capacity,new_capacity)
+# end
+
+# function disagg_new_capacity(new_capacity,avg,max)
+#     disagg_new_capacity = new_capacity
+#     return disagg_new_capacity
+# end
