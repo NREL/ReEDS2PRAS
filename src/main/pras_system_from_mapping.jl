@@ -1,4 +1,3 @@
-
 #####################################################
 # Luke
 # NREL
@@ -6,9 +5,17 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
+function process_lines(ReEDSfilepath::String,regions::Vector,Year::Int,N::Int)
     @info "Processing lines..."
-    if isfile(joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv"))
+
+    if isfile(joinpath(ReEDSfilepath,"outputs","tran_out.csv"))
+        line_base_cap_csv_location = joinpath(ReEDSfilepath,"outputs","tran_out.csv")
+        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_base_cap_csv_location));#load the csv
+        DataFrames.rename!(line_base_cap_data, (names(line_base_cap_data) .=> ["*r","rr","trtype","Year","MW"])...)#rename the columns
+        line_base_cap_data = line_base_cap_data[line_base_cap_data.Year.==Year,:] #filter by year, ReEDS line capacity is cumulative 
+
+    elseif isfile(joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv"))
+        @info "---> on error, read old file structure for now, but, generally, this is a cause for concern..."
         line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
         line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
 
@@ -26,37 +33,34 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
     ####################################################### 
     # Adding up line capacities between same PCA's
     @info "Processing Lines in the mapping file..."
-    base_cap_pca_pairs = line_base_cap_data[!,"*r"].*"_".*line_base_cap_data[!,"rr"];
-    unique_base_cap_pca_pairs  = unique(base_cap_pca_pairs);
-    
-    for pca_pair in unique_base_cap_pca_pairs
-        pca_idxs = findall(x -> x == pca_pair, base_cap_pca_pairs);
-        if (length(pca_idxs) >1)
-            sum_cap = 0
-            for pca_idx in pca_idxs
-                sum_cap+=line_base_cap_data[pca_idx,"MW"]
-            end
-            line_base_cap_data[pca_idxs[1],"MW"] = sum_cap
-            for del_idx in range(2,length=length(pca_idxs)-1)
-                delete!(line_base_cap_data,pca_idxs[del_idx])
-            end
-        end
-    end
-    line_base_cap_data[!, "direction"] = ones(size(line_base_cap_data)[1])
-    # Adding additional capacities to base capacities
-    # for (idx,pca_from,pca_to,add_cap) in zip(range(1, length= DataFrames.nrow(line_additional_cap_data)),line_additional_cap_data[:,"r"],line_additional_cap_data[:,"rr"],line_additional_cap_data[:,"MW"])
-    #     temp_idx = findall(x->x==pca_from, line_base_cap_data[!,"r"])
-    #     map_idx  = findall(x->x==pca_to, line_base_cap_data[temp_idx,"rr"])
-    #     if (length(map_idx) !=0)
-    #         line_base_cap_data[temp_idx[map_idx][1],"MW"] = line_base_cap_data[temp_idx[map_idx][1],"MW"] + add_cap
-    #     else
-    #         push!(line_base_cap_data,line_additional_cap_data[idx,:])
+    # base_cap_pca_pairs = line_base_cap_data[!,"*r"].*"_".*line_base_cap_data[!,"rr"];
+    # unique_base_cap_pca_pairs  = unique(base_cap_pca_pairs);
+    # println(base_cap_pca_pairs)
+    # for pca_pair in unique_base_cap_pca_pairs
+    #     pca_idxs = findall(x -> x == pca_pair, base_cap_pca_pairs);
+    #     println(pca_idxs)
+    #     if (length(pca_idxs) >1)
+    #         sum_cap = 0
+    #         for pca_idx in pca_idxs
+    #             println(pca_idx)
+    #             sum_cap+=line_base_cap_data[pca_idx,"MW"]
+    #         end
+    #         println("add")
+    #         line_base_cap_data[pca_idxs[1],"MW"] = sum_cap
+    #         println(line_base_cap_data)
+    #         for del_idx in range(2,length=length(pca_idxs)-1)
+    #             println("a del")
+    #             delete!(line_base_cap_data,pca_idxs[del_idx])
+    #         end
+    #         println("...")
+    #         println(line_base_cap_data)
     #     end
     # end
+    line_base_cap_data[!, "direction"] = ones(size(line_base_cap_data)[1])
     
     # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
     # indices PRAS expects
-    system_line_idx,back_idx = [],[]
+    system_line_idx = []
     for (idx,pca_from,pca_to) in zip(range(1,length= DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"*r"],line_base_cap_data[:,"rr"])
         from_idx = findfirst(x->x==pca_from,regions)
         to_idx = findfirst(x->x==pca_to,regions)
@@ -66,17 +70,21 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
                 line_base_cap_data[idx,"*r"] = pca_to
                 line_base_cap_data[idx,"rr"] = pca_from
                 line_base_cap_data[idx,"direction"] = 2.
-                push!(back_idx,idx)
+            #     push!(back_idx,idx)
+            # elseif (to_idx > from_idx)
+            #     push!(fwd_idx,idx)
             end
         end
     end
     #order is assumed preserved in splitting these dfs for now but should likely be checked
-    system_line_cap_data = line_base_cap_data[system_line_idx,:];
-    system_line_naming_data = line_base_cap_data[back_idx,:]; #these are only backward
-    
-    # gdf = DataFrames.groupby(system_line_cap_data, ["*r","rr","trtype"]) #split-apply-combine b/c all entries are currently being repeated.
-    # #To-Do to handle this better
-    # system_line_cap_data = DataFrames.combine(gdf, :MW => Statistics.mean);
+    system_line_naming_data = line_base_cap_data[system_line_idx,:]; # all line capacities
+    # println(system_line_naming_data)
+    # line_idxs,line_region_order = sort_gens(system_line_naming_data[!,"*r"],regions,length(regions))
+    # system_line_naming_data = system_line_naming_data[line_region_order,:]
+
+    gdf = DataFrames.groupby(system_line_naming_data, ["*r","rr","trtype"]) #split-apply-combine b/c some lines have same name convention
+    system_line_naming_data = DataFrames.combine(gdf, :MW => sum); 
+
     line_names = system_line_naming_data[!,"*r"].*"_".*system_line_naming_data[!,"rr"].*"_".*system_line_naming_data[!,"trtype"];
     line_categories = string.(system_line_naming_data[!,"trtype"]);
 
@@ -89,9 +97,9 @@ function process_lines(ReEDSfilepath::String,regions::Vector,N::Int)
 
     λ_lines = Matrix{Float64}(undef, n_lines, N); 
     μ_lines = Matrix{Float64}(undef, n_lines, N); 
-    for (idx,line_cap) in enumerate(system_line_naming_data[!,"MW"])
-        line_forward_capacity_array[idx,:] = fill.(floor.(Int,system_line_cap_data[idx,"MW"]),1,N)#fill.(floor.(Int,line_cap),1,N);
-        line_backward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N);#line_forward_capacity_array[idx,:];
+    for (idx,line_cap) in enumerate(system_line_naming_data[!,"MW_sum"])
+        line_forward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N); #forward and backward capacities are the same
+        line_backward_capacity_array[idx,:] = fill.(floor.(Int,line_cap),1,N);
 
         λ_lines[idx,:] .= 0.0; 
         μ_lines[idx,:] .= 1.0; 
@@ -285,7 +293,8 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     slicer = findfirst(isequal(Year), load_info["axis1_level0"]);
     indices = findall(i->(i==(slicer-1)),load_info["axis1_label0"]); #I think b/c julia indexes from 1 we need -1 here
     #probably want some kind of assert/error here if indices are empty that states the year is invalid
-    load_year = load_data[:,indices]; #should be regionsX8760 if done right
+    
+    load_year = load_data[:,indices[1:8760]]; #should be regionsX8760, which is now just enforced
     
     @info "Processing Areas in the mapping file into PRAS regions..."
     # area_names = string.(mapping_data[!,"PlainInter"]);
@@ -303,7 +312,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # **TODO: Figure out how to not take in account "0.0" gen_mw_max generators!!
     # **TODO : If fuel info is available, figure out how to not count them to avoid double counting.
     #######################################################
-    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,8760);
+    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,Year,8760);
 
     #generation capacity
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
@@ -377,6 +386,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
 
     #save PRAS system somewhere we can use it?
     PRAS.savemodel(pras_system,joinpath(ReEDSfilepath,"outputs",CaseLabel*".pras"))
+    short,flow = run_pras_system(pras_system,10)
     return(pras_system)
-    # return(new_gen_stors)
+    
 end

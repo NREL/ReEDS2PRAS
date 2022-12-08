@@ -74,6 +74,12 @@ function FOR_to_transitionprobs(for_raw::Float64)
 
 end
 
+function run_pras_system(sys::PRAS.SystemModel,sample::Int)
+    shortfalls,flows = PRAS.assess(sys,PRAS.SequentialMonteCarlo(samples=sample),PRAS.Shortfall(),PRAS.Flow())
+    println(PRAS.LOLE(shortfalls))
+    return shortfalls,flows
+end
+
 ### disaggregation of capacity is not yet implemented ###
 
 # function Load_and_agg_ReEDS_EIA_NEMS_db(ReEDS_directory::String)
