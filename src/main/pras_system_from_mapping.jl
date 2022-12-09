@@ -8,23 +8,14 @@
 function process_lines(ReEDSfilepath::String,regions::Vector,Year::Int,N::Int)
     @info "Processing lines..."
 
-    if isfile(joinpath(ReEDSfilepath,"outputs","tran_out.csv"))
-        line_base_cap_csv_location = joinpath(ReEDSfilepath,"outputs","tran_out.csv")
+    if isfile(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(Year)*".csv"))
+        line_base_cap_csv_location = joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(Year)*".csv")
+        # cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(Year)*".h5"),"data"); #load is now picked up from augur
         line_base_cap_data = DataFrames.DataFrame(CSV.File(line_base_cap_csv_location));#load the csv
-        DataFrames.rename!(line_base_cap_data, (names(line_base_cap_data) .=> ["*r","rr","trtype","Year","MW"])...)#rename the columns
-        line_base_cap_data = line_base_cap_data[line_base_cap_data.Year.==Year,:] #filter by year, ReEDS line capacity is cumulative 
-
-    elseif isfile(joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv"))
-        @info "---> on error, read old file structure for now, but, generally, this is a cause for concern..."
-        line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init_energy.csv") #there is also a _prm file, not sure which is right?
-        line_cap_additional_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_fut.csv")
-
-        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
-        line_additional_cap_data = DataFrames.DataFrame(CSV.File(line_cap_additional_csv_location;select=["*r","rr","trtype","MW"]));
+        # DataFrames.rename!(line_base_cap_data, (names(line_base_cap_data) .=> ["*r","rr","trtype","Year","MW"])...)#rename the columns
+        # line_base_cap_data = line_base_cap_data[line_base_cap_data.Year.==Year,:] #filter by year, ReEDS line capacity is cumulative 
     else
-        @info "---> default file read for transmission capacity fails, try reading alternative file structure"
-        line_cap_base_csv_location = joinpath(ReEDSfilepath,"inputs_case","trancap_init.csv"); #there is also a _prm file, not sure which is right?
-        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_cap_base_csv_location;select=["*r","rr","trtype","MW"]));
+        error("no transmission file is found. Are you sure $Year and filepath are valid for a saved Augur file?")
     end
     ####################################################### 
     # PRAS lines
@@ -33,59 +24,30 @@ function process_lines(ReEDSfilepath::String,regions::Vector,Year::Int,N::Int)
     ####################################################### 
     # Adding up line capacities between same PCA's
     @info "Processing Lines in the mapping file..."
-    # base_cap_pca_pairs = line_base_cap_data[!,"*r"].*"_".*line_base_cap_data[!,"rr"];
-    # unique_base_cap_pca_pairs  = unique(base_cap_pca_pairs);
-    # println(base_cap_pca_pairs)
-    # for pca_pair in unique_base_cap_pca_pairs
-    #     pca_idxs = findall(x -> x == pca_pair, base_cap_pca_pairs);
-    #     println(pca_idxs)
-    #     if (length(pca_idxs) >1)
-    #         sum_cap = 0
-    #         for pca_idx in pca_idxs
-    #             println(pca_idx)
-    #             sum_cap+=line_base_cap_data[pca_idx,"MW"]
-    #         end
-    #         println("add")
-    #         line_base_cap_data[pca_idxs[1],"MW"] = sum_cap
-    #         println(line_base_cap_data)
-    #         for del_idx in range(2,length=length(pca_idxs)-1)
-    #             println("a del")
-    #             delete!(line_base_cap_data,pca_idxs[del_idx])
-    #         end
-    #         println("...")
-    #         println(line_base_cap_data)
-    #     end
-    # end
     line_base_cap_data[!, "direction"] = ones(size(line_base_cap_data)[1])
     
     # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
     # indices PRAS expects
     system_line_idx = []
-    for (idx,pca_from,pca_to) in zip(range(1,length= DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"*r"],line_base_cap_data[:,"rr"])
+    for (idx,pca_from,pca_to) in zip(range(1,length= DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"r"],line_base_cap_data[:,"rr"])
         from_idx = findfirst(x->x==pca_from,regions)
         to_idx = findfirst(x->x==pca_to,regions)
         if (~(isnothing(from_idx)) && ~(isnothing(to_idx)))
             push!(system_line_idx,idx)
             if (from_idx > to_idx)
-                line_base_cap_data[idx,"*r"] = pca_to
+                line_base_cap_data[idx,"r"] = pca_to
                 line_base_cap_data[idx,"rr"] = pca_from
                 line_base_cap_data[idx,"direction"] = 2.
-            #     push!(back_idx,idx)
-            # elseif (to_idx > from_idx)
-            #     push!(fwd_idx,idx)
             end
         end
     end
     #order is assumed preserved in splitting these dfs for now but should likely be checked
     system_line_naming_data = line_base_cap_data[system_line_idx,:]; # all line capacities
-    # println(system_line_naming_data)
-    # line_idxs,line_region_order = sort_gens(system_line_naming_data[!,"*r"],regions,length(regions))
-    # system_line_naming_data = system_line_naming_data[line_region_order,:]
 
-    gdf = DataFrames.groupby(system_line_naming_data, ["*r","rr","trtype"]) #split-apply-combine b/c some lines have same name convention
+    gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]) #split-apply-combine b/c some lines have same name convention
     system_line_naming_data = DataFrames.combine(gdf, :MW => sum); 
 
-    line_names = system_line_naming_data[!,"*r"].*"_".*system_line_naming_data[!,"rr"].*"_".*system_line_naming_data[!,"trtype"];
+    line_names = system_line_naming_data[!,"r"].*"_".*system_line_naming_data[!,"rr"].*"_".*system_line_naming_data[!,"trtype"];
     line_categories = string.(system_line_naming_data[!,"trtype"]);
 
     #######################################################
@@ -120,7 +82,7 @@ function process_lines(ReEDSfilepath::String,regions::Vector,Year::Int,N::Int)
         interface_line_idxs[i] = range(start_id[i], length=1)
     end
 
-    interface_regions_from = [findfirst(x->x==system_line_naming_data[i,"*r"],regions) for i in 1:num_interfaces];
+    interface_regions_from = [findfirst(x->x==system_line_naming_data[i,"r"],regions) for i in 1:num_interfaces];
     interface_regions_to = [findfirst(x->x==system_line_naming_data[i,"rr"],regions) for i in 1:num_interfaces];
     #######################################################
     # Collecting all information to make PRAS Interfaces
