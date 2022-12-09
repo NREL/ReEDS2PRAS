@@ -40,7 +40,7 @@ struct region
     region(name = "region_1", N =10) = new(name,N, zeros(Float64,N))
 
     # Checks
-    region(x,y,z) = !(0 <= y <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(x,y,z)
+    region(x,y,z) = !(0 < y <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(x,y,z)
     region(x,y,z) = (length(z) !== y) ? error("The length of the region load time series data should be equal to PRAS timesteps (N)") : new(x,y,z)
     region(x,y,z) = !(all(z .>= 0.0)) ? error("Check for inconsistencies in load time series data") : new(x,y,z)
 end
@@ -68,17 +68,17 @@ struct thermal_gen <:generator
     MTTR::Int64
 
     # Inner Constructors
-    thermal_gen(name = "gen_1", N = 10, rg = "1", cap = 10.0, fl = "NG", lg = "new", f_or = 0.1, mttr = 24) = new(name,N,rg,cap,fl,lg,f_or,mttr)
+    thermal_gen(name = "gen_1", N = 10, rg = "1", cap = 10.0, fl = "NG", lg = "New", f_or = 0.1, mttr = 24) = new(name,N,rg,cap,fl,lg,f_or,mttr)
     thermal_gen(s,t,u,v,w,x,y) = new(s,t,u,v,w,x,y,24)
     thermal_gen(s,t,u,v,w,x) = new(s,t,u,v,w,x,0.0,24)
-    thermal_gen(s,t,u,v,w) = new(s,t,u,v,w,"new",0.0,24)
-    thermal_gen(s,t,u,v) = new(s,t,u,v,"OT","new",0.0,24)
+    thermal_gen(s,t,u,v,w) = new(s,t,u,v,w,"New",0.0,24)
+    thermal_gen(s,t,u,v) = new(s,t,u,v,"OT","New",0.0,24)
     # For illustration purposes
-    thermal_gen(nothing) = new("thermal_gen_1",10,"reg_1",10.0,"NG","new",0.1,24)
+    thermal_gen(nothing) = new("thermal_gen_1",10,"reg_1",10.0,"NG","New",0.1,24)
 
     # Checks
     thermal_gen(s,t,u,v,w,x,y,z) = !((0.0 <= y <= 1.0) || (z<=0)) ? error("FOR and/or MTTR values passed are not allowed") : new(s,t,u,v,w,x,y,z)
-    thermal_gen(s,t,u,v,w,x,y,z) = !(x in ["old","new"]) ? error("Unidentified legacy passed") : new(s,t,u,v,w,x,y,z)
+    thermal_gen(s,t,u,v,w,x,y,z) = !(x in ["Existing","New"]) ? error("Unidentified legacy passed") : new(s,t,u,v,w,x,y,z)
     thermal_gen(s,t,u,v,w,x,y,z) = !(v > 0.0) ? error("Generator cap passed is not allowed") : new(s,t,u,v,w,x,y,z)
     thermal_gen(s,t,u,v,w,x,y,z) = !(0 < t <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(s,t,u,v,w,x,y,z)
 end
@@ -95,17 +95,17 @@ struct vg_gen <:generator
     MTTR::Int64
 
     # Inner Constructors
-    vg_gen(name = "gen_1", N = 10, rg = "1", inst_cap = 10.0,cap = zeros(Float64,N), type = "dupv", lg = "new", f_or = 0.0, mttr = 24) = 
+    vg_gen(name = "gen_1", N = 10, rg = "1", inst_cap = 10.0,cap = zeros(Float64,N), type = "dupv", lg = "New", f_or = 0.0, mttr = 24) = 
            new(name,N,rg,inst_cap,cap,type,lg,f_or,mttr)
     vg_gen(r,s,t,u,v,w,x) = new(r,s,t,u,v,w,x,0.0,24)
-    vg_gen(r,s,t,u,v,w) = new(r,s,t,u,v,w,"new",0.0,24)
+    vg_gen(r,s,t,u,v,w) = new(r,s,t,u,v,w,"New",0.0,24)
     # For illustration purposes
-    vg_gen(nothing) = new("vg_gen_1",10,"reg_1",10.0,zeros(Float64,10),"PV","new",0.1,24)
+    vg_gen(nothing) = new("vg_gen_1",10,"reg_1",10.0,zeros(Float64,10),"PV","New",0.1,24)
    
     # Checks
     vg_gen(r,s,t,u,v,w,x,y,z) = !((0.0 <= y <= 1.0) || (z<=0)) ? error("FOR and/or MTTR values passed are not allowed") : new(r,s,t,u,v,w,x,y,z)
-    vg_gen(r,s,t,u,v,w,x,y,z) = !(x in ["old","new"]) ? error("Unidentified legacy passed") : new(r,s,t,u,v,w,x,y,z)
-    vg_gen(r,s,t,u,v,w,x,y,z) = !(0< s <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(r,s,t,u,v,w,x,y,z)
+    vg_gen(r,s,t,u,v,w,x,y,z) = !(x in ["Existing","New"]) ? error("Unidentified legacy passed") : new(r,s,t,u,v,w,x,y,z)
+    vg_gen(r,s,t,u,v,w,x,y,z) = !(0 < s <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(r,s,t,u,v,w,x,y,z)
     vg_gen(r,s,t,u,v,w,x,y,z) = !(all(0.0 .<= v .<= u)) ? error("Check for inconsistencies in VG time series data") : new(r,s,t,u,v,w,x,y,z)
     vg_gen(r,s,t,u,v,w,x,y,z) = !(length(v) !== s) ? error("The length of the VG time series data should be equal to PRAS timesteps (N)") : new(r,s,t,u,v,w,x,y,z)
     vg_gen(r,s,t,u,v,w,x,y,z) = !(w in ["wind-ons","wind-ofs","dupv","upv","csp","distpv"]) ? error("Check the type of VG being passed") : new(r,s,t,u,v,w,x,y,z)
@@ -198,19 +198,19 @@ struct battery <:storage
     MTTR::Int64
 
     # Inner Constructors
-    battery(name = "stor_1", N = 10, rg = "reg_1",type = "4-hour", c_cap = 10.0, dis_cap = 10.0, energy_cap = 40.0,  lg = "new", chr_eff = 0.9, dis_eff = 1.0, 
+    battery(name = "stor_1", N = 10, rg = "reg_1",type = "4-hour", c_cap = 10.0, dis_cap = 10.0, energy_cap = 40.0,  lg = "New", chr_eff = 0.9, dis_eff = 1.0, 
            cry_eff = 1.0, f_or = 0.0, mttr = 24) = new(name,N,rg,type, c_cap,dis_cap,energy_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
     battery(n,o,p,q,r,s,t,u,v,w,x) = new(n,o,p,q,r,s,t,u,v,w,x,0.0,24)
     battery(n,o,p,q,r,s,t,u,v,w) = new(n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
     battery(n,o,p,q,r,s,t,u) = new(n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
-    battery(n,o,p,q,r,s,t) = new(n,o,p,q,r,s,t,"new",1.0,1.0,1.0,0.0,24)
+    battery(n,o,p,q,r,s,t) = new(n,o,p,q,r,s,t,"New",1.0,1.0,1.0,0.0,24)
     # For illustration purposes
-    battery(nothing) = new("stor_1",10,"reg_1","4-hour",10.0,10.0,40.0,"new",0.9,1.0,1.0,0.0,24)
+    battery(nothing) = new("stor_1",10,"reg_1","4-hour",10.0,10.0,40.0,"New",0.9,1.0,1.0,0.0,24)
    
     # Checks
     battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = (!(0.0 <= y <= 1.0) || (z < 0)) ? error("FOR and/or MTTR values passed are not allowed") : new(n,o,p,q,r,s,t,u,v,w,x,y,z)
-    battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = !(u in ["old","new"]) ? error("Unidentified legacy passed") : new(n,o,p,q,r,s,t,u,v,w,x,y,z)
-    battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = !(0 <= o<= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(n,o,p,q,r,s,t,u,v,w,x,y,z)
+    battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = !(u in ["Existing","New"]) ? error("Unidentified legacy passed") : new(n,o,p,q,r,s,t,u,v,w,x,y,z)
+    battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = !(0 < o <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(n,o,p,q,r,s,t,u,v,w,x,y,z)
     battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = !(all(0.0 .<= [v,w,x] .<= 1.0)) ? error("Invalid charge/discharge/carryover efficiency passed") : new(n,o,p,q,r,s,t,u,v,w,x,y,z)
     battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = !(r > 0.0) ? error("Charge cap passed is not allowed") : new(n,o,p,q,r,s,t,u,v,w,x,y,z) 
     battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = !(s > 0.0) ? error("Discharge cap passed is not allowed") : new(n,o,p,q,r,s,t,u,v,w,x,y,z) 
@@ -237,20 +237,20 @@ struct gen_storage <:storage
 
     # Inner Constructors
     gen_storage(name = "gen_stor_1", N = 10, rg = "reg_1",type = "pumped-storage", c_cap = fill(10.0,N), dis_cap = fill(10.0,N), energy_cap = fill(40.0,N), infl = fill(10.0,N), 
-                g_with_cap = fill(10.0,N),g_inj_cap = fill(10.0,N), lg = "new", chr_eff = 0.9, dis_eff = 1.0, cry_eff = 1.0, f_or = 0.0, mttr = 24) = 
+                g_with_cap = fill(10.0,N),g_inj_cap = fill(10.0,N), lg = "New", chr_eff = 0.9, dis_eff = 1.0, cry_eff = 1.0, f_or = 0.0, mttr = 24) = 
                 new(name,N,rg,type, c_cap,dis_cap,energy_cap, infl, g_with_cap, g_inj_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
 
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x) = new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w) = new(k,l,m,n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u) = new(k,l,m,n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
-    gen_storage(k,l,m,n,o,p,q,r,s,t) = new(k,l,m,n,o,p,q,r,s,t,"new",1.0,1.0,1.0,0.0,24)
+    gen_storage(k,l,m,n,o,p,q,r,s,t) = new(k,l,m,n,o,p,q,r,s,t,"New",1.0,1.0,1.0,0.0,24)
     # For illustration purposes
-    gen_storage(nothing) = new("gen_stor_1",10,"reg_1","pumped-storage",fill(10.0,10),fill(10.0,10),fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),"new",0.9,1.0,1.0,0.0,24)
+    gen_storage(nothing) = new("gen_stor_1",10,"reg_1","pumped-storage",fill(10.0,10),fill(10.0,10),fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),"New",0.9,1.0,1.0,0.0,24)
    
     # Checks
-    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = (!(0.0 <= y <= 1.0) || (z<0)) ? error("FOR and/or MTTR values passed are not allowed") : new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
-    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = !(u in ["old","new"]) ? error("Unidentified legacy passed") : new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
-    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = !(0 <= l <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
+    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = !((0.0 <= y <= 1.0) || (z<0)) ? error("FOR and/or MTTR values passed are not allowed") : new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
+    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = !(u in ["Existing","New"]) ? error("Unidentified legacy passed") : new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
+    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = !(0 < l <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = !(all(0.0 .<= [v,w,x] .<= 1.0)) ? error("Invalid charge/discharge/carryover efficiency passed") : 
                                                    new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = !(all(length.(o,p,q,r,s,t) .== l)) ? 
@@ -366,6 +366,40 @@ function get_legacy_storages(stors::storages, leg::String)
     end
 end
 
+# Lines
+struct line
+    name::String 
+    N::Int64
+    category::String
+    region_from::String
+    region_to::String
+    forward_cap::Float64
+    backward_cap::Float64
+    legacy::String
+    FOR::Float64
+    MTTR::Int64
+
+    # Inner Constructors
+    line(name = "line_1", N = 10, cat = "AC", reg_from = "1", reg_to = "2", for_cap = 10.0, back_cap = 10.0, leg = "existing",f_or = 0.0, mttr = 24) = 
+        new(name, N, cat,reg_from,reg_to, for_cap, back_cap, leg, f_or, mttr)
+    line(q,r,s,t,u,v,w,x) = new(q,r,s,t,u,v,w,x,0.0,24)
+    line(q,r,s,t,u,v,w) = new(q,r,s,t,u,v,w,"new",0.0,24)
+    line(q,r,s,t,u,v) = new(q,r,s,t,u,v,v,"new",0.0,24)
+    # For illustration purposes
+    line(nothing) = new("line_1",10,"AC","1","2",10.0,10.0,"new",0.0,24)
+
+    # Checks
+    line(q,r,s,t,u,v,w,x,y,z)= !(0 < r <= 8784) ? error("Check the PRAS timesteps (N) passed.") : new(q,r,s,t,u,v,w,x,y,z)
+    line(q,r,s,t,u,v,w,x,y,z)= !(s in ["AC","Two-Terminal","VSC-DC"]) ? error("Check the category of line passed") : new(q,r,s,t,u,v,w,x,y,z)
+    line(q,r,s,t,u,v,w,x,y,z)= (t == u) ? error("region from and region to cannot be the same. PRAS only considers inter-regional lines in Zonal analysis") : 
+                               new(q,r,s,t,u,v,w,x,y,z)
+    line(q,r,s,t,u,v,w,x,y,z)= !(all([v,w] .> 0.0)) ? error("Check the forward/backward capacity of line passed") : new(q,r,s,t,u,v,w,x,y,z)
+    line(q,r,s,t,u,v,w,x,y,z)= !(x in ["Existing","New"]) ? error("Unidentified legacy passed") : new(q,r,s,t,u,v,w,x,y,z)
+    line(q,r,s,t,u,v,w,x,y,z)= !((0.0 <= y <= 1.0) || (z<0)) ? error("FOR and/or MTTR values passed are not allowed") : new(q,r,s,t,u,v,w,x,y,z)
+end
+
+# TODO implement methods to access fields of line objects
+
 # Testing
 gens = generator[]
 push!(gens,thermal_gen(nothing))
@@ -409,3 +443,7 @@ gen_stor_grid_withdrawl_array = get_grid_withdrawl_capacity.(gen_stors)
 gen_stor_grid_inj_array = get_grid_injection_capacity.(gen_stors)
 gen_stor_λ = get_λ.(gen_stors)
 gen_stor_μ = get_μ.(gen_stors)
+
+lines = line[]
+push!(lines, line(nothing))
+push!(lines, line(nothing))
