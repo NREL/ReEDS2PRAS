@@ -206,7 +206,7 @@ function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFra
     return(create_generators_from_data!(thermal_capacities.*thermal_cap_factors,thermal_names,thermal_categories,FOR_data),thermal_regions)
 end
 
-function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int)
+function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
     #get the vector of appropriate indices
     vg_names = [string(vg_builds[!,"Dim1"][i])*"_"*string(vg_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(vg_builds)];
     vg_capacities = vg_builds[!,"Val"];#want capacities
@@ -225,14 +225,17 @@ function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFra
         end
     end
 
-    #load in recf
-    cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","recf.h5"), "data")
-    indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],))
-    cap_factors = cf_info["block0_values"]
-    retained_cap_factors = cap_factors[indices,1:N] #slice recf, just take first year for now until more is known
-    
-    #return the profiles
-    return(create_generators_from_data!(vg_capacities.*retained_cap_factors,vg_names,vg_categories,FOR_data),vg_regions)
+    #load in vg data from augur
+    # cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","recf.h5"), "data")
+    cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(Year)*".h5"),"data"); #load is now picked up from augur
+    indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],));
+    # indices = findfirst.(isequal.(vg_names), (cf_info["block0_items"],))
+    vg_profiles = cf_info["block0_values"];
+    start_idx = (WeatherYear-2007)*N;
+    # retained_cap_factors = cap_factors[indices,1:N] #slice recf, just take first year for now until more is known
+    retained_vg_profiles = vg_profiles[indices,(start_idx+1):(start_idx+N)]; #return the profiles, no longer unitized
+    return(create_generators_from_data!(retained_vg_profiles,vg_names,vg_categories,FOR_data),vg_regions)
+    # return(create_generators_from_data!(vg_capacities.*retained_cap_factors,vg_names,vg_categories,FOR_data),vg_regions)
 end
 
 function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int,regions::Vector,Year::Int64)
@@ -281,17 +284,27 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #######################################################
     # Loading the necessary mapping files and data
     #######################################################
+    #check validity of input weather and ReEDS year
+    WEATHERYEAR = 2012 #just for now, force this
+    if !isfile(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"))
+        error("The year $Year does not have an associated Augur file (only checking load file for now). Are you sure ReeDS was run and Augur results saved for $Year?")
+    end
+    if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013] 
+        error("The weather year $WEATHERYEAR is not a valid VG profile year. Should be an Int in 2007-2013 currently")
+    end
     # Load the mapping metadata JSON file
     @info "Fetching ReEDS case data to build PRAS System..."
 
     #load-related information
-    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","load.h5"), "data");
+    # load_info = HDF5.h5read(joinpath(ReEDSfilepath,"inputs_case","load.h5"), "data");
+    # "StandScen_MidCase_"*string(test_year)
+    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"),"data"); #load is now picked up from augur
     load_data = load_info["block0_values"];
-    regions = load_info["axis0"];
+    regions = load_info["block0_items"];
 
     #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
-    slicer = findfirst(isequal(Year), load_info["axis1_level0"]);
-    indices = findall(i->(i==(slicer-1)),load_info["axis1_label0"]); #I think b/c julia indexes from 1 we need -1 here
+    slicer = findfirst(isequal(WEATHERYEAR), load_info["axis1_level1"]); #2012 weather year, Gbut, in general, this should be a user input
+    indices = findall(i->(i==(slicer-1)),load_info["axis1_label1"]); #I think b/c julia indexes from 1 we need -1 here
     #probably want some kind of assert/error here if indices are empty that states the year is invalid
     
     load_year = load_data[:,indices[1:8760]]; #should be regionsX8760, which is now just enforced
@@ -328,7 +341,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #for thermal, we need outage stuff
     #for thermal, we will need a disaggreggation helper fxn. Possibly a couple. May need EIA860 data
     #for vg, we need profiles
-    vg_tup = process_vg(vg,forced_outage_data,ReEDSfilepath,N);
+    vg_tup = process_vg(vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
     thermal_tup = process_thermals(thermal,forced_outage_data,N);
 
     gen_tup = [vcat(a,b) for (a,b) in zip(thermal_tup[1],vg_tup[1])];
