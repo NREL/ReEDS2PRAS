@@ -73,6 +73,8 @@ struct thermal_gen <:generator
     thermal_gen(s,t,u,v,w,x) = new(s,t,u,v,w,x,0.0,24)
     thermal_gen(s,t,u,v,w) = new(s,t,u,v,w,"new",0.0,24)
     thermal_gen(s,t,u,v) = new(s,t,u,v,"OT","new",0.0,24)
+    # For illustration purposes
+    thermal_gen(nothing) = new("thermal_gen_1",10,"reg_1",10.0,"NG","new",0.1,24)
 
     # Checks
     thermal_gen(s,t,u,v,w,x,y,z) = !((0.0 <= y <= 1.0) || (z<=0)) ? error("FOR and/or MTTR values passed are not allowed") : new(s,t,u,v,w,x,y,z)
@@ -97,6 +99,8 @@ struct vg_gen <:generator
            new(name,N,rg,inst_cap,cap,type,lg,f_or,mttr)
     vg_gen(r,s,t,u,v,w,x) = new(r,s,t,u,v,w,x,0.0,24)
     vg_gen(r,s,t,u,v,w) = new(r,s,t,u,v,w,"new",0.0,24)
+    # For illustration purposes
+    vg_gen(nothing) = new("vg_gen_1",10,"reg_1",10.0,zeros(Float64,10),"PV","new",0.1,24)
    
     # Checks
     vg_gen(r,s,t,u,v,w,x,y,z) = !((0.0 <= y <= 1.0) || (z<=0)) ? error("FOR and/or MTTR values passed are not allowed") : new(r,s,t,u,v,w,x,y,z)
@@ -112,7 +116,7 @@ function get_name(gen::GEN) where {GEN <: generator}
 end
 
 function get_capacity(gen::thermal_gen)
-    return fill(round(Int,gen.cap),1,gen.N)
+    return fill(round(Int,gen.cap),gen.N)
 end
 
 function get_capacity(gen::vg_gen)
@@ -129,11 +133,11 @@ function get_outage_rate(gen::GEN) where {GEN <: generator}
 end
 
 function get_λ(gen::GEN) where {GEN <: generator}
-    return getfield(outage_to_rate((gen.FOR,gen.MTTR)),:λ)
+    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:λ),gen.N)
 end
 
 function get_μ(gen::GEN) where {GEN <: generator}
-    return getfield(outage_to_rate((gen.FOR,gen.MTTR)),:μ)
+    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:μ),gen.N)
 end
 
 function get_fuel(gen::thermal_gen)
@@ -145,11 +149,11 @@ function get_type(gen::vg_gen)
 end
 
 function get_category(gen::vg_gen)
-    return gen.legacy*gen.type
+    return gen.legacy*"_"*gen.type
 end
 
 function get_category(gen::thermal_gen)
-    return gen.legacy*"Thermal"*gen.fuel
+    return gen.legacy*"_"*"Thermal"*"_"*gen.fuel
 end
 
 function get_generators_in_region(gens::generators, reg_name::String)
@@ -200,6 +204,8 @@ struct battery <:storage
     battery(n,o,p,q,r,s,t,u,v,w) = new(n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
     battery(n,o,p,q,r,s,t,u) = new(n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
     battery(n,o,p,q,r,s,t) = new(n,o,p,q,r,s,t,"new",1.0,1.0,1.0,0.0,24)
+    # For illustration purposes
+    battery(nothing) = new("stor_1",10,"reg_1","4-hour",10.0,10.0,40.0,"new",0.9,1.0,1.0,0.0,24)
    
     # Checks
     battery(n,o,p,q,r,s,t,u,v,w,x,y,z) = (!(0.0 <= y <= 1.0) || (z < 0)) ? error("FOR and/or MTTR values passed are not allowed") : new(n,o,p,q,r,s,t,u,v,w,x,y,z)
@@ -230,14 +236,16 @@ struct gen_storage <:storage
     MTTR::Int64
 
     # Inner Constructors
-    gen_storage(name = "stor_1", N = 10, rg = "reg_1",type = "4-hour", c_cap = fill(10.0,1,N), dis_cap = fill(10.0,1,N), energy_cap = fill(40.0,1,N), infl = fill(10.0,1,N), 
-                g_with_cap = fill(10.0,1,N),g_inj_cap = fill(10.0,1,N), lg = "new", chr_eff = 0.9, dis_eff = 1.0, cry_eff = 1.0, f_or = 0.0, mttr = 24) = 
+    gen_storage(name = "gen_stor_1", N = 10, rg = "reg_1",type = "pumped-storage", c_cap = fill(10.0,N), dis_cap = fill(10.0,N), energy_cap = fill(40.0,N), infl = fill(10.0,N), 
+                g_with_cap = fill(10.0,N),g_inj_cap = fill(10.0,N), lg = "new", chr_eff = 0.9, dis_eff = 1.0, cry_eff = 1.0, f_or = 0.0, mttr = 24) = 
                 new(name,N,rg,type, c_cap,dis_cap,energy_cap, infl, g_with_cap, g_inj_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
 
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x) = new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w) = new(k,l,m,n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u) = new(k,l,m,n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t) = new(k,l,m,n,o,p,q,r,s,t,"new",1.0,1.0,1.0,0.0,24)
+    # For illustration purposes
+    gen_storage(nothing) = new("gen_stor_1",10,"reg_1","pumped-storage",fill(10.0,10),fill(10.0,10),fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),"new",0.9,1.0,1.0,0.0,24)
    
     # Checks
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = (!(0.0 <= y <= 1.0) || (z<0)) ? error("FOR and/or MTTR values passed are not allowed") : new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
@@ -277,19 +285,19 @@ function get_outage_rate(stor::STOR) where {STOR <: storage}
 end
 
 function get_λ(stor::STOR) where {STOR <: storage}
-    return getfield(outage_to_rate((stor.FOR,stor.MTTR)),:λ)
+    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:λ),stor.N)
 end
 
 function get_μ(stor::STOR) where {STOR <: storage}
-    return getfield(outage_to_rate((stor.FOR,stor.MTTR)),:μ)
+    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:μ),stor.N)
 end
 
 function get_category(stor::STOR) where {STOR <: storage}
-    return stor.legacy*stor.type
+    return stor.legacy*"_"*stor.type
 end
 
 function get_charge_capacity(stor::battery)
-    return fill(round(Int,stor.charge_cap),1,stor.N)
+    return fill(round(Int,stor.charge_cap),stor.N)
 end
 
 function get_charge_capacity(stor::gen_storage)
@@ -297,7 +305,7 @@ function get_charge_capacity(stor::gen_storage)
 end
 
 function get_discharge_capacity(stor::battery)
-    return fill(round(Int,stor.discharge_cap),1,stor.N)
+    return fill(round(Int,stor.discharge_cap),stor.N)
 end
 
 function get_discharge_capacity(stor::gen_storage)
@@ -305,7 +313,7 @@ function get_discharge_capacity(stor::gen_storage)
 end
 
 function get_energy_capacity(stor::battery)
-    return fill(round(Int,stor.energy_cap),1,stor.N)
+    return fill(round(Int,stor.energy_cap),stor.N)
 end
 
 function get_energy_capacity(stor::gen_storage)
@@ -325,15 +333,15 @@ function get_grid_injection_capacity(stor::gen_storage)
 end
 
 function get_charge_efficiency(stor::STOR) where {STOR <: storage}
-    return fill(stor.charge_eff,1,stor.N)
+    return fill(stor.charge_eff,stor.N)
 end
 
 function get_discharge_efficiency(stor::STOR) where {STOR <: storage}
-    return fill(stor.discharge_eff,1,stor.N)
+    return fill(stor.discharge_eff,stor.N)
 end
 
 function get_carryover_efficiency(stor::STOR) where {STOR <: storage}
-    return fill(stor.carryover_eff,1,stor.N)
+    return fill(stor.carryover_eff,stor.N)
 end
 
 function get_storages_in_region(stors::storages, reg_name::String)
@@ -352,8 +360,52 @@ end
 function get_legacy_storages(stors::storages, leg::String)
     leg_stor_idxs = findall(getfield.(stors,:legacy) .== leg)
     if isnothing(eg_stor_idxs)
-        @warn "No generators with this legacy"
+        @warn "No storages with this legacy"
     else
         return stors[leg_stor_idxs]
     end
 end
+
+# Testing
+gens = generator[]
+push!(gens,thermal_gen(nothing))
+push!(gens,vg_gen(nothing))
+
+gen_names = get_name.(gens)
+gen_cats = get_category.(gens)
+gen_cap = get_capacity.(gens)
+gen_λ = get_λ.(gens)
+gen_μ = get_μ.(gens)
+
+stors = storage[]
+push!(stors,battery(nothing))
+push!(stors,battery(nothing))
+
+stor_names = get_name.(stors)
+stor_cats = get_category.(stors)
+stor_cap_array = get_charge_capacity.(stors)
+stor_dis_cap_array = get_discharge_capacity.(stors)
+stor_enrgy_cap_array = get_energy_capacity.(stors)
+stor_chrg_eff_array = get_charge_efficiency.(stors)
+stor_dischrg_eff_array = get_discharge_efficiency.(stors)
+stor_carryovr_eff_array = get_carryover_efficiency.(stors)
+stor_λ = get_λ.(stors)
+stor_μ = get_μ.(stors)
+
+gen_stors = storage[]
+push!(gen_stors,gen_storage(nothing))
+push!(gen_stors,gen_storage(nothing))
+
+gen_stor_names = get_name.(gen_stors)
+gen_stor_cats = get_category.(gen_stors)
+gen_stor_cap_array = get_charge_capacity.(gen_stors)
+gen_stor_dis_cap_array = get_discharge_capacity.(gen_stors)
+gen_stor_enrgy_cap_array = get_energy_capacity.(gen_stors)
+gen_stor_chrg_eff_array = get_charge_efficiency.(gen_stors)
+gen_stor_dischrg_eff_array = get_discharge_efficiency.(gen_stors)
+gen_stor_carryovr_eff_array = get_carryover_efficiency.(gen_stors)
+gen_stor_inflow_array = get_inflow.(gen_stors)
+gen_stor_grid_withdrawl_array = get_grid_withdrawl_capacity.(gen_stors)
+gen_stor_grid_inj_array = get_grid_injection_capacity.(gen_stors)
+gen_stor_λ = get_λ.(gen_stors)
+gen_stor_μ = get_μ.(gen_stors)
