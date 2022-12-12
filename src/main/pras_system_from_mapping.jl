@@ -114,13 +114,14 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     storage_types = clean_names(storage_types)
     vg_types = expand_types(vg_types,15) #expand so names will match
 
-    capacities = joinpath(ReEDSfilepath,"outputs","cap.csv")
-    capacity_data = DataFrames.DataFrame(CSV.File(capacities))
-    annual_data = capacity_data[capacity_data.Dim3.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative    
+    # capacities = joinpath(ReEDSfilepath,"outputs","cap.csv")
+    capacities = joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","max_cap_"*string(Year)*".csv");
+    capacity_data = DataFrames.DataFrame(CSV.File(capacities));
+    # annual_data = capacity_data[capacity_data.Dim3.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative    
 
-    vg_capacity = annual_data[(findall(in(vg_types),annual_data.Dim1)),:]
-    storage_capacity = annual_data[(findall(in(storage_types),annual_data.Dim1)),:]
-    thermal_capacity = annual_data[(findall(!in(vcat(vg_types,storage_types)),annual_data.Dim1)),:]
+    vg_capacity = capacity_data[(findall(in(vg_types),capacity_data.i)),:]
+    storage_capacity = capacity_data[(findall(in(storage_types),capacity_data.i)),:]
+    thermal_capacity = capacity_data[(findall(!in(vcat(vg_types,storage_types)),capacity_data.i)),:]
 
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
@@ -153,15 +154,15 @@ function create_generators_from_data!(gen_matrix,gen_names,gen_categories,FOR_da
 end
 
 function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int)
-    thermal_builds = thermal_builds[(thermal_builds.Dim1.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
+    thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     #get the vector of appropriate indices
-    thermal_names = [string(thermal_builds[!,"Dim1"][i])*"_"*string(thermal_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(thermal_builds)]
-    thermal_capacities = thermal_builds[!,"Val"]#want capacities
+    thermal_names = [string(thermal_builds[!,"i"][i])*"_"*string(thermal_builds[!,"r"][i])*"_"*string(thermal_builds[!,"v"][i]) for i=1:DataFrames.nrow(thermal_builds)]
+    thermal_capacities = thermal_builds[!,"MW"]#want capacities
 
     #get regions and convert them to appropriate data where relevant
-    # thermal_categories = [string(thermal_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(thermal_builds)]
-    thermal_categories = string.(thermal_builds[!,"Dim1"])
-    thermal_regions = string.(thermal_builds[!,"Dim2"])
+    # thermal_categories = [string(thermal_builds[!,"i"][i]) for i=1:DataFrames.nrow(thermal_builds)]
+    thermal_categories = string.(thermal_builds[!,"i"])
+    thermal_regions = string.(thermal_builds[!,"r"])
 
     thermal_cap_factors = ones(length(thermal_names),N)
 
@@ -170,12 +171,12 @@ end
 
 function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
     #get the vector of appropriate indices
-    vg_names = [string(vg_builds[!,"Dim1"][i])*"_"*string(vg_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(vg_builds)];
-    vg_capacities = vg_builds[!,"Val"];#want capacities
+    vg_names = [string(vg_builds[!,"i"][i])*"_"*string(vg_builds[!,"r"][i]) for i=1:DataFrames.nrow(vg_builds)];
+    vg_capacities = vg_builds[!,"MW"];#want capacities
 
     #get regions and convert them to appropriate data where relevant
-    vg_categories = string.(vg_builds[!,"Dim1"]);#[string(vg_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(vg_builds)]
-    vg_regions = string.(vg_builds[!,"Dim2"]);
+    vg_categories = string.(vg_builds[!,"i"]);#[string(vg_builds[!,"i"][i]) for i=1:DataFrames.nrow(vg_builds)]
+    vg_regions = string.(vg_builds[!,"r"]);
     
     #pull in mapping info for the regions, since vg is originally not assigned by region
     region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
@@ -195,6 +196,8 @@ function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFra
     vg_profiles = cf_info["block0_values"];
     start_idx = (WeatherYear-2007)*N;
     # retained_cap_factors = cap_factors[indices,1:N] #slice recf, just take first year for now until more is known
+    
+    vg_names = [string(vg_names[i])*"_"*string(vg_builds[!,"v"][i]) for i=1:DataFrames.nrow(vg_builds)];
     retained_vg_profiles = vg_profiles[indices,(start_idx+1):(start_idx+N)]; #return the profiles, no longer unitized
     return(create_generators_from_data!(retained_vg_profiles,vg_names,vg_categories,FOR_data),vg_regions)
     # return(create_generators_from_data!(vg_capacities.*retained_cap_factors,vg_names,vg_categories,FOR_data),vg_regions)
@@ -203,27 +206,28 @@ end
 function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int,regions::Vector,Year::Int64)
     #get the vector of appropriate indices
     @info "handling power capacity of storages"
-    storage_names = [string(storage_builds[!,"Dim1"][i])*"_"*string(storage_builds[!,"Dim2"][i]) for i=1:DataFrames.nrow(storage_builds)];
-    storage_capacities = storage_builds[!,"Val"];#want capacities
+    storage_names = [string(storage_builds[!,"i"][i])*"_"*string(storage_builds[!,"r"][i]) for i=1:DataFrames.nrow(storage_builds)];
+    storage_capacities = storage_builds[!,"MW"];#want capacities
     storage_cap_factors = ones(length(storage_names),N);
     #get regions and convert them to appropriate data where relevant
-    storage_categories = string.(storage_builds[!,"Dim1"]);#[string(vg_builds[!,"Dim1"][i]) for i=1:DataFrames.nrow(vg_builds)]
-    storage_regions = string.(storage_builds[!,"Dim2"]);
+    storage_categories = string.(storage_builds[!,"i"]);#[string(vg_builds[!,"i"][i]) for i=1:DataFrames.nrow(vg_builds)]
+    storage_regions = string.(storage_builds[!,"r"]);
     region_stor_capacity_idxs,stor_capacity_region_order = sort_gens(storage_regions,regions,length(regions))
     stor_names,stor_categories,stor_discharge_cap_array,λ_stor,μ_stor= create_generators_from_data!(storage_capacities[stor_capacity_region_order].*storage_cap_factors,storage_names[stor_capacity_region_order],storage_categories[stor_capacity_region_order],FOR_data);
     stor_charge_cap_array = stor_discharge_cap_array #make this equal for now
     
     @info "handling energy capacity of storages"
-    storage_energy_capacities = joinpath(ReEDSfilepath,"outputs","stor_energy_cap.csv")
+    # storage_energy_capacities = joinpath(ReEDSfilepath,"outputs","stor_energy_cap.csv")
+    storage_energy_capacities= joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","energy_cap_"*string(Year)*".csv")
     storage_energy_capacity_data = DataFrames.DataFrame(CSV.File(storage_energy_capacities))
-    annual_data = storage_energy_capacity_data[storage_energy_capacity_data.Dim4.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative    
+    # annual_data = storage_energy_capacity_data[storage_energy_capacity_data.Dim4.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative    
     
-    gdf = DataFrames.groupby(annual_data, ["Dim1","Dim3"]) #split-apply-combine to handle differently vintaged entries
-    annual_data_sum = DataFrames.combine(gdf, :Val => sum);
-    storage_energy_capacity_regions = string.(annual_data_sum[!,"Dim3"]);
+    gdf = DataFrames.groupby(storage_energy_capacity_data, ["i","r"]) #split-apply-combine to handle differently vintaged entries
+    annual_data_sum = DataFrames.combine(gdf, :MWh => sum);
+    storage_energy_capacity_regions = string.(annual_data_sum[!,"r"]);
     #reorder to ensure proper order!
     region_stor_idxs,stor_region_order = sort_gens(storage_energy_capacity_regions,regions,length(regions))
-    stor_energy_cap_array = annual_data_sum[stor_region_order,"Val_sum"].*storage_cap_factors
+    stor_energy_cap_array = annual_data_sum[stor_region_order,"MWh_sum"].*storage_cap_factors
     stor_energy_cap_array = floor.(Int, stor_energy_cap_array)#go to int
 
     #now we can do the matrix math on the sorted vector of energy capacities
@@ -303,6 +307,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #for thermal, we need outage stuff
     #for thermal, we will need a disaggreggation helper fxn. Possibly a couple. May need EIA860 data
     #for vg, we need profiles
+    @info "reading vg..."
     vg_tup = process_vg(vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
     thermal_tup = process_thermals(thermal,forced_outage_data,N);
 
