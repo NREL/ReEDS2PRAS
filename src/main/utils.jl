@@ -82,25 +82,56 @@ end
 
 ### disaggregation of capacity is not yet implemented ###
 
-# function Load_and_agg_ReEDS_EIA_NEMS_db(ReEDS_directory::String)
-#     EIA_NEMS_loc = joinpath(ReEDS_directory,"inputs","capacity_data","ReEDS_generator_database_final_EIA-NEMS.csv"); #there is also a _prm file, not sure which is right?
-#     EIA_NEMS_data = DataFrames.DataFrame(CSV.File(ReEDS_directory));
+function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::Int,tech::String,pca::String,Year::Int)
+    tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=Year) .& (eia_df.StartYear.<=Year), :];
+    remaining_capacity = built_capacity;
+    existing_gens = [];
+    tech_len = length(tech_ba_year_existing[!,"cap"]);
+    max_cap = maximum(eia_df[!,"cap"])
+    avg_cap = mean(eia_df[!,"cap"])
 
-#     #run a split-apply-combine to get ICAPs by resource type
+    for (idx,built_cap) in enumerate(tech_ba_year_existing[!,"cap"])
+        int_built_cap = floor.(Int,built_cap);
+        if int_built_cap < remaining_capacity
+            remaining_capacity = remaining_capacity - int_built_cap;
+            gen_name = tech*"_"*pca*"_"*string.(idx);
+            #create a generator using types.jl
+            existing_gen = thermal_gen(gen_name,8760,pca,int_built_cap,tech,"Existing",.05,24) #here we'd actually want to make a choice about which struct to send the generator to, and pass N and FOR
+            push!(existing_gens,existing_gen);
+        else
+            @info "on $tech $idx of $tech_len in $pca, $remaining_capacity MW remains but can't be built. Build as one last existing generator of $remaining_capacity MW for now"
+            gen_name = tech*"_"*pca*"_"*string.(idx);
+            existing_gen = thermal_gen(gen_name,8760,pca,remaining_capacity,tech,"Existing",.05,24);
+            remaining_capacity = 0;
+            break
+        end
+        
+    end
+    #whatever remains, we want to build as new capacity
+    @info "overall, for $tech $pca, $remaining_capacity of $built_capacity MW will be new build with target average size $avg_cap MW"
+    if remaining_capacity > 0
+        new_gens = disagg_new_capacity(remaining_capacity,floor.(Int,avg_cap),floor.(Int,max_cap),tech,pca,Year);
+    else
+        new_gens = [];    
+    
+    end
+    #pass each region-gentype capacity, filter against EIA-NEMS and retirement info
+    #then return disaggregated region-gentype existing capacity and newbuild remainder
+    #push remaining capacity to new capacity fxn
+    
+    return (existing_gens,new_gens)
+    # return tech_ba_year_existing
+end
 
-#     #max, average capacities by resource type? But we need to compare w/ 
-# end
-
-
-
-# function disagg_existing_capacity(eia_nems_db::DataFrames.DataFrame,retired_capacity,)
-#     #pass each region-gentype capacity, filter against EIA-NEMS and retirement info
-#     #then return disaggregated region-gentype existing capacity and newbuild remainder
-
-#     return (existing_capacity,new_capacity)
-# end
-
-# function disagg_new_capacity(new_capacity,avg,max)
-#     disagg_new_capacity = new_capacity
-#     return disagg_new_capacity
-# end
+function disagg_new_capacity(new_capacity::Int,avg::Int,max::Int,tech::String,pca::String,Year::Int)
+    # cap_out = [];
+    gens = floor.(Int,new_capacity/avg);
+    remainder = new_capacity-(gens*avg);
+    addtl_cap_per_gen = floor.(Int,remainder/gens);
+    per_gen_cap = avg+addtl_cap_per_gen;
+    small_remainder = new_capacity-(gens*per_gen_cap)
+    @info "after remainder peanut butter, average capacity is now $per_gen_cap MW for $gens new generators, with an additional $small_remainder MW unit to be built"
+    cap_out = [thermal_gen(tech*"_"*pca*"_new_"*string.(i),8760,pca,per_gen_cap,tech,"New",.05,24) for i in range(1,gens)]; #then make the gens
+    push!(cap_out,thermal_gen(tech*"_"*pca*"_new_"*string.(gens+1),8760,pca,small_remainder,tech,"New",.05,24)); #integer remainder is made into a tiny gen
+    return cap_out
+end

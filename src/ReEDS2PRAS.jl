@@ -36,4 +36,5 @@ import HDF5
 # include("main/naerm_data_service.jl") 
 include("main/utils.jl")
 include("main/pras_system_from_mapping.jl")
+include("main/types.jl")
 end
