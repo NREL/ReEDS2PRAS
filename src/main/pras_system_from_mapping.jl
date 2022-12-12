@@ -169,6 +169,17 @@ function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFra
     return(create_generators_from_data!(thermal_capacities.*thermal_cap_factors,thermal_names,thermal_categories,FOR_data),thermal_regions)
 end
 
+function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,N::Int,Year::Int)#FOR_data::DataFrames.DataFrame,
+    thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
+    EIA_db = Load_EIA_NEMS_DB("/projects/ntps/llavin/ReEDS-2.0") #for now, though this is bad practice
+    for (i,v,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"v"],thermal_builds[!,"r"],thermal_builds[!,"MW"])
+        #eventually, it'd be nice to lookup/pass the FOR and N
+        @info "trying $i $v $r $MW translation..."
+        existing,new = disagg_existing_capacity(EIA_db,floor.(Int,MW),string.(i),string.(r),N,Year)
+    end
+    #eventually, have to agg these up and build em out
+end
+
 function process_vg(vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
     #get the vector of appropriate indices
     vg_names = [string(vg_builds[!,"i"][i])*"_"*string(vg_builds[!,"r"][i]) for i=1:DataFrames.nrow(vg_builds)];
