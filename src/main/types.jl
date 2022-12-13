@@ -88,7 +88,7 @@ struct thermal_gen <:generator
         error("FOR and/or MTTR values passed are not allowed")
     elseif ~(x in ["Existing","New"])
         error("Unidentified legacy passed")
-    elseif ~(v > 0.0)
+    elseif ~(v >= 0.0)
         error("Generator capacity passed is not allowed") 
     elseif ~(0 < t <= 8784)
         error("Check the PRAS timesteps (N) passed.")
