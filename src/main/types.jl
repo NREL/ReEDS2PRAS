@@ -33,11 +33,11 @@ end
 struct region
     name::String
     N::Int64
-    load::Vector{Float64}
+    load::Vector{Int64}
 
      # Inner Constructors
     # region(name = "region_1", N = 10, load = ones(Float64,N)) = new(name,N,load)
-    region(name = "region_1", N =10) = region(name,N, zeros(Float64,N))
+    region(name = "region_1", N =10) = region(name,N, zeros(Int64,N))
 
     # Checks
     region(x,y,z) =

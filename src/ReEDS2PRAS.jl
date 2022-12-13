@@ -16,6 +16,7 @@ module ReEDS2PRAS
 export generators
 export thermal_gen
 export vg_gen
+export region
 # export  make_pras_system_from_mapping_info
 #################################################################################
 # Imports

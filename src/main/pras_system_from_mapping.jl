@@ -179,7 +179,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
     for (i,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"r"],thermal_builds[!,"MW_sum"])
         #eventually, it'd be nice to lookup/pass the FOR and N
-        @info "$i $r $MW translation..."
+        @info "$i $r $MW MW to disaggregate..."
         #get the FOR
         if i in native_FOR_data
             for_idx = findfirst(x->x==i,native_FOR_data)#get the idx
@@ -270,9 +270,6 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     region_stor_idxs,stor_region_order = sort_gens(storage_energy_capacity_regions,regions,length(regions))
     stor_energy_cap_array = annual_data_sum[stor_region_order,"MWh_sum"].*storage_cap_factors
     stor_energy_cap_array = floor.(Int, stor_energy_cap_array)#go to int
-
-    #now we can do the matrix math on the sorted vector of energy capacities
-    # stor_energy_cap_array = stor_discharge_cap_array #this is a terrible idea, but for now
     
     #efficiency and carryover; fill all as ones for now
     stor_chrg_eff_array = ones(length(stor_names),N);
@@ -318,17 +315,20 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "Processing Areas in the mapping file into PRAS regions..."
     num_areas = length(regions); 
     N = size(load_year)[2];#DataFrames.DataFrames.nrow(load_data)
-    region_load = Array{Int64,2}(undef,num_areas,N);
+    region_array = [];
+    # region_load = Array{Int64,2}(undef,num_areas,N);
 
-    for (idx,region) in enumerate(regions)
-        region_load[idx,:]=floor.(Int,load_year[idx,:]); #converts to int
+    for (idx,r) in enumerate(regions)
+        push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
     end
-    new_regions = PRAS.Regions{N,PRAS.MW}(regions, region_load);
+    load_matrix = mapreduce(permutedims, vcat, get_load.(region_array));
+    new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),load_matrix);
+    # new_regions = PRAS.Regions{N,PRAS.MW}(regions, region_load);
 
     #######################################################
     # PRAS Region Gen Index 
-    # **TODO: Figure out how to not take in account "0.0" gen_mw_max generators!!
-    # **TODO : If fuel info is available, figure out how to not count them to avoid double counting.
+    # **TODO: Should 0 MW generators be allowed after disaggregation?
+    # **TODO: Should hydro be split out as a generator-storage?
     #######################################################
     new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,Year,8760);
 
