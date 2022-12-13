@@ -128,8 +128,8 @@ struct vg_gen <:generator
         error("Check for inconsistencies in VG time series data")
     elseif (length(v) !== s)
         error("The length of the VG time series data should be equal to PRAS timesteps (N)")
-    elseif ~(w in ["wind-ons","wind-ofs","dupv","upv","csp","distpv"])
-        error("Check the type of VG being passed")
+    # elseif ~(w in ["wind-ons","wind-ofs","dupv","upv","csp","distpv"])
+    #     error("Check the type of VG being passed")
     else 
         new(r,s,t,u,v,w,x,y,z)
     end

@@ -13,9 +13,9 @@ module ReEDS2PRAS
 #################################################################################
 # Exports
 #################################################################################
-# export get_interconnect_casefile_metadata
-# export get_bes_casefile
-# export map_assets_to_regions
+export generators
+export thermal_gen
+export vg_gen
 # export  make_pras_system_from_mapping_info
 #################################################################################
 # Imports
@@ -30,11 +30,13 @@ import CSV
 import PRAS
 import Dates
 import HDF5
+import Statistics
 #################################################################################
 # Includes
 #################################################################################
 # include("main/naerm_data_service.jl") 
 include("main/utils.jl")
-include("main/pras_system_from_mapping.jl")
 include("main/types.jl")
+include("main/pras_system_from_mapping.jl")
+
 end
