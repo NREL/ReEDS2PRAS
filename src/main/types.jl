@@ -143,6 +143,10 @@ function get_region(gen::GEN) where {GEN <: generator}
     return gen.region
 end
 
+function get_nameplate(gen::GEN) where {GEN <: generator}
+    return gen.cap
+end
+
 function get_capacity(gen::thermal_gen)
     return fill(round(Int,gen.cap),gen.N)
 end

@@ -91,11 +91,11 @@ end
 function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::Int,tech::String,pca::String,gen_for::Float64,N::Int,Year::Int)
     
     MTTR = 24;
-    
+    # @info "capacity in for $tech $pca is $built_capacity MW"
     tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=Year) .& (eia_df.StartYear.<=Year), :];
     generators_array = [];
     if length(tech_ba_year_existing.tech)==0
-        @info "$tech $pca existing in $Year is not in EIA database, so return a single NEW generator with $built_capacity MW"
+        # @info "$tech $pca existing in $Year is not in EIA database, so return a single NEW generator with $built_capacity MW"
         gen_name = tech*"_"*pca*"_"*string.(1);
         generators_array = push!(generators_array,thermal_gen(gen_name,N,pca,built_capacity,tech,"New",gen_for,MTTR));
     
@@ -116,7 +116,7 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
             gen = thermal_gen(gen_name,N,pca,int_built_cap,tech,"Existing",gen_for,MTTR) #here we'd actually want to make a choice about which struct to send the generator to, and pass N and FOR
             push!(generators_array,gen);
         else
-            @info "on $tech $idx of $tech_len in $pca, $remaining_capacity MW remains but can't be built. Build as one last existing generator of $remaining_capacity MW for now"
+            # @info "on $tech $idx of $tech_len in $pca, $remaining_capacity MW remains but can't be built. Build as one last existing generator of $remaining_capacity MW for now"
             gen_name = tech*"_"*pca*"_"*string.(idx);
             gen = thermal_gen(gen_name,N,pca,remaining_capacity,tech,"Existing",gen_for,MTTR);
             push!(generators_array,gen);
@@ -126,11 +126,14 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
         
     end
     #whatever remains, we want to build as new capacity
-    @info "overall, for $tech $pca, $remaining_capacity of $built_capacity MW will be new build with target average size $avg_cap MW"
+    # @info "overall, for $tech $pca, $remaining_capacity of $built_capacity MW will be new build with target average size $avg_cap MW"
     if remaining_capacity > 0
         generators_array = disagg_new_capacity(generators_array,remaining_capacity,floor.(Int,avg_cap),floor.(Int,max_cap),tech,pca,gen_for,N,Year,MTTR);
     end
     
+    out_cap = sum(get_nameplate.(generators_array));
+    # @info "capacity out for $tech $pca is $out_cap"
+    @assert out_cap == built_capacity; #check to make sure right amount of capacity is, in fact, built!
     return generators_array
 end
 
@@ -138,14 +141,14 @@ function disagg_new_capacity(generators_array::Vector,new_capacity::Int,avg::Int
     # cap_out = [];
     n_gens = floor.(Int,new_capacity/avg);
     if n_gens==0
-        @info "new capacity is too small to disaggregate, so build all $new_capacity MW as a single generator"
-        return [thermal_gen(tech*"_"*pca*"_new_"*string.(1),N,pca,new_capacity,tech,"New",gen_for,MTTR)]
+        # @info "new capacity is too small to disaggregate, so build all $new_capacity MW as a single generator"
+        return push!(generators_array,thermal_gen(tech*"_"*pca*"_new_"*string.(1),N,pca,new_capacity,tech,"New",gen_for,MTTR))
     end
     remainder = new_capacity-(n_gens*avg);
     addtl_cap_per_gen = floor.(Int,remainder/n_gens);
     per_gen_cap = avg+addtl_cap_per_gen;
     small_remainder = new_capacity-(n_gens*per_gen_cap)
-    @info "after remainder peanut butter, average capacity is now $per_gen_cap MW for $n_gens new generators, with an additional $small_remainder MW unit to be built"
+    # @info "after remainder peanut butter, average capacity is now $per_gen_cap MW for $n_gens new generators, with an additional $small_remainder MW unit to be built"
     # cap_out = [thermal_gen(tech*"_"*pca*"_new_"*string.(i),N,pca,per_gen_cap,tech,"New",gen_for,MTTR) for i in range(1,n_gens)]; #then make the gens
     for i in range(1,n_gens)
         push!(generators_array,thermal_gen(tech*"_"*pca*"_new_"*string.(i),N,pca,per_gen_cap,tech,"New",gen_for,MTTR))

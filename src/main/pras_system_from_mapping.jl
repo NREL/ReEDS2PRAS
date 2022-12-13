@@ -153,21 +153,21 @@ function create_generators_from_data!(gen_matrix,gen_names,gen_categories,FOR_da
     return (gen_names,gen_categories,gen_cap_array,λ_gen,μ_gen);
 end
 
-function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int)
-    thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
-    #get the vector of appropriate indices
-    thermal_names = [string(thermal_builds[!,"i"][i])*"_"*string(thermal_builds[!,"r"][i])*"_"*string(thermal_builds[!,"v"][i]) for i=1:DataFrames.nrow(thermal_builds)]
-    thermal_capacities = thermal_builds[!,"MW"]#want capacities
+# function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int)
+#     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
+#     #get the vector of appropriate indices
+#     thermal_names = [string(thermal_builds[!,"i"][i])*"_"*string(thermal_builds[!,"r"][i])*"_"*string(thermal_builds[!,"v"][i]) for i=1:DataFrames.nrow(thermal_builds)]
+#     thermal_capacities = thermal_builds[!,"MW"]#want capacities
 
-    #get regions and convert them to appropriate data where relevant
-    # thermal_categories = [string(thermal_builds[!,"i"][i]) for i=1:DataFrames.nrow(thermal_builds)]
-    thermal_categories = string.(thermal_builds[!,"i"])
-    thermal_regions = string.(thermal_builds[!,"r"])
+#     #get regions and convert them to appropriate data where relevant
+#     # thermal_categories = [string(thermal_builds[!,"i"][i]) for i=1:DataFrames.nrow(thermal_builds)]
+#     thermal_categories = string.(thermal_builds[!,"i"])
+#     thermal_regions = string.(thermal_builds[!,"r"])
 
-    thermal_cap_factors = ones(length(thermal_names),N)
+#     thermal_cap_factors = ones(length(thermal_names),N)
 
-    return(create_generators_from_data!(thermal_capacities.*thermal_cap_factors,thermal_names,thermal_categories,FOR_data),thermal_regions)
-end
+#     return(create_generators_from_data!(thermal_capacities.*thermal_cap_factors,thermal_names,thermal_categories,FOR_data),thermal_regions)
+# end
 
 function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,Year::Int)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
@@ -175,15 +175,22 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     thermal_builds = DataFrames.combine(gdf, :MW => sum);
     EIA_db = Load_EIA_NEMS_DB("/projects/ntps/llavin/ReEDS-2.0") #for now, though this is bad practice
     all_generators = [];
+    native_FOR_data = FOR_data[!,"Column1"];
+    lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
     for (i,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"r"],thermal_builds[!,"MW_sum"])
         #eventually, it'd be nice to lookup/pass the FOR and N
         @info "$i $r $MW translation..."
         #get the FOR
-        if i in FOR_data[!,"Column1"]
-            for_idx = findfirst(x->x==i,FOR_data[!,"Column1"])#get the idx
+        if i in native_FOR_data
+            for_idx = findfirst(x->x==i,native_FOR_data)#get the idx
+            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+        elseif i in lowercase_FOR_data
+            for_idx = findfirst(x->x==i,lowercase_FOR_data)#get the idx
             gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
         else
-            gen_for = .05 #default val
+            gen_for = 0.05
+            @info "for $i $r, no gen_for is found in data, so $gen_for is used"
+            # error("we really should always find a gen_for, but did not for $i $r") #default val
         end
         generator_array = disagg_existing_capacity(EIA_db,floor.(Int,MW),string.(i),string.(r),gen_for,N,Year);
         append!(all_generators,generator_array);
