@@ -172,6 +172,8 @@ end
 function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,N::Int,Year::Int)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     EIA_db = Load_EIA_NEMS_DB("/projects/ntps/llavin/ReEDS-2.0") #for now, though this is bad practice
+    #To-Do we probably want to group thermal builds if we aren't going to use vintaging
+    
     for (i,v,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"v"],thermal_builds[!,"r"],thermal_builds[!,"MW"])
         #eventually, it'd be nice to lookup/pass the FOR and N
         @info "trying $i $v $r $MW translation..."
