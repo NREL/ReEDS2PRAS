@@ -36,7 +36,7 @@ struct region
     load::Vector{Float64}
 
      # Inner Constructors
-    region(name = "region_1", N = 10, load = ones(Float64,N)) = new(name,N,load)
+    # region(name = "region_1", N = 10, load = ones(Float64,N)) = new(name,N,load)
     region(name = "region_1", N =10) = region(name,N, zeros(Float64,N))
 
     # Checks
@@ -74,13 +74,13 @@ struct thermal_gen <:generator
     MTTR::Int64
 
     # Inner Constructors
-    thermal_gen(name = "gen_1", N = 10, rg = "1", cap = 10.0, fl = "NG", lg = "New", f_or = 0.1, mttr = 24) = thermal_gen(name,N,rg,cap,fl,lg,f_or,mttr)
-    thermal_gen(s,t,u,v,w,x,y) = thermal_gen(s,t,u,v,w,x,y,24)
-    thermal_gen(s,t,u,v,w,x) = thermal_gen(s,t,u,v,w,x,0.0,24)
-    thermal_gen(s,t,u,v,w) = thermal_gen(s,t,u,v,w,"New",0.0,24)
-    thermal_gen(s,t,u,v) = thermal_gen(s,t,u,v,"OT","New",0.0,24)
+    # thermal_gen(name = "gen_1", N = 10, rg = "1", cap = 10.0, fl = "NG", lg = "New", f_or = 0.1, mttr = 24) = thermal_gen(name,N,rg,cap,fl,lg,f_or,mttr);
+    thermal_gen(s,t,u,v,w,x,y) = thermal_gen(s,t,u,v,w,x,y,24);
+    thermal_gen(s,t,u,v,w,x) = thermal_gen(s,t,u,v,w,x,0.0,24);
+    thermal_gen(s,t,u,v,w) = thermal_gen(s,t,u,v,w,"New",0.0,24);
+    thermal_gen(s,t,u,v) = thermal_gen(s,t,u,v,"OT","New",0.0,24);
     # For illustration purposes
-    thermal_gen(nothing) = thermal_gen("thermal_gen_1",10,"reg_1",10.0,"NG","New",0.1,24)
+    thermal_gen(nothing) = thermal_gen("thermal_gen_1",10,"reg_1",10.0,"NG","New",0.1,24);
 
     # Checks
     thermal_gen(s,t,u,v,w,x,y,z) = 
@@ -109,8 +109,8 @@ struct vg_gen <:generator
     MTTR::Int64
 
     # Inner Constructors
-    vg_gen(name = "gen_1", N = 10, rg = "1", inst_cap = 10.0,cap = zeros(Float64,N), type = "dupv", lg = "New", f_or = 0.0, mttr = 24) = 
-           vg_gen(name,N,rg,inst_cap,cap,type,lg,f_or,mttr)
+    # vg_gen(name = "gen_1", N = 10, rg = "1", inst_cap = 10.0,cap = zeros(Float64,N), type = "dupv", lg = "New", f_or = 0.0, mttr = 24) = 
+        #    vg_gen(name,N,rg,inst_cap,cap,type,lg,f_or,mttr)
     vg_gen(r,s,t,u,v,w,x) = vg_gen(r,s,t,u,v,w,x,0.0,24)
     vg_gen(r,s,t,u,v,w) =  vg_gen(r,s,t,u,v,w,"New",0.0,24)
     # For illustration purposes
@@ -137,6 +137,10 @@ end
 
 function get_name(gen::GEN) where {GEN <: generator}
     return gen.name
+end
+
+function get_region(gen::GEN) where {GEN <: generator}
+    return gen.region
 end
 
 function get_capacity(gen::thermal_gen)
@@ -222,8 +226,8 @@ struct battery <:storage
     MTTR::Int64
 
     # Inner Constructors
-    battery(name = "stor_1", N = 10, rg = "reg_1",type = "4-hour", c_cap = 10.0, dis_cap = 10.0, energy_cap = 40.0,  lg = "New", chr_eff = 0.9, dis_eff = 1.0, 
-           cry_eff = 1.0, f_or = 0.0, mttr = 24) = battery(name,N,rg,type, c_cap,dis_cap,energy_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
+    # battery(name = "stor_1", N = 10, rg = "reg_1",type = "4-hour", c_cap = 10.0, dis_cap = 10.0, energy_cap = 40.0,  lg = "New", chr_eff = 0.9, dis_eff = 1.0, 
+    #        cry_eff = 1.0, f_or = 0.0, mttr = 24) = battery(name,N,rg,type, c_cap,dis_cap,energy_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
     battery(n,o,p,q,r,s,t,u,v,w,x) = battery(n,o,p,q,r,s,t,u,v,w,x,0.0,24)
     battery(n,o,p,q,r,s,t,u,v,w) = battery(n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
     battery(n,o,p,q,r,s,t,u) = battery(n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
@@ -271,9 +275,9 @@ struct gen_storage <:storage
     MTTR::Int64
 
     # Inner Constructors
-    gen_storage(name = "gen_stor_1", N = 10, rg = "reg_1",type = "pumped-storage", c_cap = fill(10.0,N), dis_cap = fill(10.0,N), energy_cap = fill(40.0,N), infl = fill(10.0,N), 
-                g_with_cap = fill(10.0,N),g_inj_cap = fill(10.0,N), lg = "New", chr_eff = 0.9, dis_eff = 1.0, cry_eff = 1.0, f_or = 0.0, mttr = 24) = 
-                gen_storage(name,N,rg,type, c_cap,dis_cap,energy_cap, infl, g_with_cap, g_inj_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
+    # gen_storage(name = "gen_stor_1", N = 10, rg = "reg_1",type = "pumped-storage", c_cap = fill(10.0,N), dis_cap = fill(10.0,N), energy_cap = fill(40.0,N), infl = fill(10.0,N), 
+    #             g_with_cap = fill(10.0,N),g_inj_cap = fill(10.0,N), lg = "New", chr_eff = 0.9, dis_eff = 1.0, cry_eff = 1.0, f_or = 0.0, mttr = 24) = 
+    #             gen_storage(name,N,rg,type, c_cap,dis_cap,energy_cap, infl, g_with_cap, g_inj_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
 
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
@@ -420,8 +424,8 @@ struct line
     MTTR::Int64
 
     # Inner Constructors
-    line(name = "line_1", N = 10, cat = "AC", reg_from = "1", reg_to = "2", for_cap = 10.0, back_cap = 10.0, leg = "Existing",f_or = 0.0, mttr = 24) = 
-         line(name, N, cat,reg_from,reg_to, for_cap, back_cap, leg, f_or, mttr)
+    # line(name = "line_1", N = 10, cat = "AC", reg_from = "1", reg_to = "2", for_cap = 10.0, back_cap = 10.0, leg = "Existing",f_or = 0.0, mttr = 24) = 
+    #      line(name, N, cat,reg_from,reg_to, for_cap, back_cap, leg, f_or, mttr)
     line(q,r,s,t,u,v,w,x) = line(q,r,s,t,u,v,w,x,0.0,24)
     line(q,r,s,t,u,v,w) = line(q,r,s,t,u,v,w,"New",0.0,24)
     line(q,r,s,t,u,v) = line(q,r,s,t,u,v,v,"New",0.0,24)

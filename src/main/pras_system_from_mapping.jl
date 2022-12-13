@@ -174,7 +174,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     gdf = DataFrames.groupby(thermal_builds, ["i","r"]) #split-apply-combine to handle differently vintaged entries
     thermal_builds = DataFrames.combine(gdf, :MW => sum);
     EIA_db = Load_EIA_NEMS_DB("/projects/ntps/llavin/ReEDS-2.0") #for now, though this is bad practice
-    all_generators = generator[];
+    all_generators = [];
     for (i,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"r"],thermal_builds[!,"MW_sum"])
         #eventually, it'd be nice to lookup/pass the FOR and N
         @info "$i $r $MW translation..."
@@ -186,13 +186,12 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
             gen_for = .05 #default val
         end
         generator_array = disagg_existing_capacity(EIA_db,floor.(Int,MW),string.(i),string.(r),gen_for,N,Year);
-        @info "...generators $generators so far"
         append!(all_generators,generator_array);
     end
     return all_generators
 end
 
-function process_vg(generators::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
+function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
     #get the vector of appropriate indices
     vg_names = [string(vg_builds[!,"i"][i])*"_"*string(vg_builds[!,"r"][i]) for i=1:DataFrames.nrow(vg_builds)];
     vg_capacities = vg_builds[!,"MW"];#want capacities
@@ -348,12 +347,14 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     capacity_matrix = mapreduce(permutedims, vcat, get_capacity.(gens));
     λ_matrix = mapreduce(permutedims,vcat,get_λ.(gens));
     mu_matrix = mapreduce(permutedims,vcat,get_μ.(gens));
-    PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
+    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
 
     # vg_tup = process_vg(generators,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
     
     # gen_tup = [vcat(a,b) for (a,b) in zip(thermal_tup[1],vg_tup[1])];
-    area_gen_idxs,region_order = sort_gens(get_category.(gens),regions,length(regions))
+    
+    area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
+    
     # new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(gen_tup[1][region_order],gen_tup[2][region_order],gen_tup[3][region_order,:],gen_tup[4][region_order,:],gen_tup[5][region_order,:]); #there's probably a way to better unpack this
 
     #######################################################

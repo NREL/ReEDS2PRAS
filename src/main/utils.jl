@@ -90,14 +90,14 @@ end
 
 function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::Int,tech::String,pca::String,gen_for::Float64,N::Int,Year::Int)
     
-    MTTR = 24
+    MTTR = 24;
     
     tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=Year) .& (eia_df.StartYear.<=Year), :];
-    generators_array = generator[];
+    generators_array = [];
     if length(tech_ba_year_existing.tech)==0
         @info "$tech $pca existing in $Year is not in EIA database, so return a single NEW generator with $built_capacity MW"
         gen_name = tech*"_"*pca*"_"*string.(1);
-        generators_array = push!(generators_array,thermal_gen(gen_name,N,pca,built_capacity,tech,"Existing",gen_for,MTTR));
+        generators_array = push!(generators_array,thermal_gen(gen_name,N,pca,built_capacity,tech,"New",gen_for,MTTR));
     
         return generators_array
     end
