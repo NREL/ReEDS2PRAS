@@ -111,11 +111,11 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,Year::Int)#FOR_data::DataFrames.DataFrame,
+function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,Year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     gdf = DataFrames.groupby(thermal_builds, ["i","r"]) #split-apply-combine to handle differently vintaged entries
     thermal_builds = DataFrames.combine(gdf, :MW => sum);
-    EIA_db = Load_EIA_NEMS_DB("/projects/ntps/llavin/ReEDS-2.0") #for now, though this is bad practice
+    EIA_db = Load_EIA_NEMS_DB(NEMS_path) #for now, though this is bad practice
     all_generators = [];
     native_FOR_data = FOR_data[!,"Column1"];
     lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
@@ -254,7 +254,7 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     return (storages_array,region_stor_idxs)
 end
 
-function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, CaseLabel::String)
+function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, CaseLabel::String, NEMS_path::String)
     #######################################################
     # Loading the necessary mapping files and data
     #######################################################
@@ -287,7 +287,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     for (idx,r) in enumerate(regions)
         push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
     end
-    # load_matrix = mapreduce(permutedims, vcat, get_load.(region_array));
+
     new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array))));
 
     #######################################################
@@ -298,10 +298,10 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #######################################################
     line_array,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,Year,8760);
 
-    line_forward_capacity_array = mapreduce(permutedims, vcat, get_forward_capacity.(line_array));
-    line_backward_capacity_array = mapreduce(permutedims, vcat, get_backward_capacity.(line_array));
-    λ_lines = mapreduce(permutedims, vcat, get_λ.(line_array));
-    μ_lines = mapreduce(permutedims, vcat, get_μ.(line_array));
+    line_forward_capacity_array = copy(transpose(reduce(hcat, get_forward_capacity.(line_array))));#mapreduce(permutedims, vcat, get_forward_capacity.(line_array));
+    line_backward_capacity_array = copy(transpose(reduce(hcat, get_backward_capacity.(line_array))));#mapreduce(permutedims, vcat, get_backward_capacity.(line_array));
+    λ_lines = copy(transpose(reduce(hcat, get_λ.(line_array))));#mapreduce(permutedims, vcat, get_λ.(line_array));
+    μ_lines = copy(transpose(reduce(hcat, get_μ.(line_array))));#mapreduce(permutedims, vcat, get_μ.(line_array));
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
@@ -312,12 +312,13 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     forced_outage_data = DataFrames.DataFrame(CSV.File(forced_outage_path,header=false));
 
     @info "reading thermals..."
-    gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year);
+    gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
     @info "reading vg..."
     gens = process_vg_refactor(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
-    capacity_matrix = mapreduce(permutedims,vcat,get_capacity.(gens));#reduce(vcat,(get_capacity.(gens)));#mapreduce(permutedims, vcat, get_capacity.(gens));
-    λ_matrix = mapreduce(permutedims,vcat,get_λ.(gens));
-    mu_matrix = mapreduce(permutedims,vcat,get_μ.(gens));
+    @info "...vg read, translating to PRAS gens"
+    capacity_matrix = copy(transpose(reduce(hcat, get_capacity.(gens))));#mapreduce(permutedims,vcat,get_capacity.(gens));#reduce(vcat,(get_capacity.(gens)));#mapreduce(permutedims, vcat, get_capacity.(gens));
+    λ_matrix = copy(transpose(reduce(hcat, get_λ.(gens))));#mapreduce(permutedims,vcat,get_λ.(gens));
+    mu_matrix = copy(transpose(reduce(hcat, get_μ.(gens))));#mapreduce(permutedims,vcat,get_μ.(gens));
     new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
     
     area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
@@ -338,14 +339,14 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "Processing Storages..."
     storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
 
-    stor_charge_cap_array = mapreduce(permutedims,vcat,get_charge_capacity.(storages))
-    stor_discharge_cap_array = mapreduce(permutedims,vcat,get_discharge_capacity.(storages))
-    stor_energy_cap_array = mapreduce(permutedims,vcat,get_energy_capacity.(storages))
-    stor_chrg_eff_array = mapreduce(permutedims,vcat,get_charge_efficiency.(storages))
-    stor_dischrg_eff_array = mapreduce(permutedims,vcat,get_discharge_efficiency.(storages))
-    stor_cryovr_eff = mapreduce(permutedims,vcat,get_carryover_efficiency.(storages))
-    λ_stor = mapreduce(permutedims,vcat,get_λ.(storages));
-    μ_stor = mapreduce(permutedims,vcat,get_μ.(storages));
+    stor_charge_cap_array = copy(transpose(reduce(hcat, get_charge_capacity.(storages))));#mapreduce(permutedims,vcat,get_charge_capacity.(storages))
+    stor_discharge_cap_array = copy(transpose(reduce(hcat, get_discharge_capacity.(storages))));#mapreduce(permutedims,vcat,get_discharge_capacity.(storages))
+    stor_energy_cap_array = copy(transpose(reduce(hcat, get_energy_capacity.(storages))));#mapreduce(permutedims,vcat,get_energy_capacity.(storages))
+    stor_chrg_eff_array = copy(transpose(reduce(hcat, get_charge_efficiency.(storages))));#mapreduce(permutedims,vcat,get_charge_efficiency.(storages))
+    stor_dischrg_eff_array = copy(transpose(reduce(hcat, get_discharge_efficiency.(storages))));#mapreduce(permutedims,vcat,get_discharge_efficiency.(storages))
+    stor_cryovr_eff = copy(transpose(reduce(hcat, get_carryover_efficiency.(storages))));#mapreduce(permutedims,vcat,get_carryover_efficiency.(storages))
+    λ_stor = copy(transpose(reduce(hcat, get_λ.(storages))));#mapreduce(permutedims,vcat,get_λ.(storages));
+    μ_stor = copy(transpose(reduce(hcat, get_μ.(storages))));#mapreduce(permutedims,vcat,get_μ.(storages));
     new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_category.(storages),
                                                 stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
                                                 stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
@@ -380,13 +381,13 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
                                                             λ_genstors, μ_genstors);
                                                             
     area_genstor_idxs = fill(1:0, num_areas);
-
+    # @info "creating a PRAS system..."
     pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
                             area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
-
+    # @info "...PRAS system created"
     #save PRAS system somewhere we can use it?
     PRAS.savemodel(pras_system,joinpath(ReEDSfilepath,"outputs",CaseLabel*".pras"))
-    short,flow = run_pras_system(pras_system,10)
+    short,flow = run_pras_system(pras_system,2)#just two for now to save time but eventually more
     return(pras_system)
     
 end

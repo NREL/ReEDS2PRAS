@@ -132,9 +132,9 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
         generators_array = disagg_new_capacity(generators_array,remaining_capacity,floor.(Int,avg_cap),floor.(Int,max_cap),tech,pca,gen_for,N,Year,MTTR);
     end
     
-    out_cap = sum(get_nameplate.(generators_array));
-    # @info "capacity out for $tech $pca is $out_cap"
-    @assert out_cap == built_capacity; #check to make sure right amount of capacity is, in fact, built!
+    # out_cap = sum(get_nameplate.(generators_array));
+    # # @info "capacity out for $tech $pca is $out_cap"
+    # @assert out_cap == built_capacity; #check to make sure right amount of capacity is, in fact, built!
     return generators_array
 end
 
