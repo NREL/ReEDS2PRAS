@@ -37,6 +37,8 @@ struct region
 
      # Inner Constructors
     region(x,y) = region(x,y,zeros(Float64,N))
+    # For illustration purposes
+    region(nothing) = region("region_1",10,fill(100.0,10))
 
     # Checks
     region(x,y,z) =
@@ -55,7 +57,7 @@ function get_name(reg::region)
 end
 
 function get_load(reg::region)
-    return reg.load
+    return reshape(round.(Int,reg.load),1,:)
 end
 
 # Generators
@@ -136,11 +138,11 @@ function get_name(gen::GEN) where {GEN <: generator}
 end
 
 function get_capacity(gen::thermal_gen)
-    return fill(round(Int,gen.cap),gen.N)
+    return fill(round(Int,gen.cap),1,gen.N)
 end
 
 function get_capacity(gen::vg_gen)
-    return round.(Int,gen.cap)
+    return reshape(round.(Int,gen.cap),1,:)
 end
 
 function get_legacy(gen::GEN) where {GEN <: generator}
@@ -153,11 +155,11 @@ function get_outage_rate(gen::GEN) where {GEN <: generator}
 end
 
 function get_λ(gen::GEN) where {GEN <: generator}
-    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:λ),gen.N)
+    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:λ),1,gen.N)
 end
 
 function get_μ(gen::GEN) where {GEN <: generator}
-    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:μ),gen.N)
+    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:μ),1,gen.N)
 end
 
 function get_fuel(gen::thermal_gen)
@@ -190,6 +192,10 @@ function get_generators_in_region(gens::generators, reg::region)
 end
 
 function get_legacy_generators(gens::generators, leg::String)
+    if ~(leg in ["Existing","New"])
+        error("Unidentified legacy passed")
+    end
+
     leg_gen_idxs = findall(getfield.(gens,:legacy) .== leg)
     if isnothing(leg_gen_idxs)
         @warn "No generators with this legacy"
@@ -315,11 +321,11 @@ function get_outage_rate(stor::STOR) where {STOR <: storage}
 end
 
 function get_λ(stor::STOR) where {STOR <: storage}
-    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:λ),stor.N)
+    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:λ),1,stor.N)
 end
 
 function get_μ(stor::STOR) where {STOR <: storage}
-    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:μ),stor.N)
+    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:μ),1,stor.N)
 end
 
 function get_category(stor::STOR) where {STOR <: storage}
@@ -327,51 +333,51 @@ function get_category(stor::STOR) where {STOR <: storage}
 end
 
 function get_charge_capacity(stor::battery)
-    return fill(round(Int,stor.charge_cap),stor.N)
+    return fill(round(Int,stor.charge_cap),1,stor.N)
 end
 
 function get_charge_capacity(stor::gen_storage)
-    return round.(Int,stor.charge_cap)
+    return reshape(round.(Int,stor.charge_cap),1,:)
 end
 
 function get_discharge_capacity(stor::battery)
-    return fill(round(Int,stor.discharge_cap),stor.N)
+    return fill(round(Int,stor.discharge_cap),1,stor.N)
 end
 
 function get_discharge_capacity(stor::gen_storage)
-    return round.(Int,stor.discharge_cap)
+    return reshape(round.(Int,stor.discharge_cap),1,:)
 end
 
 function get_energy_capacity(stor::battery)
-    return fill(round(Int,stor.energy_cap),stor.N)
+    return fill(round(Int,stor.energy_cap),1,stor.N)
 end
 
 function get_energy_capacity(stor::gen_storage)
-    return round.(Int,stor.energy_cap)
+    return reshape(round.(Int,stor.energy_cap),1,:)
 end
 
 function get_inflow(stor::gen_storage)
-    return round.(Int,stor.inflow)
+    return reshape(round.(Int,stor.inflow),1,:)
 end
 
 function get_grid_withdrawl_capacity(stor::gen_storage)
-    return round.(Int,stor.grid_withdrawl_cap)
+    return reshape(round.(Int,stor.grid_withdrawl_cap),1,:)
 end
 
 function get_grid_injection_capacity(stor::gen_storage)
-    return round.(Int,stor.grid_inj_cap)
+    return reshape(round.(Int,stor.grid_inj_cap),1,:)
 end
 
 function get_charge_efficiency(stor::STOR) where {STOR <: storage}
-    return fill(stor.charge_eff,stor.N)
+    return fill(stor.charge_eff,1,stor.N)
 end
 
 function get_discharge_efficiency(stor::STOR) where {STOR <: storage}
-    return fill(stor.discharge_eff,stor.N)
+    return fill(stor.discharge_eff,1,stor.N)
 end
 
 function get_carryover_efficiency(stor::STOR) where {STOR <: storage}
-    return fill(stor.carryover_eff,stor.N)
+    return fill(stor.carryover_eff,1,stor.N)
 end
 
 function get_storages_in_region(stors::storages, reg_name::String)
@@ -388,6 +394,10 @@ function get_storages_in_region(stors::storages, reg::region)
 end
 
 function get_legacy_storages(stors::storages, leg::String)
+    if ~(leg in ["Existing","New"])
+        error("Unidentified legacy passed")
+    end
+
     leg_stor_idxs = findall(getfield.(stors,:legacy) .== leg)
     if isnothing(eg_stor_idxs)
         @warn "No storages with this legacy"
@@ -448,11 +458,11 @@ function get_category(ln::line)
 end
 
 function get_forward_capacity(ln::line)
-    return fill(round(Int,ln.forward_cap),ln.N)
+    return fill(round(Int,ln.forward_cap),1,ln.N)
 end
 
 function get_backward_capacity(ln::line)
-    return fill(round(Int,ln.backward_cap),ln.N)
+    return fill(round(Int,ln.backward_cap),1,ln.N)
 end
 
 function get_region_from(ln::line)
@@ -469,14 +479,18 @@ function get_outage_rate(ln::line)
 end
 
 function get_λ(ln::line)
-    return fill(getfield(outage_to_rate((ln.FOR,line.MTTR)),:λ),ln.N)
+    return fill(getfield(outage_to_rate((ln.FOR,line.MTTR)),:λ),1,ln.N)
 end
 
 function get_μ(ln::line)
-    return fill(getfield(outage_to_rate((ln.FOR,ln.MTTR)),:μ),ln.N)
+    return fill(getfield(outage_to_rate((ln.FOR,ln.MTTR)),:μ),1,ln.N)
 end
 
 function get_legacy_lines(lns::lines, leg::String)
+    if ~(leg in ["Existing","New"])
+        error("Unidentified legacy passed")
+    end
+
     leg_line_idxs = findall(getfield.(lns,:legacy) .== leg)
     if isnothing(leg_line_idxs)
         @warn "No lines with this legacy"
@@ -485,7 +499,7 @@ function get_legacy_lines(lns::lines, leg::String)
     end
 end
 
-# Functions for line processing
+# Functions for PRAS line processing
 function get_sorted_region_tuples(lns::lines, region_names::Vector{String})
     regions_from = get_region_from.(lns)
     regions_to = get_region_to.(lns)
@@ -495,9 +509,9 @@ function get_sorted_region_tuples(lns::lines, region_names::Vector{String})
         region_from_idx = findfirst(x->x==reg,region_names)
         region_to_idx = findfirst(x->x==regions_to[idx],region_names)
         if (region_from_idx < region_to_idx)
-            push!(regions_tuple,(reg,regions_to[i]))
+            push!(regions_tuple,(reg,regions_to[idx]))
         else
-            push!(regions_tuple,(regions_to[i],reg))
+            push!(regions_tuple,(regions_to[idx],reg))
         end
     end
     return regions_tuple
@@ -514,6 +528,31 @@ end
 
 function get_sorted_region_tuples(lns::lines, regions::Vector{region})
     get_sorted_region_tuples(lns,get_name.(regions))
+end
+
+function get_sorted_lines(lns::lines, region_names::Vector{String})
+    regions_tuple = get_sorted_region_tuples(lns, region_names)
+    temp_regions_tuple = unique(regions_tuple);
+    interface_dict = Dict();
+
+    for i in eachindex(temp_regions_tuple)
+        temp = findall(x -> x == temp_regions_tuple[i], regions_tuple);
+        push!(interface_dict, temp_regions_tuple[i] => (temp,length(temp)))
+    end
+
+    num_interfaces = length(temp_regions_tuple);
+    sorted_regional_lines = line[];
+    interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
+    start_id = Array{Int64}(undef,num_interfaces); 
+    for i in 1: num_interfaces
+        for j in interface_dict[temp_regions_tuple[i]][1]
+            push!(sorted_regional_lines, lns[j])
+        end
+        i==1 ? start_id[i] = 1 : start_id[i] =start_id[i-1]+interface_dict[temp_regions_tuple[i-1]][2]
+        interface_line_idxs[i] = range(start_id[i], length=interface_dict[temp_regions_tuple[i]][2])
+    end
+
+    return sorted_regional_lines, temp_regions_tuple , interface_line_idxs
 end
 # Testing
 gens = generator[]
@@ -562,4 +601,5 @@ gen_stor_μ = get_μ.(gen_stors)
 all_lines = line[]
 push!(all_lines, line(nothing))
 push!(all_lines, line(nothing))
+
 
