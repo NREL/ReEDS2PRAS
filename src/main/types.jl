@@ -56,7 +56,7 @@ function get_name(reg::region)
 end
 
 function get_load(reg::region)
-    return reg.load
+    return permutedims(round.(Int,reg.load))#reg.load
 end
 
 # Generators

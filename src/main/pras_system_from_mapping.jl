@@ -140,10 +140,44 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
+function process_vg_refactor(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
+    #data loads
+    region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
+    region_mapper_df = DataFrames.DataFrame(CSV.File(region_mapper));
+
+    cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(Year)*".h5"),"data"); #load is now picked up from augur
+    # indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],));
+    vg_profiles = cf_info["block0_values"];
+    start_idx = (WeatherYear-2007)*N;
+
+    for idx in range(1,DataFrames.nrow(vg_builds))
+        category = string(vg_builds[idx,"i"]);
+        name = category*"_"*string(vg_builds[idx,"r"]);
+        slicer = findfirst(isequal(string(vg_builds[idx,"r"])), region_mapper_df[:,"rs"]);
+        if !isnothing(slicer)
+            region = region_mapper_df[slicer,"*r"]
+        else
+            region = string(vg_builds[idx,"r"])
+        end
+        profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1];
+        size_comp = size(vg_profiles)[1]
+        profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)];
+        if category in FOR_data[!,"Column1"]
+            for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
+            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+        else
+            gen_for = .05;
+        end
+        name = name*"_"*string(vg_builds[idx,"v"]);
+        push!(generators_array,vg_gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
+    end
+    return generators_array
+end
+
 function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
     #get the vector of appropriate indices
     vg_names = [string(vg_builds[!,"i"][i])*"_"*string(vg_builds[!,"r"][i]) for i=1:DataFrames.nrow(vg_builds)];
-    vg_capacities = vg_builds[!,"MW"];#want capacities
+    # vg_capacities = vg_builds[!,"MW"];#want capacities
 
     #get regions and convert them to appropriate data where relevant
     vg_categories = string.(vg_builds[!,"i"]);#[string(vg_builds[!,"i"][i]) for i=1:DataFrames.nrow(vg_builds)]
@@ -253,8 +287,8 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     for (idx,r) in enumerate(regions)
         push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
     end
-    load_matrix = mapreduce(permutedims, vcat, get_load.(region_array));
-    new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),load_matrix);
+    # load_matrix = mapreduce(permutedims, vcat, get_load.(region_array));
+    new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array))));
 
     #######################################################
     # PRAS Region Gen Index 
@@ -280,7 +314,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "reading thermals..."
     gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year);
     @info "reading vg..."
-    gens = process_vg(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
+    gens = process_vg_refactor(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
     capacity_matrix = mapreduce(permutedims, vcat, get_capacity.(gens));
     λ_matrix = mapreduce(permutedims,vcat,get_λ.(gens));
     mu_matrix = mapreduce(permutedims,vcat,get_μ.(gens));
