@@ -57,7 +57,7 @@ function get_name(reg::region)
 end
 
 function get_load(reg::region)
-    return reshape(round.(Int,reg.load),1,:)
+    return permutedims(round.(Int,reg.load))
 end
 
 # Generators
@@ -142,7 +142,7 @@ function get_capacity(gen::thermal_gen)
 end
 
 function get_capacity(gen::vg_gen)
-    return reshape(round.(Int,gen.cap),1,:)
+    return permutedims(round.(Int,gen.cap))
 end
 
 function get_legacy(gen::GEN) where {GEN <: generator}
@@ -337,7 +337,7 @@ function get_charge_capacity(stor::battery)
 end
 
 function get_charge_capacity(stor::gen_storage)
-    return reshape(round.(Int,stor.charge_cap),1,:)
+    return permutedims(round.(Int,stor.charge_cap))
 end
 
 function get_discharge_capacity(stor::battery)
@@ -345,7 +345,7 @@ function get_discharge_capacity(stor::battery)
 end
 
 function get_discharge_capacity(stor::gen_storage)
-    return reshape(round.(Int,stor.discharge_cap),1,:)
+    return permutedims(round.(Int,stor.discharge_cap))
 end
 
 function get_energy_capacity(stor::battery)
@@ -353,19 +353,19 @@ function get_energy_capacity(stor::battery)
 end
 
 function get_energy_capacity(stor::gen_storage)
-    return reshape(round.(Int,stor.energy_cap),1,:)
+    return permutedims(round.(Int,stor.energy_cap))
 end
 
 function get_inflow(stor::gen_storage)
-    return reshape(round.(Int,stor.inflow),1,:)
+    return permutedims(round.(Int,stor.inflow))
 end
 
 function get_grid_withdrawl_capacity(stor::gen_storage)
-    return reshape(round.(Int,stor.grid_withdrawl_cap),1,:)
+    return permutedims(round.(Int,stor.grid_withdrawl_cap))
 end
 
 function get_grid_injection_capacity(stor::gen_storage)
-    return reshape(round.(Int,stor.grid_inj_cap),1,:)
+    return permutedims(round.(Int,stor.grid_inj_cap))
 end
 
 function get_charge_efficiency(stor::STOR) where {STOR <: storage}
