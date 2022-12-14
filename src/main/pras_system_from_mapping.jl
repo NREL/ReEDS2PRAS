@@ -126,32 +126,32 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function create_generators_from_data!(gen_matrix,gen_names,gen_categories,FOR_data)
-    #grab the FORS
-    n_gen,N = size(gen_matrix)[1],size(gen_matrix)[2];
-    gen_cap_array = Matrix{Int64}(undef, n_gen, N);
-    λ_gen = Matrix{Float64}(undef, n_gen, N);
-    μ_gen = Matrix{Float64}(undef, n_gen, N);
-    for idx in 1:n_gen
-        gen_cap_array[idx,:] = floor.(Int,gen_matrix[idx,:]); #converts to int
+# function create_generators_from_data!(gen_matrix,gen_names,gen_categories,FOR_data)
+#     #grab the FORS
+#     n_gen,N = size(gen_matrix)[1],size(gen_matrix)[2];
+#     gen_cap_array = Matrix{Int64}(undef, n_gen, N);
+#     λ_gen = Matrix{Float64}(undef, n_gen, N);
+#     μ_gen = Matrix{Float64}(undef, n_gen, N);
+#     for idx in 1:n_gen
+#         gen_cap_array[idx,:] = floor.(Int,gen_matrix[idx,:]); #converts to int
         
-        #use conditional to set failure and recovery probabilities for generators
-        #eventually this will have to call to Sinnott's data & be much more sophisticated
-        if gen_categories[idx] in FOR_data[!,"Column1"]
-            for_idx = findfirst(x->x==gen_categories[idx],FOR_data[!,"Column1"])#get the idx
-            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
-            lambda,mu = FOR_to_transitionprobs(gen_for)#run the helper fxn
-            λ_gen[idx,:] .= lambda;
-            μ_gen[idx,:] .= mu;
-        else
-            λ_gen[idx,:] .= 0.01; 
-            μ_gen[idx,:] .= 0.2;
-        end
-    end
+#         #use conditional to set failure and recovery probabilities for generators
+#         #eventually this will have to call to Sinnott's data & be much more sophisticated
+#         if gen_categories[idx] in FOR_data[!,"Column1"]
+#             for_idx = findfirst(x->x==gen_categories[idx],FOR_data[!,"Column1"])#get the idx
+#             gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+#             lambda,mu = FOR_to_transitionprobs(gen_for)#run the helper fxn
+#             λ_gen[idx,:] .= lambda;
+#             μ_gen[idx,:] .= mu;
+#         else
+#             λ_gen[idx,:] .= 0.01; 
+#             μ_gen[idx,:] .= 0.2;
+#         end
+#     end
 
 
-    return (gen_names,gen_categories,gen_cap_array,λ_gen,μ_gen);
-end
+#     return (gen_names,gen_categories,gen_cap_array,λ_gen,μ_gen);
+# end
 
 # function process_thermals(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int)
 #     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
@@ -254,8 +254,8 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     storage_categories = string.(storage_builds[!,"i"]);#[string(vg_builds[!,"i"][i]) for i=1:DataFrames.nrow(vg_builds)]
     storage_regions = string.(storage_builds[!,"r"]);
     region_stor_capacity_idxs,stor_capacity_region_order = sort_gens(storage_regions,regions,length(regions))
-    stor_names,stor_categories,stor_discharge_cap_array,λ_stor,μ_stor= create_generators_from_data!(storage_capacities[stor_capacity_region_order].*storage_cap_factors,storage_names[stor_capacity_region_order],storage_categories[stor_capacity_region_order],FOR_data);
-    stor_charge_cap_array = stor_discharge_cap_array #make this equal for now
+    # stor_names,stor_categories,stor_discharge_cap_array,λ_stor,μ_stor= create_generators_from_data!(storage_capacities[stor_capacity_region_order].*storage_cap_factors,storage_names[stor_capacity_region_order],storage_categories[stor_capacity_region_order],FOR_data);
+    # stor_charge_cap_array = stor_discharge_cap_array #make this equal for now
     
     @info "handling energy capacity of storages"
     # storage_energy_capacities = joinpath(ReEDSfilepath,"outputs","stor_energy_cap.csv")
@@ -268,20 +268,20 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     storage_energy_capacity_regions = string.(annual_data_sum[!,"r"]);
     #reorder to ensure proper order!
     region_stor_idxs,stor_region_order = sort_gens(storage_energy_capacity_regions,regions,length(regions))
-    stor_energy_cap_array = annual_data_sum[stor_region_order,"MWh_sum"].*storage_cap_factors
-    stor_energy_cap_array = floor.(Int, stor_energy_cap_array)#go to int
     
-    #efficiency and carryover; fill all as ones for now
-    stor_chrg_eff_array = ones(length(stor_names),N);
-    stor_dischrg_eff_array = ones(length(stor_names),N);
-    stor_cryovr_eff = ones(length(stor_names),N);
+    storages_array = [];
+    for (name,region,category,capacity,energy_capacity) in zip(storage_names[stor_capacity_region_order],storage_regions,storage_categories[stor_capacity_region_order],storage_capacities[stor_capacity_region_order],annual_data_sum[stor_region_order,"MWh_sum"])
 
-    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(stor_names,stor_categories,
-                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
-                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
-                                                λ_stor,μ_stor);
-
-    return(new_storage,region_stor_idxs)
+        if category in FOR_data[!,"Column1"]
+            for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
+            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+        else
+            gen_for = 0.0;
+            @info "did not find FOR for storage $name $region $category, so setting FOR to $gen_for"
+        end 
+        push!(storages_array,battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
+    end
+    return (storages_array,region_stor_idxs)
 end
 
 function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, CaseLabel::String)
@@ -316,14 +316,12 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     num_areas = length(regions); 
     N = size(load_year)[2];#DataFrames.DataFrames.nrow(load_data)
     region_array = [];
-    # region_load = Array{Int64,2}(undef,num_areas,N);
 
     for (idx,r) in enumerate(regions)
         push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
     end
     load_matrix = mapreduce(permutedims, vcat, get_load.(region_array));
     new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),load_matrix);
-    # new_regions = PRAS.Regions{N,PRAS.MW}(regions, region_load);
 
     #######################################################
     # PRAS Region Gen Index 
@@ -377,8 +375,20 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # Storages are added 11.28
     #######################################################
     @info "Processing Storages..."
-    new_storage,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
-    
+    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
+
+    stor_charge_cap_array = mapreduce(permutedims,vcat,get_charge_capacity.(storages))
+    stor_discharge_cap_array = mapreduce(permutedims,vcat,get_discharge_capacity.(storages))
+    stor_energy_cap_array = mapreduce(permutedims,vcat,get_energy_capacity.(storages))
+    stor_chrg_eff_array = mapreduce(permutedims,vcat,get_charge_efficiency.(storages))
+    stor_dischrg_eff_array = mapreduce(permutedims,vcat,get_discharge_efficiency.(storages))
+    stor_cryovr_eff = mapreduce(permutedims,vcat,get_carryover_efficiency.(storages))
+    λ_stor = mapreduce(permutedims,vcat,get_λ.(storages));
+    μ_stor = mapreduce(permutedims,vcat,get_μ.(storages));
+    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_category.(storages),
+                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
+                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
+                                                λ_stor,μ_stor);
     #######################################################
     # PRAS GeneratorStorages
     # No GeneratorStorages in this system

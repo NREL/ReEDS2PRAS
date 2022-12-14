@@ -106,6 +106,7 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     tech_len = length(tech_ba_year_existing[!,"cap"]);
     max_cap = maximum(tech_ba_year_existing[!,"cap"])
     avg_cap = Statistics.mean(tech_ba_year_existing[!,"cap"])
+    # @info "avg cap is $avg_cap"
 
     for (idx,built_cap) in enumerate(tech_ba_year_existing[!,"cap"])
         int_built_cap = floor.(Int,built_cap);
@@ -139,6 +140,9 @@ end
 
 function disagg_new_capacity(generators_array::Vector,new_capacity::Int,avg::Int,max::Int,tech::String,pca::String,gen_for::Float64,N::Int,Year::Int,MTTR::Int)
     # cap_out = [];
+    if avg==0
+        return push!(generators_array,thermal_gen(tech*"_"*pca*"_new_"*string.(1),N,pca,new_capacity,tech,"New",gen_for,MTTR))
+    end
     n_gens = floor.(Int,new_capacity/avg);
     if n_gens==0
         # @info "new capacity is too small to disaggregate, so build all $new_capacity MW as a single generator"
