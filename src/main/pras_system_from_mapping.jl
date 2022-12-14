@@ -316,12 +316,15 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "reading vg..."
     gens = process_vg_refactor(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
     @info "...vg read, translating to PRAS gens"
+    area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
+    gens = gens[region_order]; #now they are properly sorted, we hope!
+    
     capacity_matrix = copy(transpose(reduce(hcat, get_capacity.(gens))));#mapreduce(permutedims,vcat,get_capacity.(gens));#reduce(vcat,(get_capacity.(gens)));#mapreduce(permutedims, vcat, get_capacity.(gens));
     λ_matrix = copy(transpose(reduce(hcat, get_λ.(gens))));#mapreduce(permutedims,vcat,get_λ.(gens));
     mu_matrix = copy(transpose(reduce(hcat, get_μ.(gens))));#mapreduce(permutedims,vcat,get_μ.(gens));
     new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
     
-    area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
+    
     
     # new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(gen_tup[1][region_order],gen_tup[2][region_order],gen_tup[3][region_order,:],gen_tup[4][region_order,:],gen_tup[5][region_order,:]); #there's probably a way to better unpack this
 
