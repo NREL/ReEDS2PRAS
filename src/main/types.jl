@@ -29,14 +29,12 @@ function outage_to_rate(outage_data::Tuple{Float64, Int64})
     end
 end
 # Regions
-# TODO : Change load to Int64
 struct region
     name::String
     N::Int64
     load::Vector{Int64}
 
      # Inner Constructors
-    # region(name = "region_1", N = 10, load = ones(Float64,N)) = new(name,N,load)
     region(name = "region_1", N =10) = region(name,N, zeros(Int64,N))
 
     # Checks
@@ -56,7 +54,7 @@ function get_name(reg::region)
 end
 
 function get_load(reg::region)
-    return permutedims(round.(Int,reg.load))#reg.load
+    return permutedims(round.(Int,reg.load))
 end
 
 # Generators
@@ -74,7 +72,6 @@ struct thermal_gen <:generator
     MTTR::Int64
 
     # Inner Constructors
-    # thermal_gen(name = "gen_1", N = 10, rg = "1", cap = 10.0, fl = "NG", lg = "New", f_or = 0.1, mttr = 24) = thermal_gen(name,N,rg,cap,fl,lg,f_or,mttr);
     thermal_gen(s,t,u,v,w,x,y) = thermal_gen(s,t,u,v,w,x,y,24);
     thermal_gen(s,t,u,v,w,x) = thermal_gen(s,t,u,v,w,x,0.0,24);
     thermal_gen(s,t,u,v,w) = thermal_gen(s,t,u,v,w,"New",0.0,24);
@@ -109,8 +106,6 @@ struct vg_gen <:generator
     MTTR::Int64
 
     # Inner Constructors
-    # vg_gen(name = "gen_1", N = 10, rg = "1", inst_cap = 10.0,cap = zeros(Float64,N), type = "dupv", lg = "New", f_or = 0.0, mttr = 24) = 
-        #    vg_gen(name,N,rg,inst_cap,cap,type,lg,f_or,mttr)
     vg_gen(r,s,t,u,v,w,x) = vg_gen(r,s,t,u,v,w,x,0.0,24)
     vg_gen(r,s,t,u,v,w) =  vg_gen(r,s,t,u,v,w,"New",0.0,24)
     # For illustration purposes

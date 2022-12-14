@@ -315,7 +315,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year);
     @info "reading vg..."
     gens = process_vg_refactor(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
-    capacity_matrix = mapreduce(permutedims, vcat, get_capacity.(gens));
+    capacity_matrix = mapreduce(permutedims,vcat,get_capacity.(gens));#reduce(vcat,(get_capacity.(gens)));#mapreduce(permutedims, vcat, get_capacity.(gens));
     λ_matrix = mapreduce(permutedims,vcat,get_λ.(gens));
     mu_matrix = mapreduce(permutedims,vcat,get_μ.(gens));
     new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
