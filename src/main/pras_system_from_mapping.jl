@@ -254,10 +254,10 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #######################################################
     line_array,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,Year,8760);
 
-    line_forward_capacity_array = copy(transpose(reduce(hcat, get_forward_capacity.(line_array))));
-    line_backward_capacity_array = copy(transpose(reduce(hcat, get_backward_capacity.(line_array))));
-    λ_lines = copy(transpose(reduce(hcat, get_λ.(line_array))));
-    μ_lines = copy(transpose(reduce(hcat, get_μ.(line_array))));
+    line_forward_capacity_array = permutedims(hcat(get_forward_capacity.(line_array)...));
+    line_backward_capacity_array = permutedims(hcat(get_backward_capacity.(line_array)...));
+    λ_lines = permutedims(hcat(get_λ.(line_array)...));
+    μ_lines = permutedims(hcat(get_μ.(line_array)...));
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
@@ -275,9 +275,9 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
     gens = gens[region_order]; #now they are properly sorted, we hope!
     
-    capacity_matrix = copy(transpose(reduce(hcat, get_capacity.(gens))));
-    λ_matrix = copy(transpose(reduce(hcat, get_λ.(gens))));
-    mu_matrix = copy(transpose(reduce(hcat, get_μ.(gens))));
+    capacity_matrix = permutedims(hcat(get_capacity.(gens)...));
+    λ_matrix = permutedims(hcat(get_λ.(gens)...));
+    mu_matrix = permutedims(hcat(get_μ.(gens)...));
     new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
 
     #######################################################
@@ -294,14 +294,14 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "Processing Storages..."
     storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
 
-    stor_charge_cap_array = copy(transpose(reduce(hcat, get_charge_capacity.(storages))));#mapreduce(permutedims,vcat,get_charge_capacity.(storages))
-    stor_discharge_cap_array = copy(transpose(reduce(hcat, get_discharge_capacity.(storages))));
-    stor_energy_cap_array = copy(transpose(reduce(hcat, get_energy_capacity.(storages))));
-    stor_chrg_eff_array = copy(transpose(reduce(hcat, get_charge_efficiency.(storages))));
-    stor_dischrg_eff_array = copy(transpose(reduce(hcat, get_discharge_efficiency.(storages))));
-    stor_cryovr_eff = copy(transpose(reduce(hcat, get_carryover_efficiency.(storages))));
-    λ_stor = copy(transpose(reduce(hcat, get_λ.(storages))));
-    μ_stor = copy(transpose(reduce(hcat, get_μ.(storages))));
+    stor_charge_cap_array = permutedims(hcat(get_charge_capacity.(storages)...));#mapreduce(permutedims,vcat,get_charge_capacity.(storages))
+    stor_discharge_cap_array = permutedims(hcat(get_discharge_capacity.(storages)...));
+    stor_energy_cap_array = permutedims(hcat(get_energy_capacity.(storages)...));
+    stor_chrg_eff_array = permutedims(hcat(get_charge_efficiency.(storages)...));
+    stor_dischrg_eff_array = permutedims(hcat(get_discharge_efficiency.(storages)...));
+    stor_cryovr_eff = permutedims(hcat(get_carryover_efficiency.(storages)...));
+    λ_stor = permutedims(hcat(get_λ.(storages)...));
+    μ_stor = permutedims(hcat(get_μ.(storages)...));
     new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_category.(storages),
                                                 stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
                                                 stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
