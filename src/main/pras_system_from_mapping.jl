@@ -140,7 +140,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
-function process_vg_refactor(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
+function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
     #data loads
     region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
     region_mapper_df = DataFrames.DataFrame(CSV.File(region_mapper));
@@ -169,50 +169,6 @@ function process_vg_refactor(generators_array::Vector,vg_builds::DataFrames.Data
             gen_for = .05;
         end
         name = name*"_"*string(vg_builds[idx,"v"]);
-        push!(generators_array,vg_gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
-    end
-    return generators_array
-end
-
-function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
-    #get the vector of appropriate indices
-    vg_names = [string(vg_builds[!,"i"][i])*"_"*string(vg_builds[!,"r"][i]) for i=1:DataFrames.nrow(vg_builds)];
-    # vg_capacities = vg_builds[!,"MW"];#want capacities
-
-    #get regions and convert them to appropriate data where relevant
-    vg_categories = string.(vg_builds[!,"i"]);#[string(vg_builds[!,"i"][i]) for i=1:DataFrames.nrow(vg_builds)]
-    vg_regions = string.(vg_builds[!,"r"]);
-    
-    #pull in mapping info for the regions, since vg is originally not assigned by region
-    region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
-    region_mapper_df = DataFrames.DataFrame(CSV.File(region_mapper));
-    for (idx,region) in enumerate(vg_regions)
-        slicer = findfirst(isequal(region), region_mapper_df[:,"rs"]);
-        if !isnothing(slicer)
-            vg_regions[idx] = region_mapper_df[slicer,"*r"]
-        end
-    end
-
-    #load in vg data from augur
-    cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(Year)*".h5"),"data"); #load is now picked up from augur
-    indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],));
-
-    vg_profiles = cf_info["block0_values"];
-    start_idx = (WeatherYear-2007)*N;
-    
-    vg_names = [string(vg_names[i])*"_"*string(vg_builds[!,"v"][i]) for i=1:DataFrames.nrow(vg_builds)];
-    retained_vg_profiles = vg_profiles[indices,(start_idx+1):(start_idx+N)]; #return the profiles, no longer unitized
-    profile_idx = [i for i in range(1,size(retained_vg_profiles)[1])];
-    #create the relevant objects
-
-    for (name,idx,region,category) in zip(vg_names,profile_idx,vg_regions,vg_categories)
-        profile = retained_vg_profiles[idx,:];
-        if category in FOR_data[!,"Column1"]
-            for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
-            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
-        else
-            gen_for = .05;
-        end 
         push!(generators_array,vg_gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
     end
     return generators_array
@@ -298,10 +254,10 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #######################################################
     line_array,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,Year,8760);
 
-    line_forward_capacity_array = copy(transpose(reduce(hcat, get_forward_capacity.(line_array))));#mapreduce(permutedims, vcat, get_forward_capacity.(line_array));
-    line_backward_capacity_array = copy(transpose(reduce(hcat, get_backward_capacity.(line_array))));#mapreduce(permutedims, vcat, get_backward_capacity.(line_array));
-    λ_lines = copy(transpose(reduce(hcat, get_λ.(line_array))));#mapreduce(permutedims, vcat, get_λ.(line_array));
-    μ_lines = copy(transpose(reduce(hcat, get_μ.(line_array))));#mapreduce(permutedims, vcat, get_μ.(line_array));
+    line_forward_capacity_array = copy(transpose(reduce(hcat, get_forward_capacity.(line_array))));
+    line_backward_capacity_array = copy(transpose(reduce(hcat, get_backward_capacity.(line_array))));
+    λ_lines = copy(transpose(reduce(hcat, get_λ.(line_array))));
+    μ_lines = copy(transpose(reduce(hcat, get_μ.(line_array))));
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
@@ -314,19 +270,15 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "reading thermals..."
     gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
     @info "reading vg..."
-    gens = process_vg_refactor(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
+    gens = process_vg(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
     @info "...vg read, translating to PRAS gens"
     area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
     gens = gens[region_order]; #now they are properly sorted, we hope!
     
-    capacity_matrix = copy(transpose(reduce(hcat, get_capacity.(gens))));#mapreduce(permutedims,vcat,get_capacity.(gens));#reduce(vcat,(get_capacity.(gens)));#mapreduce(permutedims, vcat, get_capacity.(gens));
-    λ_matrix = copy(transpose(reduce(hcat, get_λ.(gens))));#mapreduce(permutedims,vcat,get_λ.(gens));
-    mu_matrix = copy(transpose(reduce(hcat, get_μ.(gens))));#mapreduce(permutedims,vcat,get_μ.(gens));
+    capacity_matrix = copy(transpose(reduce(hcat, get_capacity.(gens))));
+    λ_matrix = copy(transpose(reduce(hcat, get_λ.(gens))));
+    mu_matrix = copy(transpose(reduce(hcat, get_μ.(gens))));
     new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
-    
-    
-    
-    # new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(gen_tup[1][region_order],gen_tup[2][region_order],gen_tup[3][region_order,:],gen_tup[4][region_order,:],gen_tup[5][region_order,:]); #there's probably a way to better unpack this
 
     #######################################################
     # PRAS Timestamps
@@ -343,13 +295,13 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
 
     stor_charge_cap_array = copy(transpose(reduce(hcat, get_charge_capacity.(storages))));#mapreduce(permutedims,vcat,get_charge_capacity.(storages))
-    stor_discharge_cap_array = copy(transpose(reduce(hcat, get_discharge_capacity.(storages))));#mapreduce(permutedims,vcat,get_discharge_capacity.(storages))
-    stor_energy_cap_array = copy(transpose(reduce(hcat, get_energy_capacity.(storages))));#mapreduce(permutedims,vcat,get_energy_capacity.(storages))
-    stor_chrg_eff_array = copy(transpose(reduce(hcat, get_charge_efficiency.(storages))));#mapreduce(permutedims,vcat,get_charge_efficiency.(storages))
-    stor_dischrg_eff_array = copy(transpose(reduce(hcat, get_discharge_efficiency.(storages))));#mapreduce(permutedims,vcat,get_discharge_efficiency.(storages))
-    stor_cryovr_eff = copy(transpose(reduce(hcat, get_carryover_efficiency.(storages))));#mapreduce(permutedims,vcat,get_carryover_efficiency.(storages))
-    λ_stor = copy(transpose(reduce(hcat, get_λ.(storages))));#mapreduce(permutedims,vcat,get_λ.(storages));
-    μ_stor = copy(transpose(reduce(hcat, get_μ.(storages))));#mapreduce(permutedims,vcat,get_μ.(storages));
+    stor_discharge_cap_array = copy(transpose(reduce(hcat, get_discharge_capacity.(storages))));
+    stor_energy_cap_array = copy(transpose(reduce(hcat, get_energy_capacity.(storages))));
+    stor_chrg_eff_array = copy(transpose(reduce(hcat, get_charge_efficiency.(storages))));
+    stor_dischrg_eff_array = copy(transpose(reduce(hcat, get_discharge_efficiency.(storages))));
+    stor_cryovr_eff = copy(transpose(reduce(hcat, get_carryover_efficiency.(storages))));
+    λ_stor = copy(transpose(reduce(hcat, get_λ.(storages))));
+    μ_stor = copy(transpose(reduce(hcat, get_μ.(storages))));
     new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_category.(storages),
                                                 stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
                                                 stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
