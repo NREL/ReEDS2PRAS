@@ -489,7 +489,7 @@ function get_outage_rate(ln::line)
 end
 
 function get_λ(ln::line)
-    return fill(getfield(outage_to_rate((ln.FOR,line.MTTR)),:λ),ln.N)
+    return fill(getfield(outage_to_rate((ln.FOR,ln.MTTR)),:λ),ln.N)
 end
 
 function get_μ(ln::line)
