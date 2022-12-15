@@ -5,22 +5,16 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function process_lines(ReEDSfilepath::String,regions::Vector,Year::Int,N::Int)
+function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     @info "Processing lines..."
 
-    if isfile(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(Year)*".csv"))
-        line_base_cap_csv_location = joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(Year)*".csv")
-        line_base_cap_data = DataFrames.DataFrame(CSV.File(line_base_cap_csv_location));#load the csv
-    else
-        error("no transmission file is found. Are you sure $Year and filepath are valid for a saved Augur file?")
-    end
+    line_base_cap_data = get_line_capacity_data(ReEDS_data);
     ####################################################### 
     # PRAS lines
     # ToDO: HVDC converter capacity line handling
     ####################################################### 
     # Adding up line capacities between same PCA's
     @info "Processing Lines in the mapping file..."
-    line_base_cap_data[!, "direction"] = ones(size(line_base_cap_data)[1])
     
     # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
     # indices PRAS expects
@@ -33,7 +27,6 @@ function process_lines(ReEDSfilepath::String,regions::Vector,Year::Int,N::Int)
             if (from_idx > to_idx)
                 line_base_cap_data[idx,"r"] = pca_to
                 line_base_cap_data[idx,"rr"] = pca_from
-                line_base_cap_data[idx,"direction"] = 2.
             end
         end
     end
@@ -85,9 +78,10 @@ function process_lines(ReEDSfilepath::String,regions::Vector,Year::Int,N::Int)
     return (lines_array,new_interfaces,interface_line_idxs)
 end
 
-function split_generator_types(ReEDSfilepath::String,Year::Int64)
-    tech_types = joinpath(ReEDSfilepath,"inputs_case","tech-subset-table.csv");
-    tech_types_data = DataFrames.DataFrame(CSV.File(tech_types));
+function split_generator_types(ReEDS_data::CEMdata,Year::Int64)
+
+    tech_types_data = get_technology_types(ReEDS_data);
+    capacity_data = get_ICAP_data(ReEDS_data);#DataFrames.DataFrame(CSV.File(capacities));
 
     vg_types = tech_types_data[findall(!ismissing, tech_types_data[:,"VRE"]),"Column1"]
     deleteat!(vg_types, findall(x->x=="csp-ns",vg_types)) #csp-ns causes problems, so delete for now
@@ -98,11 +92,6 @@ function split_generator_types(ReEDSfilepath::String,Year::Int64)
     vg_types = clean_names(vg_types)
     storage_types = clean_names(storage_types)
     vg_types = expand_types(vg_types,15) #expand so names will match
-
-    # capacities = joinpath(ReEDSfilepath,"outputs","cap.csv")
-    capacities = joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","max_cap_"*string(Year)*".csv");
-    capacity_data = DataFrames.DataFrame(CSV.File(capacities));
-    # annual_data = capacity_data[capacity_data.Dim3.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative    
 
     vg_capacity = capacity_data[(findall(in(vg_types),capacity_data.i)),:]
     storage_capacity = capacity_data[(findall(in(storage_types),capacity_data.i)),:]
@@ -140,13 +129,12 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
-function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,Year::Int,WeatherYear::Int,N::Int)
+function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,Year::Int,WeatherYear::Int,N::Int)
     #data loads
-    region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
-    region_mapper_df = DataFrames.DataFrame(CSV.File(region_mapper));
-
-    cf_info = HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(Year)*".h5"),"data"); #load is now picked up from augur
-    # indices = findfirst.(isequal.(vg_names), (cf_info["axis0"],));
+    # region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
+    region_mapper_df = get_region_mapping(ReEDS_data)#DataFrames.DataFrame(CSV.File(region_mapper));
+    cf_info = get_vg_cf_data(ReEDS_data);#; #load is now picked up from augur
+    
     vg_profiles = cf_info["block0_values"];
     start_idx = (WeatherYear-2007)*N;
 
@@ -174,7 +162,7 @@ function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR
     return generators_array
 end
 
-function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDSfilepath::String,N::Int,regions::Vector,Year::Int64)
+function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector,Year::Int64)
     #get the vector of appropriate indices
     @info "handling power capacity of storages"
     storage_names = [string(storage_builds[!,"i"][i])*"_"*string(storage_builds[!,"r"][i]) for i=1:DataFrames.nrow(storage_builds)];
@@ -185,19 +173,17 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     region_stor_capacity_idxs,stor_capacity_region_order = sort_gens(storage_regions,regions,length(regions))
     
     @info "handling energy capacity of storages"
-    # storage_energy_capacities = joinpath(ReEDSfilepath,"outputs","stor_energy_cap.csv")
-    storage_energy_capacities= joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","energy_cap_"*string(Year)*".csv")
-    storage_energy_capacity_data = DataFrames.DataFrame(CSV.File(storage_energy_capacities))
-    # annual_data = storage_energy_capacity_data[storage_energy_capacity_data.Dim4.==Year,:] #only built capacity in the PRAS-year, since ReEDS capacity is cumulative        
+    storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
+       
     gdf = DataFrames.groupby(storage_energy_capacity_data, ["i","r"]) #split-apply-combine to handle differently vintaged entries
     annual_data_sum = DataFrames.combine(gdf, :MWh => sum);
     storage_energy_capacity_regions = string.(annual_data_sum[!,"r"]);
     #reorder to ensure proper order!
     region_stor_idxs,stor_region_order = sort_gens(storage_energy_capacity_regions,regions,length(regions))
     
+    #To-do, this can almost certainly be refactored
     storages_array = [];
     for (name,region,category,capacity,energy_capacity) in zip(storage_names[stor_capacity_region_order],storage_regions,storage_categories[stor_capacity_region_order],storage_capacities[stor_capacity_region_order],annual_data_sum[stor_region_order,"MWh_sum"])
-
         if category in FOR_data[!,"Column1"]
             for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
             gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
@@ -224,11 +210,10 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     end
     # Load the mapping metadata JSON file
     @info "Fetching ReEDS case data to build PRAS System..."
-
-    load_info = HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"),"data"); #load is now picked up from augur
+    ReEDS_data = ReEDSdata(ReEDSfilepath,Year);
+    load_info = get_load_file(ReEDS_data);#HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"),"data"); #load is now picked up from augur
     load_data = load_info["block0_values"];
     regions = load_info["block0_items"];
-
     #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
     slicer = findfirst(isequal(WEATHERYEAR), load_info["axis1_level1"]); #2012 weather year, Gbut, in general, this should be a user input
     indices = findall(i->(i==(slicer-1)),load_info["axis1_label1"]); #I think b/c julia indexes from 1 we need -1 here
@@ -252,7 +237,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # **TODO: Should hydro be split out as a generator-storage?
     # **TODO: is it important to also handle planned outages?
     #######################################################
-    line_array,new_interfaces,interface_line_idxs = process_lines(ReEDSfilepath,regions,Year,8760);
+    line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,regions,Year,8760);
 
     line_forward_capacity_array = permutedims(hcat(get_forward_capacity.(line_array)...));
     line_backward_capacity_array = permutedims(hcat(get_backward_capacity.(line_array)...));
@@ -261,16 +246,15 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
-    thermal,storage,vg = split_generator_types(ReEDSfilepath,Year);
+    thermal,storage,vg = split_generator_types(ReEDS_data,Year);
 
     @info "reading in ReEDS generator-type forced outage data..."
-    forced_outage_path = joinpath(ReEDSfilepath,"inputs_case","outage_forced.csv") #there is also a _prm file, not sure which is right?
-    forced_outage_data = DataFrames.DataFrame(CSV.File(forced_outage_path,header=false));
+    forced_outage_data = get_forced_outage_data(ReEDS_data);
 
     @info "reading thermals..."
     gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
     @info "reading vg..."
-    gens = process_vg(gens,vg,forced_outage_data,ReEDSfilepath,Year,WEATHERYEAR,N);
+    gens = process_vg(gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
     @info "...vg read, translating to PRAS gens"
     area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
     gens = gens[region_order]; #now they are properly sorted, we hope!
@@ -292,7 +276,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # PRAS Storages
     #######################################################
     @info "Processing Storages..."
-    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDSfilepath,N,regions,Year)
+    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDS_data,N,regions,Year)
 
     stor_charge_cap_array = permutedims(hcat(get_charge_capacity.(storages)...));#mapreduce(permutedims,vcat,get_charge_capacity.(storages))
     stor_discharge_cap_array = permutedims(hcat(get_discharge_capacity.(storages)...));
@@ -336,10 +320,8 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
                                                             λ_genstors, μ_genstors);
                                                             
     area_genstor_idxs = fill(1:0, num_areas);
-    # @info "creating a PRAS system..."
     pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
                             area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
-    # @info "...PRAS system created"
     #save PRAS system somewhere we can use it?
     PRAS.savemodel(pras_system,joinpath(ReEDSfilepath,"outputs",CaseLabel*".pras"))
     short,flow = run_pras_system(pras_system,2)#just two for now to save time but eventually more

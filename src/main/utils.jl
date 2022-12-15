@@ -59,21 +59,6 @@ function makeidxlist(collectionidxs::Vector{Int}, n_collections::Int)
 
 end
 
-#Borrowed & modified from PLEXOS2PRAS 
-#only have FOR right now, so just make simple assumption about MTTR being 24 hours (IDK, whatever)
-function FOR_to_transitionprobs(for_raw::Float64) 
-
-    # raw MTTR is in hours, raw FOR is a fraction
-    mttr = 24. #input for now 
-    μ = 1 ./ mttr
-    # μ[mttrs .== 0] .= one(V) # Interpret zero MTTR as μ = 1.
-    # fors = for_raw ./ 100
-    λ = μ .* for_raw ./ (1 .- for_raw)
-    # λ[fors .== 0] .= zero(V) # Interpret zero FOR as λ = 0.
-    return λ, μ
-
-end
-
 function run_pras_system(sys::PRAS.SystemModel,sample::Int)
     shortfalls,flows = PRAS.assess(sys,PRAS.SequentialMonteCarlo(samples=sample),PRAS.Shortfall(),PRAS.Flow())
     println(PRAS.LOLE(shortfalls))
@@ -159,4 +144,86 @@ function disagg_new_capacity(generators_array::Vector,new_capacity::Int,avg::Int
     end
     push!(generators_array,thermal_gen(tech*"_"*pca*"_new_"*string.(n_gens+1),N,pca,small_remainder,tech,"New",gen_for,MTTR)); #integer remainder is made into a tiny gen
     return generators_array
+end
+
+# abstract type storage end
+# const storages = Vector{<:storage}
+
+# struct battery <:storage
+#     name::String 
+abstract type CEMdata end
+struct ReEDSdata <:CEMdata
+    ReEDSfilepath::String
+    Year::Int
+
+    # Inner Constructors
+    # ReEDSdata(ReEDSfilepath="") = ReEDSdata(ReEDSfilepath)
+    ReEDSdata(nothing) = ReEDSdata("/projects/ntps/llavin/ReEDS-2.0/runs/erc_conv_2_ercot_seq",2028)
+    # Checks
+    ReEDSdata(x,y) =
+    if ~(2020 < y <= 2050)
+        error("Year should be between 2020 and 2050 for ReEDS case for now")
+    else
+        new(x,y)
+    end
+end
+function get_load_file(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(data.Year)*".h5"))
+        Year = data.Year;
+        error("The year $Year does not have an associated Augur load h5 file. Are you sure ReeDS was run and Augur results saved for $Year?")
+    end
+    return HDF5.h5read(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(data.Year)*".h5"),"data")
+end
+
+function get_vg_cf_data(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(data.Year)*".h5"))
+        Year = data.Year;
+        error("The year $Year does not have an associated Augur vg h5 file. Are you sure ReeDS was run and Augur results saved for $Year?")
+    end
+    return HDF5.h5read(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(data.Year)*".h5"),"data")
+end
+
+function get_forced_outage_data(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"inputs_case","outage_forced.csv"))
+        error("No forced outage data is found.")
+    end    
+    return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"inputs_case","outage_forced.csv"),header=false))
+end
+
+function get_line_capacity_data(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(data.Year)*".csv"))
+        Year = data.Year;
+        error("The year $Year does not have transmission capacity data. Are you sure ReEDS was run and Augur results saved for $Year?")
+    end
+    return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(data.Year)*".csv")));#load the csv
+end
+
+function get_technology_types(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"inputs_case","tech-subset-table.csv"))
+        error("no table of technology types!")
+    end
+    return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"inputs_case","tech-subset-table.csv")))
+end
+
+function get_region_mapping(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"inputs_case","rsmap.csv"))
+        error("no table of r-s region mapping!")
+    end
+    return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"inputs_case","rsmap.csv")))
+end
+
+function get_ICAP_data(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","max_cap_"*string(data.Year)*".csv"))
+        Year = data.Year;
+        error("The year $Year does not have generator installed capacity data. Are you sure REEDS was run and Augur results saved for year $Year")
+    end
+    return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","max_cap_"*string(data.Year)*".csv")))
+end
+
+function get_storage_energy_capacity_data(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","energy_cap_"*string(data.Year)*".csv"))
+        Year = data.Year;
+        error("The year $Year does not have generator installed storage energy capacity data. Are you sure REEDS was run and Augur results saved for year $Year")
+    end
+    return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","energy_cap_"*string(data.Year)*".csv")))
 end
