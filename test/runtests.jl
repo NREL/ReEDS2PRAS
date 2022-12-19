@@ -7,6 +7,8 @@ using Test
 using HDF5
 using Statistics
 
+include("ercot/testutils.jl")
+
 @testset "ReEDS2PRAS" begin
     # include("ercot/testlinesonly.jl")
     include("ercot/standardscenarios.jl")

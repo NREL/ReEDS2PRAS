@@ -146,11 +146,6 @@ function disagg_new_capacity(generators_array::Vector,new_capacity::Int,avg::Int
     return generators_array
 end
 
-# abstract type storage end
-# const storages = Vector{<:storage}
-
-# struct battery <:storage
-#     name::String 
 abstract type CEMdata end
 struct ReEDSdata <:CEMdata
     ReEDSfilepath::String
