@@ -138,17 +138,22 @@ function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR
     vg_profiles = cf_info["block0_values"];
     start_idx = (WeatherYear-2007)*N;
 
+    #split-apply-combine to group...
+    gdf = DataFrames.groupby(vg_builds, ["i","r"]); #split-apply-combine to handle differently vintaged entries
+    vg_builds = DataFrames.combine(gdf, :MW => sum);
+    # @info "vg builds are now $vg_builds"
+
     for idx in range(1,DataFrames.nrow(vg_builds))
         category = string(vg_builds[idx,"i"]);
         name = category*"_"*string(vg_builds[idx,"r"]);
         slicer = findfirst(isequal(string(vg_builds[idx,"r"])), region_mapper_df[:,"rs"]);
         if !isnothing(slicer)
-            region = region_mapper_df[slicer,"*r"]
+            region = region_mapper_df[slicer,"*r"];
         else
             region = string(vg_builds[idx,"r"])
         end
         profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1];
-        size_comp = size(vg_profiles)[1]
+        size_comp = size(vg_profiles)[1];
         profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)];
         if category in FOR_data[!,"Column1"]
             for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
@@ -156,7 +161,13 @@ function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR
         else
             gen_for = .05;
         end
-        name = name*"_"*string(vg_builds[idx,"v"]);
+
+        if !isnothing(slicer)
+            name = name*"_"*string(region_mapper_df[slicer,"*r"])*"_"; #add the region to the name
+        else
+            name = name*"_"; #append for matching reasons
+        end
+        
         push!(generators_array,vg_gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
     end
     return generators_array
@@ -191,6 +202,7 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
             gen_for = 0.0;
             @info "did not find FOR for storage $name $region $category, so setting FOR to $gen_for"
         end 
+        name = name*"_";#append for matching
         push!(storages_array,battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
     end
     return (storages_array,region_stor_idxs)
@@ -220,6 +232,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     
     load_year = load_data[:,indices[1:8760]]; #should be regionsX8760, which is now just enforced
     
+    #should the regions be processed from the generators?
     @info "Processing Areas in the mapping file into PRAS regions..."
     num_areas = length(regions); 
     N = size(load_year)[2];#DataFrames.DataFrames.nrow(load_data)
@@ -262,7 +275,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     capacity_matrix = permutedims(hcat(get_capacity.(gens)...));
     λ_matrix = permutedims(hcat(get_λ.(gens)...));
     mu_matrix = permutedims(hcat(get_μ.(gens)...));
-    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_category.(gens),capacity_matrix,λ_matrix,mu_matrix);
+    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_type.(gens),capacity_matrix,λ_matrix,mu_matrix);
 
     #######################################################
     # PRAS Timestamps
@@ -286,7 +299,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     stor_cryovr_eff = permutedims(hcat(get_carryover_efficiency.(storages)...));
     λ_stor = permutedims(hcat(get_λ.(storages)...));
     μ_stor = permutedims(hcat(get_μ.(storages)...));
-    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_category.(storages),
+    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_type.(storages),
                                                 stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
                                                 stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
                                                 λ_stor,μ_stor);

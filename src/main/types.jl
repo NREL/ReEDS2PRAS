@@ -167,12 +167,12 @@ function get_μ(gen::GEN) where {GEN <: generator}
     return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:μ),gen.N)
 end
 
-function get_fuel(gen::thermal_gen)
-    return gen.fuel
-end
-
 function get_type(gen::vg_gen)
     return gen.type
+end
+
+function get_type(gen::thermal_gen)
+    return gen.fuel
 end
 
 function get_category(gen::vg_gen)
@@ -316,6 +316,10 @@ end
 
 function get_name(stor::STOR) where {STOR <: storage}
     return stor.name
+end
+
+function get_type(stor::STOR) where {STOR <: storage}
+    return stor.type
 end
 
 function get_legacy(stor::STOR) where {STOR <: storage}

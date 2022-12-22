@@ -1,26 +1,37 @@
-function capacity_checker(capacity_data::DataFrames.DataFrame,gentype::String,region::String)
+function capacity_checker(capacity_data::DataFrames.DataFrame,region_map::DataFrames.DataFrame,gentype::String,region::String)
     #@assert gentype in unique(capacity_data.i) #check valid pass
     #@assert region in unique(capacity_data.r) #check valid pass
+    for idx in range(1,DataFrames.nrow(capacity_data))
+        slicer = findfirst(isequal(string(capacity_data[idx,"r"])), region_map[:,"rs"]);
+        if !isnothing(slicer)
+            capacity_data[idx,"r"] = region_map[slicer,"*r"];
+        end
+    end
+    
     capacity_data_subset = capacity_data[(capacity_data.i.==gentype) .& (capacity_data.r.==region), :];
     return sum(capacity_data_subset[!,"MW"])# sum the capacity for the input region/gentype
 end
 
 function PRAS_generator_capacity_checker(pras_system,gentype::String,region::String)
-    name_vec = occursin.(gentype,pras_system.generators.names);
-    reg_vec = occursin.(region,pras_system.generators.names);
+
+    name_vec = -abs.(cmp.(gentype,psys.generators.categories)).+1; #exact match is needed to exclude ccs
+    
+    reg_vec = occursin.(region*"_",pras_system.generators.names);
     out_vec = .*(name_vec,reg_vec); 
+
     retained_gens = [];
     for (idx,val) in enumerate(out_vec) #there has to be a better, way, but for now
         if val==1
             push!(retained_gens,idx)
         end
     end
-    return sum(psys.generators.capacity[Int.(retained_gens)])
+
+    return sum(maximum.(eachrow(pras_system.generators.capacity[Int.(retained_gens),:])))
 end
 
 function PRAS_storage_capacity_checker(pras_system,gentype::String,region::String)
     name_vec = occursin.(gentype,pras_system.storages.names);
-    reg_vec = occursin.(region,pras_system.storages.names);
+    reg_vec = occursin.(region*"_",pras_system.storages.names);
     out_vec = .*(name_vec,reg_vec); 
     retained_gens = [];
     for (idx,val) in enumerate(out_vec) #there has to be a better, way, but for now
@@ -28,24 +39,48 @@ function PRAS_storage_capacity_checker(pras_system,gentype::String,region::Strin
             push!(retained_gens,idx)
         end
     end
-    return sum(psys.storages.discharge_capacity[Int.(retained_gens)])
+    return sum(maximum.(eachrow(pras_system.storages.discharge_capacity[Int.(retained_gens),:])))
+end
+
+function clean_gentype(input_name::String)
+    if occursin("*",input_name)
+        input_name = string(match(r"\*([a-zA-Z]+-*[a-zA-Z]*)_*", input_name)[1]);
+        input_vec = expand_vg_types([input_name],15);
+    else
+        input_vec = [input_name];
+    end
+    return input_vec
+end
+
+function expand_vg_types(input_vec::Vector,N::Int64)
+    add_names = [];
+    for a in input_vec
+        for n in 1:N
+            mystr = string(a*"_"*string(n));
+            push!(add_names,mystr);
+        end
+    end
+    return vcat(input_vec,add_names)
 end
 
 function compare_generator_capacities(psys,ReEDSfilepath,Year)
     #first actually have to load in case-level capacity data, which may not be passed
     ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,Year);
-    tech_types_data = ReEDS2PRAS.get_technology_types(ReEDS_data);
-    techs = tech_types_data[!,"Column1"];
+
     capacity_data = ReEDS2PRAS.get_ICAP_data(ReEDS_data);
-    for gentype in techs
+    region_mapper_df = ReEDS2PRAS.get_region_mapping(ReEDS_data);
+
+    for gentype in unique(capacity_data.i)
+        gentype = string(gentype);
         for region in psys.regions.names
-            # @info "comparing $gentype-$region input/output capacities..."
-            v1 = capacity_checker(capacity_data,gentype,region);
+            v1 = capacity_checker(capacity_data,region_mapper_df,gentype,region); #need to split out numbering for vg...
             v2a = PRAS_generator_capacity_checker(psys,gentype,region);
             v2b = PRAS_storage_capacity_checker(psys,gentype,region);
             v2 = v2a+v2b;
             if v1 != 0 || v2 != 0
-                @info "for $gentype-$region input is $v1 MW, output is $v2 MW"
+                if abs(v1-v2)>1
+                    @info "for $gentype-$region input is $v1 MW, output is $v2 MW. Mismatch!!"
+                end
             end
         end
     end

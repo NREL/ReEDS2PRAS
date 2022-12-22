@@ -92,11 +92,13 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     max_cap = maximum(tech_ba_year_existing[!,"cap"])
     avg_cap = Statistics.mean(tech_ba_year_existing[!,"cap"])
     # @info "avg cap is $avg_cap"
-
+    # int_build = 0
     for (idx,built_cap) in enumerate(tech_ba_year_existing[!,"cap"])
+        # @info "$idx, $built_cap MW, for $tech in $pca"
         int_built_cap = floor.(Int,built_cap);
         if int_built_cap < remaining_capacity
             remaining_capacity = remaining_capacity - int_built_cap;
+            # int_build = int_build + int_built_cap;
             gen_name = tech*"_"*pca*"_"*string.(idx);
             #create a generator using types.jl
             gen = thermal_gen(gen_name,N,pca,int_built_cap,tech,"Existing",gen_for,MTTR) #here we'd actually want to make a choice about which struct to send the generator to, and pass N and FOR
@@ -109,10 +111,12 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
             remaining_capacity = 0;
             break
         end
+        # @info "$remaining_capacity remains!"
         
     end
     #whatever remains, we want to build as new capacity
     # @info "overall, for $tech $pca, $remaining_capacity of $built_capacity MW will be new build with target average size $avg_cap MW"
+    # @info "new build should be $remaining_capacity MW, after we build $int_build MW"
     if remaining_capacity > 0
         generators_array = disagg_new_capacity(generators_array,remaining_capacity,floor.(Int,avg_cap),floor.(Int,max_cap),tech,pca,gen_for,N,Year,MTTR);
     end
@@ -137,6 +141,7 @@ function disagg_new_capacity(generators_array::Vector,new_capacity::Int,avg::Int
     addtl_cap_per_gen = floor.(Int,remainder/n_gens);
     per_gen_cap = avg+addtl_cap_per_gen;
     small_remainder = new_capacity-(n_gens*per_gen_cap)
+    # @info "should build $new_capacity MW, remainder $small_remainder, $per_gen_cap for $n_gens generators!"
     # @info "after remainder peanut butter, average capacity is now $per_gen_cap MW for $n_gens new generators, with an additional $small_remainder MW unit to be built"
     # cap_out = [thermal_gen(tech*"_"*pca*"_new_"*string.(i),N,pca,per_gen_cap,tech,"New",gen_for,MTTR) for i in range(1,n_gens)]; #then make the gens
     for i in range(1,n_gens)
