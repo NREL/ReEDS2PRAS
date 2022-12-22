@@ -23,17 +23,17 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
         from_idx = findfirst(x->x==pca_from,regions)
         to_idx = findfirst(x->x==pca_to,regions)
         if (~(isnothing(from_idx)) && ~(isnothing(to_idx)))
-            push!(system_line_idx,idx)
-            if (from_idx > to_idx)
-                line_base_cap_data[idx,"r"] = pca_to
-                line_base_cap_data[idx,"rr"] = pca_from
+            if (from_idx < to_idx)
+                push!(system_line_idx,idx)
+                # line_base_cap_data[idx,"r"] = pca_to
+                # line_base_cap_data[idx,"rr"] = pca_from
             end
         end
     end
     #order is assumed preserved in splitting these dfs for now but should likely be checked
     system_line_naming_data = line_base_cap_data[system_line_idx,:]; # all line capacities
 
-    gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]) #split-apply-combine b/c some lines have same name convention
+    gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]); #split-apply-combine b/c some lines have same name convention
     system_line_naming_data = DataFrames.combine(gdf, :MW => sum); 
 
     lines_array = [];
@@ -45,8 +45,16 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
         rt = system_line_naming_data[idx,"rr"];
         # name = system_line_naming_data[idx,"r"].*"_".*system_line_naming_data[idx,"rr"].*"_".*system_line_naming_data[idx,"trtype"];
         name = rf*"_"*rt*"_"*category;
-        cap = system_line_naming_data[idx,"MW_sum"];
-        push!(lines_array,line(name,N,category,rf,rt,cap,cap,"Existing",0.0,24))#for and mttr will be defaults
+        
+        forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rf) .& (line_base_cap_data.rr.==rt) .& (line_base_cap_data.trtype.==category),"MW"]);#system_line_naming_data[idx,"MW_sum"];
+        backward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rt) .& (line_base_cap_data.rr.==rf) .& (line_base_cap_data.trtype.==category),"MW"]);
+        @info "a line $name, $idx with $forward_cap MW fwd and $backward_cap bckwrd"
+        if forward_cap==0.0
+            forward_cap=1; #capacity in each dir must be nonzero
+        elseif backward_cap==0.0
+            backward_cap=1; #capacity in each dir must be nonzero
+        end
+        push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
     end
 
     #######################################################

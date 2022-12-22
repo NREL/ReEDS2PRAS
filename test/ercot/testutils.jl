@@ -85,3 +85,40 @@ function compare_generator_capacities(psys,ReEDSfilepath,Year)
         end
     end
 end
+
+function compare_line_capacities(pras_system,ReEDSfilepath,Year)
+    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,Year);
+    line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
+
+    for (r1,r2,type,MW) in zip(line_df[!,"r"],line_df[!,"rr"],line_df[!,"trtype"],line_df[!,"MW"])
+        r1_vec = occursin.(r1*"_",pras_system.lines.names);
+        r2_vec = occursin.(r2*"_",pras_system.lines.names);
+        type_vec = occursin.(type,pras_system.lines.names);
+        out_vec = .*(r1_vec,r2_vec,type_vec); 
+        retained_lines = [];
+        mw_sum = 0;
+        for (idx,val) in enumerate(out_vec) #there has to be a better, way, but for now
+            if val==1
+                push!(retained_lines,idx)
+                mw_sum = mw_sum+MW;
+            end
+        end
+        mw_out_fwd,mw_out_bck = get_pras_line_capacity(pras_system,Int.(retained_lines))
+        # if parse(Int64, r1[2:end])<parse(Int64, r2[2:end]) #this is a fwd line cap
+        if r1 < r2 #actually want to compare strings to get proper ordering
+            @info "forward in MW is $mw_sum out forward is $mw_out_fwd, for $r1 to $r2, $type"
+            @assert abs(mw_sum-mw_out_fwd)<=1
+        else #bckwd line cap
+            #mw_out_fwd,mw_out_bck = get_pras_line_capacity(pras_system,Int.(retained_lines))
+            @info "backward in MW is $mw_sum out backward is $mw_out_bck for $r2 to $r1, $type"
+            @assert abs(mw_sum-mw_out_bck)<=1
+        end
+    end
+end
+
+function get_pras_line_capacity(pras_system,idx_list::Vector)
+    #TODO: check backward capacity? 
+    fwd = sum(maximum.(eachrow(pras_system.lines.forward_capacity[idx_list,:]))); #get pras line fwd capacity
+    bck = sum(maximum.(eachrow(pras_system.lines.backward_capacity[idx_list,:]))); #get pras line fwd capacity
+    return fwd,bck
+end

@@ -91,10 +91,8 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     tech_len = length(tech_ba_year_existing[!,"cap"]);
     max_cap = maximum(tech_ba_year_existing[!,"cap"])
     avg_cap = Statistics.mean(tech_ba_year_existing[!,"cap"])
-    # @info "avg cap is $avg_cap"
-    # int_build = 0
+
     for (idx,built_cap) in enumerate(tech_ba_year_existing[!,"cap"])
-        # @info "$idx, $built_cap MW, for $tech in $pca"
         int_built_cap = floor.(Int,built_cap);
         if int_built_cap < remaining_capacity
             remaining_capacity = remaining_capacity - int_built_cap;
@@ -110,20 +108,14 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
             push!(generators_array,gen);
             remaining_capacity = 0;
             break
-        end
-        # @info "$remaining_capacity remains!"
-        
+        end 
     end
     #whatever remains, we want to build as new capacity
-    # @info "overall, for $tech $pca, $remaining_capacity of $built_capacity MW will be new build with target average size $avg_cap MW"
-    # @info "new build should be $remaining_capacity MW, after we build $int_build MW"
+
     if remaining_capacity > 0
         generators_array = disagg_new_capacity(generators_array,remaining_capacity,floor.(Int,avg_cap),floor.(Int,max_cap),tech,pca,gen_for,N,Year,MTTR);
     end
-    
-    # out_cap = sum(get_nameplate.(generators_array));
-    # # @info "capacity out for $tech $pca is $out_cap"
-    # @assert out_cap == built_capacity; #check to make sure right amount of capacity is, in fact, built!
+
     return generators_array
 end
 
