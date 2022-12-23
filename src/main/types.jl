@@ -589,7 +589,7 @@ function get_sorted_lines(lns::lines, regions::Vector{region})
 end
 
 function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Vector{Any},interface_line_idxs::Vector{UnitRange{Int64}}, regions::Vector{region})
-    make_pras_interfaces(temp_regions_tuples,interface_line_idxs,sorted_lines, get_name.(regions))
+    make_pras_interfaces(sorted_lines,temp_regions_tuples,interface_line_idxs, get_name.(regions))
 end
 
 function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Vector{Any},interface_line_idxs::Vector{UnitRange{Int64}},region_names::Vector{String})
