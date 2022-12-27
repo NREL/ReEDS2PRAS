@@ -34,7 +34,7 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]); #split-apply-combine b/c some lines have same name convention
     system_line_naming_data = DataFrames.combine(gdf, :MW => sum); 
 
-    lines_array = [];
+    lines_array = line[];
     for idx in range(1,DataFrames.nrow(system_line_naming_data))
         
         category = system_line_naming_data[idx,"trtype"];
@@ -52,34 +52,12 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
         end
         push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
     end
+    
+    sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions);
 
-    #######################################################
-    # PRAS Interfaces
-    #######################################################
-    @info "Processing Interfaces in the mapping file..."
-    num_interfaces = DataFrames.nrow(system_line_naming_data);
-
-    interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
-    start_id = Array{Int64}(undef,num_interfaces); 
-    for i in 1: num_interfaces
-        i==1 ? start_id[i] = 1 : start_id[i] =start_id[i-1]+1
-        interface_line_idxs[i] = range(start_id[i], length=1)
-    end
-
-    interface_regions_from = [findfirst(x->x==system_line_naming_data[i,"r"],regions) for i in 1:num_interfaces];
-    interface_regions_to = [findfirst(x->x==system_line_naming_data[i,"rr"],regions) for i in 1:num_interfaces];
-    #######################################################
-    # Collecting all information to make PRAS Interfaces
-    #######################################################
     @info "Making PRAS Interfaces..."
-    interface_forward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
-    interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
-    interface_forward_capacity_array = reduce(vcat,get_forward_capacity.(lines_array));
-    interface_backward_capacity_array = reduce(vcat,get_backward_capacity.(lines_array));
-
-    new_interfaces = PRAS.Interfaces{N,PRAS.MW}(interface_regions_from, interface_regions_to, interface_forward_capacity_array, interface_backward_capacity_array);
-
-    return (lines_array,new_interfaces,interface_line_idxs)
+    new_interfaces = make_pras_interfaces(sorted_regional_lines,temp_regions_tuple,interface_line_idxs,regions);
+    return (sorted_regional_lines,new_interfaces,interface_line_idxs)
 end
 
 function split_generator_types(ReEDS_data::CEMdata,Year::Int64)
@@ -274,6 +252,14 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     λ_matrix = reduce(vcat,get_λ.(gens));
     μ_matrix = reduce(vcat,get_μ.(gens));
 
+    name_check_array = []
+    for name in get_name.(gens)
+        if name in name_check_array
+            println(name)
+        end
+        push!(name_check_array,name)
+    end
+
     new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_type.(gens),capacity_matrix,λ_matrix,μ_matrix);
 
     #######################################################
@@ -307,6 +293,31 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # No GeneratorStorages in this system
     #######################################################
     @info "Processing GeneratorStorages [EMPTY FOR NOW].."
+    # gen_stors = gen_storage[]
+    # push!(gen_stors,gen_storage("gen_stor_1", 10, "reg_1", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
+    # push!(gen_stors,gen_storage("gen_stor_2", 10, "reg_2", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
+
+    # sorted_gen_stors, reg_genstor_idxs  = get_sorted_components(gen_stors,regs);
+
+    # gen_stor_names = get_name.(sorted_gen_stors)
+    # gen_stor_cats = get_category.(sorted_gen_stors)
+    # gen_stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_gen_stors))
+    # gen_stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_gen_stors))
+    # gen_stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_gen_stors))
+    # gen_stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_gen_stors))
+    # gen_stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_gen_stors))
+    # gen_stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_gen_stors))
+    # gen_stor_inflow_array = reduce(vcat,get_inflow.(sorted_gen_stors))
+    # gen_stor_grid_withdrawl_array = reduce(vcat,get_grid_withdrawl_capacity.(sorted_gen_stors))
+    # gen_stor_grid_inj_array = reduce(vcat,get_grid_injection_capacity.(sorted_gen_stors))
+    # gen_stor_λ = reduce(vcat,get_λ.(sorted_gen_stors))
+    # gen_stor_μ = reduce(vcat,get_μ.(sorted_gen_stors))
+
+    # new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_cats,gen_stor_cap_array, gen_stor_dis_cap_array, gen_stor_enrgy_cap_array,
+    #                                                                        gen_stor_chrg_eff_array, gen_stor_dischrg_eff_array, gen_stor_carryovr_eff_array,gen_stor_inflow_array,
+    #                                                                        gen_stor_grid_withdrawl_array, gen_stor_grid_inj_array,gen_stor_λ,gen_stor_μ);
     gen_stor_names = String[];
     gen_stor_categories = String[];
 

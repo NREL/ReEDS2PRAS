@@ -2,10 +2,10 @@ NEMS_path = joinpath("/projects/ntps/llavin/ReEDS-2.0")
 testpath = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs")
 
 test_year = 2030
-psys = ReEDS2PRAS.make_pras_system_from_mapping_info(joinpath(testpath,"stscen_capconv_Mid_Case"),test_year,"StandScen_MidCase_"*string(test_year),NEMS_path)
-compare_generator_capacities(psys,joinpath(testpath,"stscen_capconv_Mid_Case"),test_year)
-psys = ReEDS2PRAS.make_pras_system_from_mapping_info(joinpath(testpath,"stscen_capconv_Low_Demand_Growth"),test_year,"StandScen_Low_Demand_Growth_"*string(test_year),NEMS_path)
-compare_generator_capacities(psys,joinpath(testpath,"stscen_capconv_Low_Demand_Growth"),test_year)
+# psys = ReEDS2PRAS.make_pras_system_from_mapping_info(joinpath(testpath,"stscen_capconv_Mid_Case"),test_year,"StandScen_MidCase_"*string(test_year),NEMS_path)
+# compare_generator_capacities(psys,joinpath(testpath,"stscen_capconv_Mid_Case"),test_year)
+# psys = ReEDS2PRAS.make_pras_system_from_mapping_info(joinpath(testpath,"stscen_capconv_Low_Demand_Growth"),test_year,"StandScen_Low_Demand_Growth_"*string(test_year),NEMS_path)
+# compare_generator_capacities(psys,joinpath(testpath,"stscen_capconv_Low_Demand_Growth"),test_year)
 
 test_year = 2040
 psys = ReEDS2PRAS.make_pras_system_from_mapping_info(joinpath(testpath,"stscen_capconv_Mid_Case"),test_year,"StandScen_MidCase_"*string(test_year),NEMS_path)

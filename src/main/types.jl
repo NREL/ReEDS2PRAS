@@ -602,7 +602,7 @@ function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Ve
 end
 
 function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Vector{Any},interface_line_idxs::Vector{UnitRange{Int64}},region_names::Vector{String})
-    num_interfaces = length(temp_regions_tuple);
+    num_interfaces = length(temp_regions_tuples);
     interface_regions_from = [findfirst(x->x==temp_regions_tuples[i][1],region_names) for i in 1:num_interfaces];
     interface_regions_to = [findfirst(x->x==temp_regions_tuples[i][2],region_names) for i in 1:num_interfaces];
 
@@ -611,8 +611,8 @@ function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Ve
     interface_forward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
     interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
 
-    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(sorted_regional_lines))
-    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(sorted_regional_lines))
+    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(sorted_lines))
+    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(sorted_lines))
 
     for i in 1:num_interfaces
         interface_forward_capacity_array[i,:] =  sum(line_forward_capacity_array[interface_line_idxs[i],:],dims=1)
