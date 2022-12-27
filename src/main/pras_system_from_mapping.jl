@@ -62,6 +62,7 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     #######################################################
     @info "Processing Interfaces in the mapping file..."
     num_interfaces = DataFrames.nrow(system_line_naming_data);
+    @info "the number of interfaces is $num_interfaces..."
 
     interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
     start_id = Array{Int64}(undef,num_interfaces); 
@@ -78,9 +79,12 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     @info "Making PRAS Interfaces..."
     interface_forward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
     interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
-    interface_forward_capacity_array = mapreduce(permutedims, vcat, get_forward_capacity.(lines_array));
-    interface_backward_capacity_array = mapreduce(permutedims, vcat, get_backward_capacity.(lines_array));
-
+    interface_forward_capacity_array = reduce(vcat,get_forward_capacity.(lines_array));
+    interface_backward_capacity_array = reduce(vcat,get_backward_capacity.(lines_array));
+    # interface_forward_capacity_array = mapreduce(permutedims, vcat, get_forward_capacity.(lines_array));
+    # interface_backward_capacity_array = mapreduce(permutedims, vcat, get_backward_capacity.(lines_array));
+    sizeval  = size(interface_backward_capacity_array)
+    @info "size of fwd array is $sizeval"
     new_interfaces = PRAS.Interfaces{N,PRAS.MW}(interface_regions_from, interface_regions_to, interface_forward_capacity_array, interface_backward_capacity_array);
 
     return (lines_array,new_interfaces,interface_line_idxs)
@@ -260,10 +264,10 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #######################################################
     line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,regions,Year,8760);
 
-    line_forward_capacity_array = permutedims(hcat(get_forward_capacity.(line_array)...));
-    line_backward_capacity_array = permutedims(hcat(get_backward_capacity.(line_array)...));
-    λ_lines = permutedims(hcat(get_λ.(line_array)...));
-    μ_lines = permutedims(hcat(get_μ.(line_array)...));
+    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(line_array));#permutedims(hcat(get_forward_capacity.(line_array)...));
+    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(line_array));#permutedims(hcat(get_backward_capacity.(line_array)...));
+    λ_lines = reduce(vcat,get_λ.(line_array))#permutedims(hcat(get_λ.(line_array)...));
+    μ_lines = reduce(vcat,get_μ.(line_array))#permutedims(hcat(get_μ.(line_array)...));
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
@@ -280,10 +284,11 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
     gens = gens[region_order]; #now they are properly sorted, we hope!
     
-    capacity_matrix = permutedims(hcat(get_capacity.(gens)...));
-    λ_matrix = permutedims(hcat(get_λ.(gens)...));
-    mu_matrix = permutedims(hcat(get_μ.(gens)...));
-    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_type.(gens),capacity_matrix,λ_matrix,mu_matrix);
+    capacity_matrix = reduce(vcat,get_capacity.(gens));
+    λ_matrix = reduce(vcat,get_λ.(gens));
+    μ_matrix = reduce(vcat,get_μ.(gens));
+
+    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_type.(gens),capacity_matrix,λ_matrix,μ_matrix);
 
     #######################################################
     # PRAS Timestamps
@@ -299,14 +304,14 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "Processing Storages..."
     storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDS_data,N,regions,Year)
 
-    stor_charge_cap_array = permutedims(hcat(get_charge_capacity.(storages)...));#mapreduce(permutedims,vcat,get_charge_capacity.(storages))
-    stor_discharge_cap_array = permutedims(hcat(get_discharge_capacity.(storages)...));
-    stor_energy_cap_array = permutedims(hcat(get_energy_capacity.(storages)...));
-    stor_chrg_eff_array = permutedims(hcat(get_charge_efficiency.(storages)...));
-    stor_dischrg_eff_array = permutedims(hcat(get_discharge_efficiency.(storages)...));
-    stor_cryovr_eff = permutedims(hcat(get_carryover_efficiency.(storages)...));
-    λ_stor = permutedims(hcat(get_λ.(storages)...));
-    μ_stor = permutedims(hcat(get_μ.(storages)...));
+    stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages));#permutedims(hcat(get_charge_capacity.(storages)...))
+    stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages));
+    stor_energy_cap_array = reduce(vcat,get_energy_capacity.(storages));
+    stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(storages));
+    stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(storages));
+    stor_cryovr_eff = reduce(vcat,get_carryover_efficiency.(storages));
+    λ_stor = reduce(vcat,get_λ.(storages));
+    μ_stor = reduce(vcat,get_μ.(storages));
     new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_type.(storages),
                                                 stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
                                                 stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
