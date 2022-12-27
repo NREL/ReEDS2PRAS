@@ -19,14 +19,12 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
     # indices PRAS expects
     system_line_idx = []
-    for (idx,pca_from,pca_to) in zip(range(1,length= DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"r"],line_base_cap_data[:,"rr"])
+    for (idx,pca_from,pca_to) in zip(range(1,length=DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"r"],line_base_cap_data[:,"rr"])
         from_idx = findfirst(x->x==pca_from,regions)
         to_idx = findfirst(x->x==pca_to,regions)
         if (~(isnothing(from_idx)) && ~(isnothing(to_idx)))
             if (from_idx < to_idx)
                 push!(system_line_idx,idx)
-                # line_base_cap_data[idx,"r"] = pca_to
-                # line_base_cap_data[idx,"rr"] = pca_from
             end
         end
     end
@@ -37,13 +35,11 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     system_line_naming_data = DataFrames.combine(gdf, :MW => sum); 
 
     lines_array = [];
-    # for name,category,cap,rf,rt in zip(line_names,line_categories,system_line_naming_data[!,"MW_sum"],system_line_naming_data[!,"r"],system_line_naming_data[!,"rr"])
     for idx in range(1,DataFrames.nrow(system_line_naming_data))
         
         category = system_line_naming_data[idx,"trtype"];
         rf = system_line_naming_data[idx,"r"];
         rt = system_line_naming_data[idx,"rr"];
-        # name = system_line_naming_data[idx,"r"].*"_".*system_line_naming_data[idx,"rr"].*"_".*system_line_naming_data[idx,"trtype"];
         name = rf*"_"*rt*"_"*category;
         
         forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rf) .& (line_base_cap_data.rr.==rt) .& (line_base_cap_data.trtype.==category),"MW"]);#system_line_naming_data[idx,"MW_sum"];
@@ -62,7 +58,6 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     #######################################################
     @info "Processing Interfaces in the mapping file..."
     num_interfaces = DataFrames.nrow(system_line_naming_data);
-    @info "the number of interfaces is $num_interfaces..."
 
     interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
     start_id = Array{Int64}(undef,num_interfaces); 
@@ -81,10 +76,7 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
     interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
     interface_forward_capacity_array = reduce(vcat,get_forward_capacity.(lines_array));
     interface_backward_capacity_array = reduce(vcat,get_backward_capacity.(lines_array));
-    # interface_forward_capacity_array = mapreduce(permutedims, vcat, get_forward_capacity.(lines_array));
-    # interface_backward_capacity_array = mapreduce(permutedims, vcat, get_backward_capacity.(lines_array));
-    sizeval  = size(interface_backward_capacity_array)
-    @info "size of fwd array is $sizeval"
+
     new_interfaces = PRAS.Interfaces{N,PRAS.MW}(interface_regions_from, interface_regions_to, interface_forward_capacity_array, interface_backward_capacity_array);
 
     return (lines_array,new_interfaces,interface_line_idxs)
@@ -117,7 +109,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     gdf = DataFrames.groupby(thermal_builds, ["i","r"]) #split-apply-combine to handle differently vintaged entries
     thermal_builds = DataFrames.combine(gdf, :MW => sum);
     EIA_db = Load_EIA_NEMS_DB(NEMS_path) #for now, though this is bad practice
-    all_generators = [];
+    all_generators = generator[];
     native_FOR_data = FOR_data[!,"Column1"];
     lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
     for (i,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"r"],thermal_builds[!,"MW_sum"])
@@ -190,33 +182,28 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     @info "handling power capacity of storages"
     storage_names = [string(storage_builds[!,"i"][i])*"_"*string(storage_builds[!,"r"][i]) for i=1:DataFrames.nrow(storage_builds)];
     storage_capacities = storage_builds[!,"MW"];#want capacities
-    #get regions and convert them to appropriate data where relevant
-    storage_categories = string.(storage_builds[!,"i"]);#[string(vg_builds[!,"i"][i]) for i=1:DataFrames.nrow(vg_builds)]
+    storage_categories = string.(storage_builds[!,"i"]);
     storage_regions = string.(storage_builds[!,"r"]);
-    region_stor_capacity_idxs,stor_capacity_region_order = sort_gens(storage_regions,regions,length(regions))
     
     @info "handling energy capacity of storages"
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
-       
     gdf = DataFrames.groupby(storage_energy_capacity_data, ["i","r"]) #split-apply-combine to handle differently vintaged entries
     annual_data_sum = DataFrames.combine(gdf, :MWh => sum);
     storage_energy_capacity_regions = string.(annual_data_sum[!,"r"]);
-    #reorder to ensure proper order!
-    region_stor_idxs,stor_region_order = sort_gens(storage_energy_capacity_regions,regions,length(regions))
-    
-    #To-do, this can almost certainly be refactored
-    storages_array = [];
-    for (name,region,category,capacity,energy_capacity) in zip(storage_names[stor_capacity_region_order],storage_regions,storage_categories[stor_capacity_region_order],storage_capacities[stor_capacity_region_order],annual_data_sum[stor_region_order,"MWh_sum"])
+
+    storages_array = storage[];
+    for (name,region,category,capacity,energy_capacity) in zip(storage_names,storage_regions,storage_categories,storage_capacities,annual_data_sum[!,"MWh_sum"])
         if category in FOR_data[!,"Column1"]
             for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
             gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
         else
             gen_for = 0.0;
-            @info "did not find FOR for storage $name $region $category, so setting FOR to $gen_for"
+            @info "did not find FOR for storage $name $region $category, so setting FOR to default value $gen_for"
         end 
         name = name*"_";#append for matching
         push!(storages_array,battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
     end
+    storages_array, region_stor_idxs = get_sorted_components(storages_array,regions);
     return (storages_array,region_stor_idxs)
 end
 
@@ -235,7 +222,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # Load the mapping metadata JSON file
     @info "Fetching ReEDS case data to build PRAS System..."
     ReEDS_data = ReEDSdata(ReEDSfilepath,Year);
-    load_info = get_load_file(ReEDS_data);#HDF5.h5read(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"),"data"); #load is now picked up from augur
+    load_info = get_load_file(ReEDS_data);
     load_data = load_info["block0_values"];
     regions = load_info["block0_items"];
     #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
@@ -253,7 +240,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     for (idx,r) in enumerate(regions)
         push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
     end
-
+    
     new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array))));
 
     #######################################################
@@ -281,8 +268,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "reading vg..."
     gens = process_vg(gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
     @info "...vg read, translating to PRAS gens"
-    area_gen_idxs,region_order = sort_gens(get_region.(gens),regions,length(regions))
-    gens = gens[region_order]; #now they are properly sorted, we hope!
+    gens, area_gen_idxs = get_sorted_components(gens,regions); #TODO: is typing still wrong?
     
     capacity_matrix = reduce(vcat,get_capacity.(gens));
     λ_matrix = reduce(vcat,get_λ.(gens));
@@ -294,9 +280,9 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # PRAS Timestamps
     #######################################################
     @info "Processing PRAS timestamps..."
-    start_datetime = Dates.DateTime(string(Year)*"-01-01");
-    finish_datetime = start_datetime + Dates.Hour(N-1);
-    my_timestamps = StepRange(start_datetime, Dates.Hour(1), finish_datetime);
+    first_ts = TimeZones.ZonedDateTime(Year, 01, 01, 00, TimeZones.tz"UTC");
+    last_ts = first_ts + Dates.Hour(N-1);
+    my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
 
     #######################################################
     # PRAS Storages

@@ -6,6 +6,7 @@ using DataFrames
 using Test
 using HDF5
 using Statistics
+using TimeZones
 
 include("ercot/testutils.jl")
 

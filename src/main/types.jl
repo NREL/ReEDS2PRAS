@@ -229,8 +229,6 @@ struct battery <:storage
     MTTR::Int64
 
     # Inner Constructors
-    # battery(name = "stor_1", N = 10, rg = "reg_1",type = "4-hour", c_cap = 10.0, dis_cap = 10.0, energy_cap = 40.0,  lg = "New", chr_eff = 0.9, dis_eff = 1.0, 
-    #        cry_eff = 1.0, f_or = 0.0, mttr = 24) = battery(name,N,rg,type, c_cap,dis_cap,energy_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
     battery(n,o,p,q,r,s,t,u,v,w,x) = battery(n,o,p,q,r,s,t,u,v,w,x,0.0,24)
     battery(n,o,p,q,r,s,t,u,v,w) = battery(n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
     battery(n,o,p,q,r,s,t,u) = battery(n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
@@ -278,10 +276,6 @@ struct gen_storage <:storage
     MTTR::Int64
 
     # Inner Constructors
-    # gen_storage(name = "gen_stor_1", N = 10, rg = "reg_1",type = "pumped-storage", c_cap = fill(10.0,N), dis_cap = fill(10.0,N), energy_cap = fill(40.0,N), infl = fill(10.0,N), 
-    #             g_with_cap = fill(10.0,N),g_inj_cap = fill(10.0,N), lg = "New", chr_eff = 0.9, dis_eff = 1.0, cry_eff = 1.0, f_or = 0.0, mttr = 24) = 
-    #             gen_storage(name,N,rg,type, c_cap,dis_cap,energy_cap, infl, g_with_cap, g_inj_cap, lg, chr_eff, dis_eff,cry_eff, f_or, mttr)
-
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
     gen_storage(k,l,m,n,o,p,q,r,s,t,u) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
@@ -426,7 +420,7 @@ component_dict = Dict(
     Vector{gen_storage} => (func = get_storages_in_region, vec = storage[])
 )
 # Functions for processing ReEDS2PRAS generators and storages (preparing PRAS lines)
-function get_sorted_components(comps::COMPONENTS, region_names::Vector{String}) where {COMPONENTS <: Union{generators,storages}}
+function get_sorted_components(comps::Vector, region_names::Vector{String})#where {COMPONENTS <: Union{generators,storages}}
     num_regions = length(region_names)
     all_comps = []
     start_id = Array{Int64}(undef,num_regions); 
@@ -448,7 +442,7 @@ function get_sorted_components(comps::COMPONENTS, region_names::Vector{String}) 
     return sorted_comps, region_comp_idxs
 end
 
-function get_sorted_components(comps::COMPONENTS, regions::Vector{region}) where {COMPONENTS <: Union{generators,storages}}
+function get_sorted_components(comps::Vector, regions::Vector{region})# where {COMPONENTS <: Union{generators,storages}}
     get_sorted_components(comps,get_name.(regions))
 end
 
@@ -466,8 +460,6 @@ struct line
     MTTR::Int64
 
     # Inner Constructors
-    # line(name = "line_1", N = 10, cat = "AC", reg_from = "1", reg_to = "2", for_cap = 10.0, back_cap = 10.0, leg = "Existing",f_or = 0.0, mttr = 24) = 
-    #      line(name, N, cat,reg_from,reg_to, for_cap, back_cap, leg, f_or, mttr)
     line(q,r,s,t,u,v,w,x) = line(q,r,s,t,u,v,w,x,0.0,24)
     line(q,r,s,t,u,v,w) = line(q,r,s,t,u,v,w,"New",0.0,24)
     line(q,r,s,t,u,v) = line(q,r,s,t,u,v,v,"New",0.0,24)
@@ -631,102 +623,103 @@ function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Ve
 
     return new_interfaces
 end
+
 # Testing
-import PRAS
-N=10
-# Regions
-regs = region[]
-push!(regs, region("reg_1",10, fill(100.0,10)))
-push!(regs, region("reg_2",10, fill(100.0,10)))
+# import PRAS
+# N=10
+# # Regions
+# regs = region[]
+# push!(regs, region("reg_1",10, fill(100.0,10)))
+# push!(regs, region("reg_2",10, fill(100.0,10)))
 
-reg_names = get_name.(regs)
-reg_load = reduce(vcat,get_load.(regs))
+# reg_names = get_name.(regs)
+# reg_load = reduce(vcat,get_load.(regs))
 
-new_regions = PRAS.Regions{N,PRAS.MW}(reg_names, reg_load);
-# Generators
-gens = generator[]
-push!(gens,thermal_gen("thermal_gen_1", 10, "reg_1", 10.0, "NG", "New", 0.1, 24))
-push!(gens,thermal_gen("thermal_gen_2", 10, "reg_2", 10.0, "NG", "New", 0.1, 24))
-push!(gens,vg_gen("vg_gen_1", 10, "reg_1", 10.0, ones(Float64,10), "dupv", "New", 0.1, 24))
-push!(gens,vg_gen("vg_gen_2", 10, "reg_2", 10.0, ones(Float64,10), "dupv", "New", 0.1, 24))
+# new_regions = PRAS.Regions{N,PRAS.MW}(reg_names, reg_load);
+# # Generators
+# gens = generator[]
+# push!(gens,thermal_gen("thermal_gen_1", 10, "reg_1", 10.0, "NG", "New", 0.1, 24))
+# push!(gens,thermal_gen("thermal_gen_2", 10, "reg_2", 10.0, "NG", "New", 0.1, 24))
+# push!(gens,vg_gen("vg_gen_1", 10, "reg_1", 10.0, ones(Float64,10), "dupv", "New", 0.1, 24))
+# push!(gens,vg_gen("vg_gen_2", 10, "reg_2", 10.0, ones(Float64,10), "dupv", "New", 0.1, 24))
 
-sorted_gens, region_gen_idxs = get_sorted_components(gens,regs)
+# sorted_gens, region_gen_idxs = get_sorted_components(gens,regs)
 
-gen_names = get_name.(sorted_gens)
-gen_cats = get_category.(sorted_gens)
-gen_cap = reduce(vcat,get_capacity.(sorted_gens))
-gen_λ = reduce(vcat,get_λ.(sorted_gens))
-gen_μ = reduce(vcat,get_μ.(sorted_gens))
+# gen_names = get_name.(sorted_gens)
+# gen_cats = get_category.(sorted_gens)
+# gen_cap = reduce(vcat,get_capacity.(sorted_gens))
+# gen_λ = reduce(vcat,get_λ.(sorted_gens))
+# gen_μ = reduce(vcat,get_μ.(sorted_gens))
 
-new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(gen_names, gen_cats, gen_cap , gen_λ ,gen_μ);
+# new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(gen_names, gen_cats, gen_cap , gen_λ ,gen_μ);
 
-stors = storage[]
-push!(stors,battery("stor_1", 10, "reg_1", "4-hour", 10.0, 10.0, 40.0, "New", 0.9, 1.0, 1.0, 0.0, 24))
-push!(stors,battery("stor_2", 10, "reg_2", "4-hour", 10.0, 10.0, 40.0, "New", 0.9, 1.0, 1.0, 0.0, 24))
+# stors = storage[]
+# push!(stors,battery("stor_1", 10, "reg_1", "4-hour", 10.0, 10.0, 40.0, "New", 0.9, 1.0, 1.0, 0.0, 24))
+# push!(stors,battery("stor_2", 10, "reg_2", "4-hour", 10.0, 10.0, 40.0, "New", 0.9, 1.0, 1.0, 0.0, 24))
 
-sorted_stors, reg_stor_idxs  = get_sorted_components(stors,regs)
+# sorted_stors, reg_stor_idxs  = get_sorted_components(stors,regs)
 
-stor_names = get_name.(sorted_stors)
-stor_cats = get_category.(sorted_stors)
-stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_stors))
-stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_stors))
-stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_stors))
-stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_stors))
-stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_stors))
-stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_stors))
-stor_λ = reduce(vcat,get_λ.(sorted_stors))
-stor_μ = reduce(vcat,get_μ.(sorted_stors))
+# stor_names = get_name.(sorted_stors)
+# stor_cats = get_category.(sorted_stors)
+# stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_stors))
+# stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_stors))
+# stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_stors))
+# stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_stors))
+# stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_stors))
+# stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_stors))
+# stor_λ = reduce(vcat,get_λ.(sorted_stors))
+# stor_μ = reduce(vcat,get_μ.(sorted_stors))
 
-new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(stor_names,stor_cats,stor_cap_array,stor_dis_cap_array,stor_enrgy_cap_array,
-              stor_chrg_eff_array,stor_dischrg_eff_array, stor_carryovr_eff_array,stor_λ,stor_μ);
+# new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(stor_names,stor_cats,stor_cap_array,stor_dis_cap_array,stor_enrgy_cap_array,
+#               stor_chrg_eff_array,stor_dischrg_eff_array, stor_carryovr_eff_array,stor_λ,stor_μ);
 
-# GeneratorStorages
-gen_stors = gen_storage[]
-push!(gen_stors,gen_storage("gen_stor_1", 10, "reg_1", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
-                            "New", 0.9, 1.0, 1.0, 0.0, 24))
-push!(gen_stors,gen_storage("gen_stor_2", 10, "reg_2", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
-                            "New", 0.9, 1.0, 1.0, 0.0, 24))
+# # GeneratorStorages
+# gen_stors = gen_storage[]
+# push!(gen_stors,gen_storage("gen_stor_1", 10, "reg_1", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+#                             "New", 0.9, 1.0, 1.0, 0.0, 24))
+# push!(gen_stors,gen_storage("gen_stor_2", 10, "reg_2", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+#                             "New", 0.9, 1.0, 1.0, 0.0, 24))
 
-sorted_gen_stors, reg_genstor_idxs  = get_sorted_components(gen_stors,regs);
+# sorted_gen_stors, reg_genstor_idxs  = get_sorted_components(gen_stors,regs);
 
-gen_stor_names = get_name.(sorted_gen_stors)
-gen_stor_cats = get_category.(sorted_gen_stors)
-gen_stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_gen_stors))
-gen_stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_gen_stors))
-gen_stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_gen_stors))
-gen_stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_gen_stors))
-gen_stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_gen_stors))
-gen_stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_gen_stors))
-gen_stor_inflow_array = reduce(vcat,get_inflow.(sorted_gen_stors))
-gen_stor_grid_withdrawl_array = reduce(vcat,get_grid_withdrawl_capacity.(sorted_gen_stors))
-gen_stor_grid_inj_array = reduce(vcat,get_grid_injection_capacity.(sorted_gen_stors))
-gen_stor_λ = reduce(vcat,get_λ.(sorted_gen_stors))
-gen_stor_μ = reduce(vcat,get_μ.(sorted_gen_stors))
+# gen_stor_names = get_name.(sorted_gen_stors)
+# gen_stor_cats = get_category.(sorted_gen_stors)
+# gen_stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_gen_stors))
+# gen_stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_gen_stors))
+# gen_stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_gen_stors))
+# gen_stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_gen_stors))
+# gen_stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_gen_stors))
+# gen_stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_gen_stors))
+# gen_stor_inflow_array = reduce(vcat,get_inflow.(sorted_gen_stors))
+# gen_stor_grid_withdrawl_array = reduce(vcat,get_grid_withdrawl_capacity.(sorted_gen_stors))
+# gen_stor_grid_inj_array = reduce(vcat,get_grid_injection_capacity.(sorted_gen_stors))
+# gen_stor_λ = reduce(vcat,get_λ.(sorted_gen_stors))
+# gen_stor_μ = reduce(vcat,get_μ.(sorted_gen_stors))
 
-new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_cats,gen_stor_cap_array, gen_stor_dis_cap_array, gen_stor_enrgy_cap_array,
-                                                                       gen_stor_chrg_eff_array, gen_stor_dischrg_eff_array, gen_stor_carryovr_eff_array,gen_stor_inflow_array,
-                                                                       gen_stor_grid_withdrawl_array, gen_stor_grid_inj_array,gen_stor_λ,gen_stor_μ);
-all_lines = line[]
-push!(all_lines, line("line_1_2", 10, "AC", "reg_1", "reg_2", 10.0, 10.0, "New", 0.0, 24))
-push!(all_lines,line("line_2_1", 10, "AC", "reg_2", "reg_1", 10.0, 10.0, "New", 0.0, 24))
+# new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_cats,gen_stor_cap_array, gen_stor_dis_cap_array, gen_stor_enrgy_cap_array,
+#                                                                        gen_stor_chrg_eff_array, gen_stor_dischrg_eff_array, gen_stor_carryovr_eff_array,gen_stor_inflow_array,
+#                                                                        gen_stor_grid_withdrawl_array, gen_stor_grid_inj_array,gen_stor_λ,gen_stor_μ);
+# all_lines = line[]
+# push!(all_lines, line("line_1_2", 10, "AC", "reg_1", "reg_2", 10.0, 10.0, "New", 0.0, 24))
+# push!(all_lines,line("line_2_1", 10, "AC", "reg_2", "reg_1", 10.0, 10.0, "New", 0.0, 24))
 
-sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(all_lines,regs)
+# sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(all_lines,regs)
 
-line_names = get_name.(sorted_regional_lines)
-line_cats = get_category.(sorted_regional_lines)
-line_forward_cap = reduce(vcat,get_forward_capacity.(sorted_regional_lines))
-line_backward_cap = reduce(vcat,get_backward_capacity.(sorted_regional_lines))
-line_λ = reduce(vcat,get_λ.(sorted_regional_lines))
-line_μ = reduce(vcat,get_μ.(sorted_regional_lines))
+# line_names = get_name.(sorted_regional_lines)
+# line_cats = get_category.(sorted_regional_lines)
+# line_forward_cap = reduce(vcat,get_forward_capacity.(sorted_regional_lines))
+# line_backward_cap = reduce(vcat,get_backward_capacity.(sorted_regional_lines))
+# line_λ = reduce(vcat,get_λ.(sorted_regional_lines))
+# line_μ = reduce(vcat,get_μ.(sorted_regional_lines))
 
-new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_cats, line_forward_cap, line_backward_cap, line_λ ,line_μ);
-new_interfaces = make_pras_interfaces(sorted_regional_lines,temp_regions_tuple,interface_line_idxs,regs);
+# new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_cats, line_forward_cap, line_backward_cap, line_λ ,line_μ);
+# new_interfaces = make_pras_interfaces(sorted_regional_lines,temp_regions_tuple,interface_line_idxs,regs);
 
-import Dates
-import TimeZones
-first_ts = TimeZones.ZonedDateTime(2023, 01, 01, 00, TimeZones.tz"UTC")
-last_ts = first_ts + Dates.Hour(9)
-my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
+# import Dates
+# import TimeZones
+# first_ts = TimeZones.ZonedDateTime(2023, 01, 01, 00, TimeZones.tz"UTC")
+# last_ts = first_ts + Dates.Hour(9)
+# my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
 
-pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, region_gen_idxs, new_storage, reg_stor_idxs, new_gen_stors,
-                               reg_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
+# pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, region_gen_idxs, new_storage, reg_stor_idxs, new_gen_stors,
+#                                reg_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
