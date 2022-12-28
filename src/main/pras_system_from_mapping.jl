@@ -113,9 +113,8 @@ end
 
 function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,Year::Int,WeatherYear::Int,N::Int)
     #data loads
-    # region_mapper = joinpath(ReEDSfilepath,"inputs_case","rsmap.csv");
-    region_mapper_df = get_region_mapping(ReEDS_data)#DataFrames.DataFrame(CSV.File(region_mapper));
-    cf_info = get_vg_cf_data(ReEDS_data);#; #load is now picked up from augur
+    region_mapper_df = get_region_mapping(ReEDS_data);
+    cf_info = get_vg_cf_data(ReEDS_data);#load is now picked up from augur
     
     vg_profiles = cf_info["block0_values"];
     start_idx = (WeatherYear-2007)*N;
@@ -123,7 +122,6 @@ function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR
     #split-apply-combine to group...
     gdf = DataFrames.groupby(vg_builds, ["i","r"]); #split-apply-combine to handle differently vintaged entries
     vg_builds = DataFrames.combine(gdf, :MW => sum);
-    # @info "vg builds are now $vg_builds"
 
     for idx in range(1,DataFrames.nrow(vg_builds))
         category = string(vg_builds[idx,"i"]);
@@ -229,10 +227,10 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     #######################################################
     line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,regions,Year,8760);
 
-    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(line_array));#permutedims(hcat(get_forward_capacity.(line_array)...));
-    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(line_array));#permutedims(hcat(get_backward_capacity.(line_array)...));
-    λ_lines = reduce(vcat,get_λ.(line_array))#permutedims(hcat(get_λ.(line_array)...));
-    μ_lines = reduce(vcat,get_μ.(line_array))#permutedims(hcat(get_μ.(line_array)...));
+    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(line_array));
+    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(line_array));
+    λ_lines = reduce(vcat,get_λ.(line_array))
+    μ_lines = reduce(vcat,get_μ.(line_array))
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."

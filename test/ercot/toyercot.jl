@@ -10,3 +10,4 @@ psys = ReEDS2PRAS.make_pras_system_from_mapping_info(testpath,test_year,"ERCOT_"
 # ReEDS2PRAS.make_pras_system_from_mapping_info(testpath,2029,"ERCOT_2029")
 
 compare_generator_capacities(psys,testpath,test_year)
+compare_line_capacities(psys,testpath,test_year)

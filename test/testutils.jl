@@ -14,7 +14,7 @@ end
 
 function PRAS_generator_capacity_checker(pras_system,gentype::String,region::String)
 
-    name_vec = -abs.(cmp.(gentype,psys.generators.categories)).+1; #exact match is needed to exclude ccs
+    name_vec = -abs.(cmp.(gentype,pras_system.generators.categories)).+1; #exact match is needed to exclude ccs
     
     reg_vec = occursin.(region*"_",pras_system.generators.names);
     out_vec = .*(name_vec,reg_vec); 
@@ -63,7 +63,7 @@ function expand_vg_types(input_vec::Vector,N::Int64)
     return vcat(input_vec,add_names)
 end
 
-function compare_generator_capacities(psys,ReEDSfilepath,Year)
+function compare_generator_capacities(pras_system,ReEDSfilepath,Year)
     #first actually have to load in case-level capacity data, which may not be passed
     ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,Year);
 
@@ -72,10 +72,10 @@ function compare_generator_capacities(psys,ReEDSfilepath,Year)
 
     for gentype in unique(capacity_data.i)
         gentype = string(gentype);
-        for region in psys.regions.names
+        for region in pras_system.regions.names
             v1 = capacity_checker(capacity_data,region_mapper_df,gentype,region); #need to split out numbering for vg...
-            v2a = PRAS_generator_capacity_checker(psys,gentype,region);
-            v2b = PRAS_storage_capacity_checker(psys,gentype,region);
+            v2a = PRAS_generator_capacity_checker(pras_system,gentype,region);
+            v2b = PRAS_storage_capacity_checker(pras_system,gentype,region);
             v2 = v2a+v2b;
             if v1 != 0 || v2 != 0
                 if abs(v1-v2)>1
