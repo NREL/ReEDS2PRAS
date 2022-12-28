@@ -240,25 +240,25 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     forced_outage_data = get_forced_outage_data(ReEDS_data);
 
     @info "reading thermals..."
-    gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
+    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
     @info "reading vg..."
-    gens = process_vg(gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
+    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
     @info "...vg read, translating to PRAS gens"
-    gens, area_gen_idxs = get_sorted_components(gens,regions); #TODO: is typing still wrong?
+    sorted_gens, area_gen_idxs = get_sorted_components(all_gens,regions); #TODO: is typing still wrong?
     
-    capacity_matrix = reduce(vcat,get_capacity.(gens));
-    λ_matrix = reduce(vcat,get_λ.(gens));
-    μ_matrix = reduce(vcat,get_μ.(gens));
+    capacity_matrix = reduce(vcat,get_capacity.(sorted_gens));
+    λ_matrix = reduce(vcat,get_λ.(sorted_gens));
+    μ_matrix = reduce(vcat,get_μ.(sorted_gens));
 
     name_check_array = []
-    for name in get_name.(gens)
+    for name in get_name.(sorted_gens)
         if name in name_check_array
             println(name)
         end
         push!(name_check_array,name)
     end
 
-    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(gens),get_type.(gens),capacity_matrix,λ_matrix,μ_matrix);
+    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_gens),get_type.(sorted_gens),capacity_matrix,λ_matrix,μ_matrix);
 
     #######################################################
     # PRAS Timestamps

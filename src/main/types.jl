@@ -420,7 +420,7 @@ component_dict = Dict(
     Vector{gen_storage} => (func = get_storages_in_region, vec = storage[])
 )
 # Functions for processing ReEDS2PRAS generators and storages (preparing PRAS lines)
-function get_sorted_components(comps::Vector, region_names::Vector{String})#where {COMPONENTS <: Union{generators,storages}}
+function get_sorted_components(comps::Vector, region_names::Vector{String} where {COMPONENTS <: Union{generators,storages}})
     num_regions = length(region_names)
     all_comps = []
     start_id = Array{Int64}(undef,num_regions); 
@@ -442,7 +442,7 @@ function get_sorted_components(comps::Vector, region_names::Vector{String})#wher
     return sorted_comps, region_comp_idxs
 end
 
-function get_sorted_components(comps::Vector, regions::Vector{region})# where {COMPONENTS <: Union{generators,storages}}
+function get_sorted_components(comps::Vector, regions::Vector{region} where {COMPONENTS <: Union{generators,storages}})
     get_sorted_components(comps,get_name.(regions))
 end
 
