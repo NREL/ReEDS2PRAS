@@ -470,7 +470,7 @@ struct line
     line(q,r,s,t,u,v,w,x,y,z) = 
     if ~(0 < r <= 8784)
         error("Check the PRAS timesteps (N) passed.")
-    elseif ~(s in ["AC","Two-Terminal","VSC-DC"])
+    elseif ~(s in ["AC","Two-Terminal","VSC","VSC DC-AC converter"])
         error("Check the category of line passed")
     elseif (t == u)
         error("Region From and Region To cannot be the same. PRAS only considers inter-regional lines in Zonal analysis")

@@ -5,7 +5,7 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
+function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int,VSC_append_str::String)
     @info "Processing lines..."
 
     line_base_cap_data = get_line_capacity_data(ReEDS_data);
@@ -36,23 +36,50 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int)
 
     lines_array = line[];
     for idx in range(1,DataFrames.nrow(system_line_naming_data))
-        
+
         category = system_line_naming_data[idx,"trtype"];
         rf = system_line_naming_data[idx,"r"];
         rt = system_line_naming_data[idx,"rr"];
-        name = rf*"_"*rt*"_"*category;
-        
         forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rf) .& (line_base_cap_data.rr.==rt) .& (line_base_cap_data.trtype.==category),"MW"]);#system_line_naming_data[idx,"MW_sum"];
         backward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rt) .& (line_base_cap_data.rr.==rf) .& (line_base_cap_data.trtype.==category),"MW"]);
+        
+        if occursin("VSC",category)
+            rf = rf*VSC_append_str; #line is between pseudoregions for VSC
+            rt = rt*VSC_append_str; #line is between pseudoregions for VSC 
+        end
+        name = rf*"_"*rt*"_"*category;
+        
         @info "a line $name, $idx with $forward_cap MW fwd and $backward_cap bckwrd"
         if forward_cap==0.0
             forward_cap=1; #capacity in each dir must be nonzero
-        elseif backward_cap==0.0
+        end
+        if backward_cap==0.0
             backward_cap=1; #capacity in each dir must be nonzero
         end
         push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
     end
-    
+
+    #also create lines for the pseudoregions - region tx capacity
+    line_base_cap_data = get_converter_capacity_data(ReEDS_data);
+    if length(line_base_cap_data[!,"r"]) > 0
+        for (r,MW) in zip(line_base_cap_data[!,"r"],line_base_cap_data[!,"MW"])
+            category = "VSC DC-AC converter"; #this has to match the available type names
+            rf = r*VSC_append_str;
+            rt = r; #make this the real region
+            forward_cap = MW;
+            backward_cap = MW;
+            name = rf*"_"*rt*"_"*category;
+            @info "a pseudoregion to region line $name, with $forward_cap MW fwd and $backward_cap bckwrd"
+            if forward_cap==0.0
+                forward_cap=1; #capacity in each dir must be nonzero
+            end
+            if backward_cap==0.0
+                backward_cap=1; #capacity in each dir must be nonzero
+            end
+            push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))
+        end
+    end
+
     sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions);
 
     @info "Making PRAS Interfaces..."
@@ -216,7 +243,25 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     for (idx,r) in enumerate(regions)
         push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
     end
+
+    @info "Processing pseudoregions for VSC lines, if applicable..."
+    # Load the capacity converter data, since for VSC we have to create pseudo-regions from this data
+    converter_data = get_converter_capacity_data(ReEDS_data);
+    #check if this dataframe is empty, so for a non-VSC case we can ignore
+    VSC_append_str = "_VSC"; #necessary for naming and distinguishing VSC overlay and associated pseudoregions
+    pseudoregions = [string(i)*VSC_append_str for i in converter_data[!,"r"]];
+    if length(pseudoregions) > 0
+        VSC_regions = [];
+        for r in regions
+            push!(region_array,region(r*VSC_append_str,N,zeros(Int,N)))#should be an array of 0s for the load for pseudoregions
+            push!(VSC_regions,r*VSC_append_str)#the region list must also be expanded
+        end
+        for r in VSC_regions
+            push!(regions,r)
+        end
+    end
     
+
     new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array))));
 
     #######################################################
@@ -225,7 +270,8 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # **TODO: Should hydro be split out as a generator-storage?
     # **TODO: is it important to also handle planned outages?
     #######################################################
-    line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,regions,Year,8760);
+
+    line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),Year,N,VSC_append_str);
 
     line_forward_capacity_array = reduce(vcat,get_forward_capacity.(line_array));
     line_backward_capacity_array = reduce(vcat,get_backward_capacity.(line_array));
@@ -244,7 +290,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     @info "reading vg..."
     all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
     @info "...vg read, translating to PRAS gens"
-    sorted_gens, area_gen_idxs = get_sorted_components(all_gens,regions); #TODO: is typing still wrong?
+    sorted_gens, area_gen_idxs = get_sorted_components(all_gens,get_name.(region_array)); #TODO: is typing still wrong?
     
     capacity_matrix = reduce(vcat,get_capacity.(sorted_gens));
     λ_matrix = reduce(vcat,get_λ.(sorted_gens));
@@ -272,7 +318,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # PRAS Storages
     #######################################################
     @info "Processing Storages..."
-    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDS_data,N,regions,Year)
+    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),Year)
 
     stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages));#permutedims(hcat(get_charge_capacity.(storages)...))
     stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages));
@@ -340,7 +386,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
                                                             gen_stor_inflow_array, gen_stor_gridwdr_cap_array, gen_stor_gridinj_cap_array,
                                                             λ_genstors, μ_genstors);
                                                             
-    area_genstor_idxs = fill(1:0, num_areas);
+    area_genstor_idxs = fill(1:0, length(get_name.(region_array)));#num_areas
     pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
                             area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
     #save PRAS system somewhere we can use it?

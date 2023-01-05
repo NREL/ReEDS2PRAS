@@ -146,6 +146,15 @@ function get_line_capacity_data(data::ReEDSdata)
     return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(data.Year)*".csv")));#load the csv
 end
 
+function get_converter_capacity_data(data::ReEDSdata)
+    if !isfile(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","cap_converter_"*string(data.Year)*".csv"))
+        Year = data.Year;
+        error("The year $Year does not have capacity converter data. Are you sure ReEDS was run and Augur results saved for $Year?")
+    end
+    return DataFrames.DataFrame(CSV.File(joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","cap_converter_"*string(data.Year)*".csv")));
+end
+
+
 function get_technology_types(data::ReEDSdata)
     if !isfile(joinpath(data.ReEDSfilepath,"inputs_case","tech-subset-table.csv"))
         error("no table of technology types!")
