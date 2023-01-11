@@ -5,7 +5,7 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int,VSC_append_str::String)
+function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Year::Int,N::Int,VSC_append_str::String)
     @info "Processing lines..."
 
     line_base_cap_data = get_line_capacity_data(ReEDS_data);
@@ -101,9 +101,9 @@ function split_generator_types(ReEDS_data::CEMdata,Year::Int64)
     storage_types = tech_types_data[findall(!ismissing, tech_types_data[:,"STORAGE"]),"Column1"]
 
     #clean vg/storage capacity on a regex, though there might be a better way...    
-    vg_types = clean_names(vg_types)
-    storage_types = clean_names(storage_types)
-    vg_types = expand_types(vg_types,15) #expand so names will match
+    clean_names!(vg_types)
+    clean_names!(storage_types)
+    expand_types!(vg_types,15) #expand so names will match
 
     vg_capacity = capacity_data[(findall(in(vg_types),capacity_data.i)),:]
     storage_capacity = capacity_data[(findall(in(storage_types),capacity_data.i)),:]
@@ -141,7 +141,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
-function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,Year::Int,WeatherYear::Int,N::Int)
+function process_vg(generators_array::Vector{<:ReEDS2PRAS.generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,Year::Int,WeatherYear::Int,N::Int)
     #data loads
     region_mapper_df = get_region_mapping(ReEDS_data);
     cf_info = get_vg_cf_data(ReEDS_data);#load is now picked up from augur
@@ -183,7 +183,7 @@ function process_vg(generators_array::Vector,vg_builds::DataFrames.DataFrame,FOR
     return generators_array
 end
 
-function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector,Year::Int64)
+function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},Year::Int64)
     #get the vector of appropriate indices
     @info "handling power capacity of storages"
     storage_names = [string(storage_builds[!,"i"][i])*"_"*string(storage_builds[!,"r"][i]) for i=1:DataFrames.nrow(storage_builds)];
