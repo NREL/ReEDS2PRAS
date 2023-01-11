@@ -18,6 +18,9 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector,Year::Int,N::Int,VSC_
     
     # Figuring out which lines belong in the PRAS System and fix the interface_regions_to, interface_regions_to
     # indices PRAS expects
+    # there's a way to do this in a more standard df operation
+    # possibly using dataframes.jl
+
     system_line_idx = []
     for (idx,pca_from,pca_to) in zip(range(1,length=DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"r"],line_base_cap_data[:,"rr"])
         from_idx = findfirst(x->x==pca_from,regions)
@@ -225,6 +228,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # Load the mapping metadata JSON file
     @info "Fetching ReEDS case data to build PRAS System..."
     ReEDS_data = ReEDSdata(ReEDSfilepath,Year);
+
     load_info = get_load_file(ReEDS_data);
     load_data = load_info["block0_values"];
     regions = load_info["block0_items"];
@@ -264,6 +268,8 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
 
     new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array))));
 
+    #load, regions
+
     #######################################################
     # PRAS Region Gen Index 
     # **TODO: Should 0 MW generators be allowed after disaggregation?
@@ -279,6 +285,8 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     μ_lines = reduce(vcat,get_μ.(line_array))
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
+    ### generators
+
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
     thermal,storage,vg = split_generator_types(ReEDS_data,Year);
 
@@ -310,7 +318,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
     # PRAS Timestamps
     #######################################################
     @info "Processing PRAS timestamps..."
-    first_ts = TimeZones.ZonedDateTime(Year, 01, 01, 00, TimeZones.tz"UTC");
+    first_ts = TimeZones.ZonedDateTime(Year, 01, 01, 00, TimeZones.tz"UTC"); #switch to EST/EDT
     last_ts = first_ts + Dates.Hour(N-1);
     my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
 
@@ -391,7 +399,7 @@ function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, 
                             area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
     #save PRAS system somewhere we can use it?
     PRAS.savemodel(pras_system,joinpath(ReEDSfilepath,"outputs",CaseLabel*".pras"))
-    short,flow = run_pras_system(pras_system,2)#just two for now to save time but eventually more
+    short,flow = run_pras_system(pras_system,10)#just two for now to save time but eventually more
     return(pras_system)
     
 end

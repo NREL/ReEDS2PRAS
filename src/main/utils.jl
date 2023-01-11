@@ -19,8 +19,9 @@ function expand_types(input_vec::Vector,N::Int64)
 end
 
 function run_pras_system(sys::PRAS.SystemModel,sample::Int)
-    shortfalls,flows = PRAS.assess(sys,PRAS.SequentialMonteCarlo(samples=sample),PRAS.Shortfall(),PRAS.Flow())
+    shortfalls,flows = PRAS.assess(sys,PRAS.SequentialMonteCarlo(samples=sample,seed=1),PRAS.Shortfall(),PRAS.Flow())
     println(PRAS.LOLE(shortfalls))
+    println(PRAS.EUE(shortfalls))
     return shortfalls,flows
 end
 
