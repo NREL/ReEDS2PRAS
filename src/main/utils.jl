@@ -31,7 +31,7 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     # @info "capacity in for $tech $pca is $built_capacity MW"
     tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=Year) .& (eia_df.StartYear.<=Year), :];
     
-    if length(tech_ba_year_existing.tech)==0
+    if DataFrames.nrow(tech_ba_year_existing)==0
         return [thermal_gen("$(tech)_$(pca)_1",N,pca,built_capacity,tech,"New",gen_for,MTTR)]
     end
 
@@ -44,20 +44,22 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
 
     generators_array = [];
     for (idx,built_cap) in enumerate(existing_capacity)
-        int_built_cap = floor.(Int,built_cap);
+        int_built_cap = floor(Int,built_cap);
         if int_built_cap < remaining_capacity
-            remaining_capacity = remaining_capacity - int_built_cap;
-            gen = thermal_gen("$(tech)_$(pca)_$(idx)",N,pca,int_built_cap,tech,"Existing",gen_for,MTTR)
-            push!(generators_array,gen);
+            gen_cap = int_built_cap
+            remaining_capacity -= int_built_cap;
+            # gen = thermal_gen("$(tech)_$(pca)_$(idx)",N,pca,int_built_cap,tech,"Existing",gen_for,MTTR)
+            # push!(generators_array,gen);
         else
-            gen = thermal_gen("$(tech)_$(pca)_$(idx)",N,pca,remaining_capacity,tech,"Existing",gen_for,MTTR);
-            push!(generators_array,gen);
+            gen_cap = remaining_capacity
             remaining_capacity = 0;
             break
-        end 
+        end
+        gen = thermal_gen("$(tech)_$(pca)_$(idx)",N,pca,gen_cap,tech,"Existing",gen_for,MTTR);
+        push!(generators_array,gen);
     end
-    #whatever remains, we want to build as new capacity
 
+    #whatever remains, we want to build as new capacity
     if remaining_capacity > 0
         generators_array = disagg_new_capacity(generators_array,remaining_capacity,floor.(Int,avg_cap),floor.(Int,max_cap),tech,pca,gen_for,N,Year,MTTR);
     end
@@ -69,12 +71,12 @@ function disagg_new_capacity(generators_array::Vector{<:Any},new_capacity::Int,a
     if avg==0
         return push!(generators_array,thermal_gen("$(tech)_$(pca)_new_1",N,pca,new_capacity,tech,"New",gen_for,MTTR))
     end
-    n_gens = floor.(Int,new_capacity/avg);
+    n_gens = floor(Int,new_capacity/avg);
     if n_gens==0
         return push!(generators_array,thermal_gen("$(tech)_$(pca)_new_1",N,pca,new_capacity,tech,"New",gen_for,MTTR))
     end
     remainder = new_capacity-(n_gens*avg);
-    addtl_cap_per_gen = floor.(Int,remainder/n_gens);
+    addtl_cap_per_gen = floor(Int,remainder/n_gens);
     per_gen_cap = avg+addtl_cap_per_gen;
     small_remainder = new_capacity-(n_gens*per_gen_cap)
 
