@@ -22,65 +22,59 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Yea
     # possibly using dataframes.jl
 
     system_line_idx = []
-    for (idx,pca_from,pca_to) in zip(range(1,length=DataFrames.nrow(line_base_cap_data)),line_base_cap_data[:,"r"],line_base_cap_data[:,"rr"])
-        from_idx = findfirst(x->x==pca_from,regions)
-        to_idx = findfirst(x->x==pca_to,regions)
-        if (~(isnothing(from_idx)) && ~(isnothing(to_idx)))
-            if (from_idx < to_idx)
-                push!(system_line_idx,idx)
-            end
+    region_idxs = Dict(regions .=> range(1,length(regions)))
+    for (idx,row) in enumerate(eachrow(line_base_cap_data))
+        pca_from = row.r
+        pca_to = row.rr
+        from_idx = region_idxs[pca_from]#findfirst(x->x==pca_from,regions)
+        to_idx = region_idxs[pca_to]#findfirst(x->x==pca_to,regions)
+        if (~(isnothing(from_idx)) && ~(isnothing(to_idx)) && (from_idx < to_idx))
+            push!(system_line_idx,idx)
         end
     end
     #order is assumed preserved in splitting these dfs for now but should likely be checked
-    system_line_naming_data = line_base_cap_data[system_line_idx,:]; # all line capacities
+    system_line_naming_data = line_base_cap_data[system_line_idx,:] # all line capacities
 
-    gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]); #split-apply-combine b/c some lines have same name convention
-    system_line_naming_data = DataFrames.combine(gdf, :MW => sum); 
+    ###TODO: THERE IS A BETTER WAY HERE BUT I NEED TO UNDERSTAND SUBSET IN JULIA 
+    # function keep_line(from_pca, to_pca, region_idxs)
+    #     from_idx = region_idxs[from_pca]
+    #     to_idx = region_idxs[to_pca]
+    #     return ~isnothing(from_idx) && ~isnothing(to_idx) && (from_idx < to_idx)
+    # end
+    # system_line_naming_data = DataFrames.subset(line_base_cap_data,keep_line(line_base_cap_data.r, line_base_cap_data.rr, region_idxs))
+
+    gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]) #split-apply-combine b/c some lines have same name convention
+    system_line_naming_data = DataFrames.combine(gdf, :MW => sum) 
 
     lines_array = line[];
-    for idx in range(1,DataFrames.nrow(system_line_naming_data))
-
-        category = system_line_naming_data[idx,"trtype"];
-        rf = system_line_naming_data[idx,"r"];
-        rt = system_line_naming_data[idx,"rr"];
-        forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rf) .& (line_base_cap_data.rr.==rt) .& (line_base_cap_data.trtype.==category),"MW"]);#system_line_naming_data[idx,"MW_sum"];
-        backward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rt) .& (line_base_cap_data.rr.==rf) .& (line_base_cap_data.trtype.==category),"MW"]);
+    for row in eachrow(system_line_naming_data)
+        category = row.trtype
+        rf = row.r
+        rt = row.rr
+        forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rf) .& (line_base_cap_data.rr.==rt) .& (line_base_cap_data.trtype.==category),"MW"])
+        backward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rt) .& (line_base_cap_data.rr.==rf) .& (line_base_cap_data.trtype.==category),"MW"])
         
         if occursin("VSC",category)
-            rf = rf*VSC_append_str; #line is between pseudoregions for VSC
-            rt = rt*VSC_append_str; #line is between pseudoregions for VSC 
+            rf = rf*VSC_append_str #line is between pseudoregions for VSC
+            rt = rt*VSC_append_str #line is between pseudoregions for VSC 
         end
-        name = rf*"_"*rt*"_"*category;
+        name = rf*"_"*rt*"_"*category
         
-        @info "a line $name, $idx with $forward_cap MW fwd and $backward_cap bckwrd"
-        if forward_cap==0.0
-            forward_cap=1; #capacity in each dir must be nonzero
-        end
-        if backward_cap==0.0
-            backward_cap=1; #capacity in each dir must be nonzero
-        end
+        @info "a line $name, with $forward_cap MW fwd and $backward_cap bckwrd"
         push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
     end
 
     #also create lines for the pseudoregions - region tx capacity
-    line_base_cap_data = get_converter_capacity_data(ReEDS_data);
-    if length(line_base_cap_data[!,"r"]) > 0
-        for (r,MW) in zip(line_base_cap_data[!,"r"],line_base_cap_data[!,"MW"])
-            category = "VSC DC-AC converter"; #this has to match the available type names
-            rf = r*VSC_append_str;
-            rt = r; #make this the real region
-            forward_cap = MW;
-            backward_cap = MW;
-            name = rf*"_"*rt*"_"*category;
-            @info "a pseudoregion to region line $name, with $forward_cap MW fwd and $backward_cap bckwrd"
-            if forward_cap==0.0
-                forward_cap=1; #capacity in each dir must be nonzero
-            end
-            if backward_cap==0.0
-                backward_cap=1; #capacity in each dir must be nonzero
-            end
-            push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))
-        end
+    line_base_cap_data = get_converter_capacity_data(ReEDS_data)
+    for row in eachrow(line_base_cap_data) #if empty, this shouldn't iterate
+        category = "VSC DC-AC converter"; #this has to match the available type name in types.jl
+        rf = row.r*VSC_append_str
+        rt = row.r #make this the real region
+        forward_cap = row.MW
+        backward_cap = row.MW
+        name = rf*"_"*rt*"_"*category
+        @info "a pseudoregion to region line $name, with $forward_cap MW fwd and $backward_cap bckwrd"
+        push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))
     end
 
     sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions);

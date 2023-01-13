@@ -475,7 +475,7 @@ struct line
         error("Check the category of line passed")
     elseif (t == u)
         error("Region From and Region To cannot be the same. PRAS only considers inter-regional lines in Zonal analysis")
-    elseif ~(all([v,w] .> 0.0))
+    elseif ~(all([v,w] .>= 0.0))
         error("Check the forward/backward capacity of line passed")
     elseif ~(x in ["Existing","New"])
         error("Unidentified legacy passed")
