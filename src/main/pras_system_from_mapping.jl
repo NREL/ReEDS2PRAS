@@ -86,13 +86,13 @@ end
 
 function split_generator_types(ReEDS_data::CEMdata,Year::Int64)
 
-    tech_types_data = get_technology_types(ReEDS_data);
-    capacity_data = get_ICAP_data(ReEDS_data);#DataFrames.DataFrame(CSV.File(capacities));
+    tech_types_data = get_technology_types(ReEDS_data)
+    capacity_data = get_ICAP_data(ReEDS_data)
 
-    vg_types = tech_types_data[findall(!ismissing, tech_types_data[:,"VRE"]),"Column1"]
-    deleteat!(vg_types, findall(x->x=="csp-ns",vg_types)) #csp-ns causes problems, so delete for now
+    vg_types = DataFrames.dropmissing(tech_types_data,:VRE)[:,"Column1"]
+    vg_types = vg_types[vg_types .!= "csp-ns"]#csp-ns causes problems, so delete for now
 
-    storage_types = tech_types_data[findall(!ismissing, tech_types_data[:,"STORAGE"]),"Column1"]
+    storage_types = DataFrames.dropmissing(tech_types_data,:STORAGE)[:,"Column1"]
 
     #clean vg/storage capacity on a regex, though there might be a better way...    
     clean_names!(vg_types)
@@ -110,7 +110,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     gdf = DataFrames.groupby(thermal_builds, ["i","r"]) #split-apply-combine to handle differently vintaged entries
     thermal_builds = DataFrames.combine(gdf, :MW => sum);
-    EIA_db = Load_EIA_NEMS_DB(NEMS_path) #for now, though this is bad practice
+    EIA_db = Load_EIA_NEMS_DB(NEMS_path)
     all_generators = generator[];
     native_FOR_data = FOR_data[!,"Column1"];
     lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
@@ -129,7 +129,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
             @info "for $i $r, no gen_for is found in data, so $gen_for is used"
             # error("we really should always find a gen_for, but did not for $i $r") #default val
         end
-        generator_array = disagg_existing_capacity(EIA_db,floor.(Int,MW),string.(i),string.(r),gen_for,N,Year);
+        generator_array = disagg_existing_capacity(EIA_db,floor(Int,MW),string(i),string(r),gen_for,N,Year);
         append!(all_generators,generator_array);
     end
     return all_generators
