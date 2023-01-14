@@ -6,8 +6,8 @@ testpath = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs/erc_conv_2_ercot_seq")
 # fpath = joinpath(testpath,"ReEDS_Augur","augur_data")
 test_year = 2028
 
-psys = ReEDS2PRAS.make_pras_system_from_mapping_info(testpath,test_year,"ERCOT_"*string(test_year),NEMS_path)
-# ReEDS2PRAS.make_pras_system_from_mapping_info(testpath,2029,"ERCOT_2029")
+psys = ReEDS2PRAS.reeds_to_pras(testpath,test_year,NEMS_path)
+# ReEDS2PRAS.reeds_to_pras(testpath,2029,"ERCOT_2029")
 
 compare_generator_capacities(psys,testpath,test_year)
 compare_line_capacities(psys,testpath,test_year)

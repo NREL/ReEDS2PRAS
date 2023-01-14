@@ -63,6 +63,13 @@ function expand_vg_types(input_vec::Vector,N::Int64)
     return vcat(input_vec,add_names)
 end
 
+function run_pras_system(sys::PRAS.SystemModel,sample::Int)
+    shortfalls,flows = PRAS.assess(sys,PRAS.SequentialMonteCarlo(samples=sample,seed=1),PRAS.Shortfall(),PRAS.Flow())
+    println(PRAS.LOLE(shortfalls))
+    println(PRAS.EUE(shortfalls))
+    return shortfalls,flows
+end
+
 function compare_generator_capacities(pras_system,ReEDSfilepath,Year)
     #first actually have to load in case-level capacity data, which may not be passed
     ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,Year);

@@ -5,6 +5,205 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
+function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
+    #######################################################
+    # Loading the necessary mapping files and data
+    #######################################################
+    #check validity of input weather and ReEDS year
+    WEATHERYEAR = 2012 #just for now, force this
+    if !isfile(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"))
+        error("The year $Year does not have an associated Augur file (only checking load file for now). Are you sure ReeDS was run and Augur results saved for $Year?")
+    end
+    if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013] 
+        error("The weather year $WEATHERYEAR is not a valid VG profile year. Should be an Int in 2007-2013 currently")
+    end
+    ReEDS_data = ReEDSdata(ReEDSfilepath,Year);
+
+    #######################################################
+    # Load the mapping metadata JSON file
+    # TODO: depend on PRAS regions, not region_array in later functions
+    #######################################################
+    VSC_append_str,N,region_array,new_regions = regions_and_load(ReEDS_data,WEATHERYEAR)
+
+    #######################################################
+    # PRAS Region Gen Index 
+    # **TODO: Should 0 MW generators be allowed after disaggregation?
+    # **TODO: Should hydro be split out as a generator-storage?
+    # **TODO: is it important to also handle planned outages?
+    #######################################################
+
+    line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),Year,N,VSC_append_str);
+
+    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(line_array));
+    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(line_array));
+    λ_lines = reduce(vcat,get_λ.(line_array))
+    μ_lines = reduce(vcat,get_μ.(line_array))
+    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
+    
+    ### generators
+
+    @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
+    thermal,storage,vg = split_generator_types(ReEDS_data,Year);
+
+    @info "reading in ReEDS generator-type forced outage data..."
+    forced_outage_data = get_forced_outage_data(ReEDS_data);
+
+    @info "reading thermals..."
+    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
+    @info "reading vg..."
+    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
+    @info "...vg read, translating to PRAS gens"
+    sorted_gens, area_gen_idxs = get_sorted_components(all_gens,get_name.(region_array)); #TODO: is typing still wrong?
+    
+    capacity_matrix = reduce(vcat,get_capacity.(sorted_gens));
+    λ_matrix = reduce(vcat,get_λ.(sorted_gens));
+    μ_matrix = reduce(vcat,get_μ.(sorted_gens));
+
+    name_check_array = []
+    for name in get_name.(sorted_gens)
+        if name in name_check_array
+            println(name)
+        end
+        push!(name_check_array,name)
+    end
+
+    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_gens),get_type.(sorted_gens),capacity_matrix,λ_matrix,μ_matrix);
+
+    #######################################################
+    # PRAS Timestamps
+    #######################################################
+    @info "Processing PRAS timestamps..."
+    first_ts = TimeZones.ZonedDateTime(Year, 01, 01, 00, TimeZones.tz"UTC"); #switch to EST/EDT
+    last_ts = first_ts + Dates.Hour(N-1);
+    my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
+
+    #######################################################
+    # PRAS Storages
+    #######################################################
+    @info "Processing Storages..."
+    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),Year)
+
+    stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages));#permutedims(hcat(get_charge_capacity.(storages)...))
+    stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages));
+    stor_energy_cap_array = reduce(vcat,get_energy_capacity.(storages));
+    stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(storages));
+    stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(storages));
+    stor_cryovr_eff = reduce(vcat,get_carryover_efficiency.(storages));
+    λ_stor = reduce(vcat,get_λ.(storages));
+    μ_stor = reduce(vcat,get_μ.(storages));
+    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_type.(storages),
+                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
+                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
+                                                λ_stor,μ_stor);
+    #######################################################
+    # PRAS GeneratorStorages
+    # No GeneratorStorages in this system
+    #######################################################
+    @info "Processing GeneratorStorages [EMPTY FOR NOW].."
+    new_gen_stors,area_genstor_idxs = process_genstors(region_array,N)
+
+    pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
+                            area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
+    #save PRAS system somewhere we can use it?
+    return(pras_system)
+    
+end
+
+function regions_and_load(ReEDS_data,WEATHERYEAR)
+    @info "Fetching ReEDS case data to build PRAS System..."
+
+    load_info = get_load_file(ReEDS_data);
+    load_data = load_info["block0_values"];
+    regions = load_info["block0_items"];
+    #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
+    slicer = findfirst(isequal(WEATHERYEAR), load_info["axis1_level1"]); #2012 weather year, Gbut, in general, this should be a user input
+    indices = findall(i->(i==(slicer-1)),load_info["axis1_label1"]); #I think b/c julia indexes from 1 we need -1 here
+    
+    load_year = load_data[:,indices[1:8760]]; #should be regionsX8760, which is now just enforced
+    
+    #should the regions be processed from the generators?
+    @info "Processing Areas in the mapping file into PRAS regions..."
+    num_areas = length(regions); 
+    N = size(load_year)[2];#DataFrames.DataFrames.nrow(load_data)
+    region_array = [];
+
+    for (idx,r) in enumerate(regions)
+        push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
+    end
+
+    @info "Processing pseudoregions for VSC lines, if applicable..."
+    # Load the capacity converter data, since for VSC we have to create pseudo-regions from this data
+    converter_data = get_converter_capacity_data(ReEDS_data);
+    #check if this dataframe is empty, so for a non-VSC case we can ignore
+    VSC_append_str = "_VSC"; #necessary for naming and distinguishing VSC overlay and associated pseudoregions
+    pseudoregions = [string(i)*VSC_append_str for i in converter_data[!,"r"]];
+    if length(pseudoregions) > 0
+        VSC_regions = [];
+        for r in regions
+            push!(region_array,region(r*VSC_append_str,N,zeros(Int,N)))#should be an array of 0s for the load for pseudoregions
+            push!(VSC_regions,r*VSC_append_str)#the region list must also be expanded
+        end
+        for r in VSC_regions
+            push!(regions,r)
+        end
+    end
+    return (VSC_append_str,N,region_array,PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array)))))
+end
+
+function process_genstors(region_array,N::Int)
+    # gen_stors = gen_storage[]
+    # push!(gen_stors,gen_storage("gen_stor_1", 10, "reg_1", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
+    # push!(gen_stors,gen_storage("gen_stor_2", 10, "reg_2", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
+
+    # sorted_gen_stors, reg_genstor_idxs  = get_sorted_components(gen_stors,regs);
+
+    # gen_stor_names = get_name.(sorted_gen_stors)
+    # gen_stor_cats = get_category.(sorted_gen_stors)
+    # gen_stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_gen_stors))
+    # gen_stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_gen_stors))
+    # gen_stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_gen_stors))
+    # gen_stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_gen_stors))
+    # gen_stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_gen_stors))
+    # gen_stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_gen_stors))
+    # gen_stor_inflow_array = reduce(vcat,get_inflow.(sorted_gen_stors))
+    # gen_stor_grid_withdrawl_array = reduce(vcat,get_grid_withdrawl_capacity.(sorted_gen_stors))
+    # gen_stor_grid_inj_array = reduce(vcat,get_grid_injection_capacity.(sorted_gen_stors))
+    # gen_stor_λ = reduce(vcat,get_λ.(sorted_gen_stors))
+    # gen_stor_μ = reduce(vcat,get_μ.(sorted_gen_stors))
+
+    # new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_cats,gen_stor_cap_array, gen_stor_dis_cap_array, gen_stor_enrgy_cap_array,
+    #                                                                        gen_stor_chrg_eff_array, gen_stor_dischrg_eff_array, gen_stor_carryovr_eff_array,gen_stor_inflow_array,
+    #                                                                        gen_stor_grid_withdrawl_array, gen_stor_grid_inj_array,gen_stor_λ,gen_stor_μ);
+    gen_stor_names = String[];
+    gen_stor_categories = String[];
+
+    n_genstors = 0;
+
+    gen_stor_charge_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_discharge_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_enrgy_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_charge_eff = Matrix{Float64}(undef, n_genstors, N);
+    gen_stor_discharge_eff = Matrix{Float64}(undef, n_genstors, N);
+    gen_stor_cryovr_eff = Matrix{Float64}(undef, n_genstors, N);
+    gen_stor_inflow_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_gridwdr_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_gridinj_cap_array = Matrix{Int64}(undef, n_genstors, N);
+
+    λ_genstors = Matrix{Float64}(undef, n_genstors, N);
+    μ_genstors = Matrix{Float64}(undef, n_genstors, N);
+
+    new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_categories,
+                                                            gen_stor_charge_cap_array, gen_stor_discharge_cap_array, gen_stor_enrgy_cap_array,
+                                                            gen_stor_charge_eff, gen_stor_discharge_eff, gen_stor_cryovr_eff,
+                                                            gen_stor_inflow_array, gen_stor_gridwdr_cap_array, gen_stor_gridinj_cap_array,
+                                                            λ_genstors, μ_genstors);
+                                                            
+    area_genstor_idxs = fill(1:0, length(get_name.(region_array)));#num_areas
+    return (new_gen_stors,area_genstor_idxs)
+end
+
 function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Year::Int,N::Int,VSC_append_str::String)
     @info "Processing lines..."
 
@@ -205,195 +404,4 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     end
     storages_array, region_stor_idxs = get_sorted_components(storages_array,regions);
     return (storages_array,region_stor_idxs)
-end
-
-function make_pras_system_from_mapping_info(ReEDSfilepath::String, Year::Int64, CaseLabel::String, NEMS_path::String)
-    #######################################################
-    # Loading the necessary mapping files and data
-    #######################################################
-    #check validity of input weather and ReEDS year
-    WEATHERYEAR = 2012 #just for now, force this
-    if !isfile(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"))
-        error("The year $Year does not have an associated Augur file (only checking load file for now). Are you sure ReeDS was run and Augur results saved for $Year?")
-    end
-    if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013] 
-        error("The weather year $WEATHERYEAR is not a valid VG profile year. Should be an Int in 2007-2013 currently")
-    end
-    # Load the mapping metadata JSON file
-    @info "Fetching ReEDS case data to build PRAS System..."
-    ReEDS_data = ReEDSdata(ReEDSfilepath,Year);
-
-    load_info = get_load_file(ReEDS_data);
-    load_data = load_info["block0_values"];
-    regions = load_info["block0_items"];
-    #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
-    slicer = findfirst(isequal(WEATHERYEAR), load_info["axis1_level1"]); #2012 weather year, Gbut, in general, this should be a user input
-    indices = findall(i->(i==(slicer-1)),load_info["axis1_label1"]); #I think b/c julia indexes from 1 we need -1 here
-    
-    load_year = load_data[:,indices[1:8760]]; #should be regionsX8760, which is now just enforced
-    
-    #should the regions be processed from the generators?
-    @info "Processing Areas in the mapping file into PRAS regions..."
-    num_areas = length(regions); 
-    N = size(load_year)[2];#DataFrames.DataFrames.nrow(load_data)
-    region_array = [];
-
-    for (idx,r) in enumerate(regions)
-        push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
-    end
-
-    @info "Processing pseudoregions for VSC lines, if applicable..."
-    # Load the capacity converter data, since for VSC we have to create pseudo-regions from this data
-    converter_data = get_converter_capacity_data(ReEDS_data);
-    #check if this dataframe is empty, so for a non-VSC case we can ignore
-    VSC_append_str = "_VSC"; #necessary for naming and distinguishing VSC overlay and associated pseudoregions
-    pseudoregions = [string(i)*VSC_append_str for i in converter_data[!,"r"]];
-    if length(pseudoregions) > 0
-        VSC_regions = [];
-        for r in regions
-            push!(region_array,region(r*VSC_append_str,N,zeros(Int,N)))#should be an array of 0s for the load for pseudoregions
-            push!(VSC_regions,r*VSC_append_str)#the region list must also be expanded
-        end
-        for r in VSC_regions
-            push!(regions,r)
-        end
-    end
-    
-
-    new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array))));
-
-    #load, regions
-
-    #######################################################
-    # PRAS Region Gen Index 
-    # **TODO: Should 0 MW generators be allowed after disaggregation?
-    # **TODO: Should hydro be split out as a generator-storage?
-    # **TODO: is it important to also handle planned outages?
-    #######################################################
-
-    line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),Year,N,VSC_append_str);
-
-    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(line_array));
-    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(line_array));
-    λ_lines = reduce(vcat,get_λ.(line_array))
-    μ_lines = reduce(vcat,get_μ.(line_array))
-    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
-    
-    ### generators
-
-    @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
-    thermal,storage,vg = split_generator_types(ReEDS_data,Year);
-
-    @info "reading in ReEDS generator-type forced outage data..."
-    forced_outage_data = get_forced_outage_data(ReEDS_data);
-
-    @info "reading thermals..."
-    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
-    @info "reading vg..."
-    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
-    @info "...vg read, translating to PRAS gens"
-    sorted_gens, area_gen_idxs = get_sorted_components(all_gens,get_name.(region_array)); #TODO: is typing still wrong?
-    
-    capacity_matrix = reduce(vcat,get_capacity.(sorted_gens));
-    λ_matrix = reduce(vcat,get_λ.(sorted_gens));
-    μ_matrix = reduce(vcat,get_μ.(sorted_gens));
-
-    name_check_array = []
-    for name in get_name.(sorted_gens)
-        if name in name_check_array
-            println(name)
-        end
-        push!(name_check_array,name)
-    end
-
-    new_generators = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_gens),get_type.(sorted_gens),capacity_matrix,λ_matrix,μ_matrix);
-
-    #######################################################
-    # PRAS Timestamps
-    #######################################################
-    @info "Processing PRAS timestamps..."
-    first_ts = TimeZones.ZonedDateTime(Year, 01, 01, 00, TimeZones.tz"UTC"); #switch to EST/EDT
-    last_ts = first_ts + Dates.Hour(N-1);
-    my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
-
-    #######################################################
-    # PRAS Storages
-    #######################################################
-    @info "Processing Storages..."
-    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),Year)
-
-    stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages));#permutedims(hcat(get_charge_capacity.(storages)...))
-    stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages));
-    stor_energy_cap_array = reduce(vcat,get_energy_capacity.(storages));
-    stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(storages));
-    stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(storages));
-    stor_cryovr_eff = reduce(vcat,get_carryover_efficiency.(storages));
-    λ_stor = reduce(vcat,get_λ.(storages));
-    μ_stor = reduce(vcat,get_μ.(storages));
-    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_type.(storages),
-                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
-                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
-                                                λ_stor,μ_stor);
-    #######################################################
-    # PRAS GeneratorStorages
-    # No GeneratorStorages in this system
-    #######################################################
-    @info "Processing GeneratorStorages [EMPTY FOR NOW].."
-    # gen_stors = gen_storage[]
-    # push!(gen_stors,gen_storage("gen_stor_1", 10, "reg_1", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
-    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
-    # push!(gen_stors,gen_storage("gen_stor_2", 10, "reg_2", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
-    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
-
-    # sorted_gen_stors, reg_genstor_idxs  = get_sorted_components(gen_stors,regs);
-
-    # gen_stor_names = get_name.(sorted_gen_stors)
-    # gen_stor_cats = get_category.(sorted_gen_stors)
-    # gen_stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_gen_stors))
-    # gen_stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_gen_stors))
-    # gen_stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_gen_stors))
-    # gen_stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_gen_stors))
-    # gen_stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_gen_stors))
-    # gen_stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_gen_stors))
-    # gen_stor_inflow_array = reduce(vcat,get_inflow.(sorted_gen_stors))
-    # gen_stor_grid_withdrawl_array = reduce(vcat,get_grid_withdrawl_capacity.(sorted_gen_stors))
-    # gen_stor_grid_inj_array = reduce(vcat,get_grid_injection_capacity.(sorted_gen_stors))
-    # gen_stor_λ = reduce(vcat,get_λ.(sorted_gen_stors))
-    # gen_stor_μ = reduce(vcat,get_μ.(sorted_gen_stors))
-
-    # new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_cats,gen_stor_cap_array, gen_stor_dis_cap_array, gen_stor_enrgy_cap_array,
-    #                                                                        gen_stor_chrg_eff_array, gen_stor_dischrg_eff_array, gen_stor_carryovr_eff_array,gen_stor_inflow_array,
-    #                                                                        gen_stor_grid_withdrawl_array, gen_stor_grid_inj_array,gen_stor_λ,gen_stor_μ);
-    gen_stor_names = String[];
-    gen_stor_categories = String[];
-
-    n_genstors = 0;
-
-    gen_stor_charge_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_discharge_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_enrgy_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_charge_eff = Matrix{Float64}(undef, n_genstors, N);
-    gen_stor_discharge_eff = Matrix{Float64}(undef, n_genstors, N);
-    gen_stor_cryovr_eff = Matrix{Float64}(undef, n_genstors, N);
-    gen_stor_inflow_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_gridwdr_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_gridinj_cap_array = Matrix{Int64}(undef, n_genstors, N);
-
-    λ_genstors = Matrix{Float64}(undef, n_genstors, N);
-    μ_genstors = Matrix{Float64}(undef, n_genstors, N);
-
-    new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_categories,
-                                                            gen_stor_charge_cap_array, gen_stor_discharge_cap_array, gen_stor_enrgy_cap_array,
-                                                            gen_stor_charge_eff, gen_stor_discharge_eff, gen_stor_cryovr_eff,
-                                                            gen_stor_inflow_array, gen_stor_gridwdr_cap_array, gen_stor_gridinj_cap_array,
-                                                            λ_genstors, μ_genstors);
-                                                            
-    area_genstor_idxs = fill(1:0, length(get_name.(region_array)));#num_areas
-    pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
-                            area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
-    #save PRAS system somewhere we can use it?
-    PRAS.savemodel(pras_system,joinpath(ReEDSfilepath,"outputs",CaseLabel*".pras"))
-    short,flow = run_pras_system(pras_system,10)#just two for now to save time but eventually more
-    return(pras_system)
-    
 end

@@ -12,13 +12,6 @@ function expand_types!(input_vec::Vector{<:AbstractString},N::Int64)
     return vcat(input_vec,add_names)
 end
 
-function run_pras_system(sys::PRAS.SystemModel,sample::Int)
-    shortfalls,flows = PRAS.assess(sys,PRAS.SequentialMonteCarlo(samples=sample,seed=1),PRAS.Shortfall(),PRAS.Flow())
-    println(PRAS.LOLE(shortfalls))
-    println(PRAS.EUE(shortfalls))
-    return shortfalls,flows
-end
-
 function Load_EIA_NEMS_DB(ReEDS_directory::String)
     EIA_NEMS_loc = joinpath(ReEDS_directory,"inputs","capacitydata","ReEDS_generator_database_final_EIA-NEMS.csv"); #there is also a _prm file, not sure which is right?
     EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc));
