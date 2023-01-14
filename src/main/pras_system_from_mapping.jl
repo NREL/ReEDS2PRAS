@@ -26,10 +26,7 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     VSC_append_str,N,region_array,new_regions = regions_and_load(ReEDS_data,WEATHERYEAR)
 
     #######################################################
-    # PRAS Region Gen Index 
-    # **TODO: Should 0 MW generators be allowed after disaggregation?
-    # **TODO: Should hydro be split out as a generator-storage?
-    # **TODO: is it important to also handle planned outages?
+    # PRAS lines
     #######################################################
 
     line_array,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),Year,N,VSC_append_str);
@@ -40,7 +37,12 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     μ_lines = reduce(vcat,get_μ.(line_array))
     new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(line_array), get_category.(line_array), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
     
-    ### generators
+    #######################################################
+    # PRAS Generators
+    # **TODO: Should 0 MW generators be allowed after disaggregation?
+    # **TODO: Should hydro be split out as a generator-storage?
+    # **TODO: is it important to also handle planned outages?
+    #######################################################
 
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
     thermal,storage,vg = split_generator_types(ReEDS_data,Year);
@@ -81,20 +83,8 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     # PRAS Storages
     #######################################################
     @info "Processing Storages..."
-    storages,area_stor_idxs = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),Year)
-
-    stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages));#permutedims(hcat(get_charge_capacity.(storages)...))
-    stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages));
-    stor_energy_cap_array = reduce(vcat,get_energy_capacity.(storages));
-    stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(storages));
-    stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(storages));
-    stor_cryovr_eff = reduce(vcat,get_carryover_efficiency.(storages));
-    λ_stor = reduce(vcat,get_λ.(storages));
-    μ_stor = reduce(vcat,get_μ.(storages));
-    new_storage = PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages),get_type.(storages),
-                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
-                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
-                                                λ_stor,μ_stor);
+    area_stor_idxs,new_storage = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),Year)
+    
     #######################################################
     # PRAS GeneratorStorages
     # No GeneratorStorages in this system
@@ -103,9 +93,9 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     new_gen_stors,area_genstor_idxs = process_genstors(region_array,N)
 
     pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
-                            area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
+                                    area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
     #save PRAS system somewhere we can use it?
-    return(pras_system)
+    return pras_system
     
 end
 
@@ -403,5 +393,17 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
         push!(storages_array,battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
     end
     storages_array, region_stor_idxs = get_sorted_components(storages_array,regions);
-    return (storages_array,region_stor_idxs)
+
+    stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages_array))
+    stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages_array))
+    stor_energy_cap_array = reduce(vcat,get_energy_capacity.(storages_array))
+    stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(storages_array))
+    stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(storages_array))
+    stor_cryovr_eff = reduce(vcat,get_carryover_efficiency.(storages_array))
+    λ_stor = reduce(vcat,get_λ.(storages_array))
+    μ_stor = reduce(vcat,get_μ.(storages_array))
+    return (region_stor_idxs,PRAS.Storages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(get_name.(storages_array),get_type.(storages_array),
+                                                stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
+                                                stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
+                                                λ_stor,μ_stor))
 end
