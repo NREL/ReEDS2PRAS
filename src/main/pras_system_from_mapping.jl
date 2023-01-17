@@ -11,9 +11,6 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     #######################################################
     #check validity of input weather and ReEDS year
     WEATHERYEAR = 2012 #just for now, force this
-    if !isfile(joinpath(ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(Year)*".h5"))
-        error("The year $Year does not have an associated Augur file (only checking load file for now). Are you sure ReeDS was run and Augur results saved for $Year?")
-    end
     if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013] 
         error("The weather year $WEATHERYEAR is not a valid VG profile year. Should be an Int in 2007-2013 currently")
     end
@@ -161,38 +158,33 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Yea
     # end
     # system_line_naming_data = DataFrames.subset(line_base_cap_data,keep_line(line_base_cap_data.r, line_base_cap_data.rr, region_idxs))
 
-    gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]) #split-apply-combine b/c some lines have same name convention
-    system_line_naming_data = DataFrames.combine(gdf, :MW => sum) 
+    system_line_naming_data = DataFrames.combine(DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]), :MW => sum) #split-apply-combine b/c some lines have same name convention
 
     lines_array = Line[];
     for row in eachrow(system_line_naming_data)
-        category = row.trtype
-        rf = row.r
-        rt = row.rr
-        forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rf) .& (line_base_cap_data.rr.==rt) .& (line_base_cap_data.trtype.==category),"MW"])
-        backward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==rt) .& (line_base_cap_data.rr.==rf) .& (line_base_cap_data.trtype.==category),"MW"])
+        forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==row.r) .& (line_base_cap_data.rr.==row.rr) .& (line_base_cap_data.trtype.==row.trtype),"MW"])
+        backward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==row.rr) .& (line_base_cap_data.rr.==row.r) .& (line_base_cap_data.trtype.==row.trtype),"MW"])
         
-        if occursin("VSC",category)
-            rf = rf*VSC_append_str #line is between pseudoregions for VSC
+        if occursin("VSC",row.trtype)
+            rf = row.r*VSC_append_str #line is between pseudoregions for VSC
             rt = rt*VSC_append_str #line is between pseudoregions for VSC 
+        else
+            rf = row.r
+            rt = row.rr
         end
-        name = "$(rf)_$(rt)_$(category)"
+        name = "$(rf)_$(rt)_$(row.trtype)"
         
-        @info "a line $name, with $forward_cap MW fwd and $backward_cap bckwrd in $category"
-        push!(lines_array,Line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
+        # @info "a line $name, with $forward_cap MW fwd and $backward_cap bckwrd in $(row.trtype)"
+        push!(lines_array,Line(name,N,row.trtype,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
     end
 
     #also create lines for the pseudoregions - region tx capacity
     line_base_cap_data = get_converter_capacity_data(ReEDS_data)
     for row in eachrow(line_base_cap_data) #if empty, this shouldn't iterate
-        category = "VSC DC-AC converter"; #this has to match the available type name in types.jl
-        rf = row.r*VSC_append_str
-        rt = row.r #make this the real region
-        forward_cap = row.MW
-        backward_cap = row.MW
-        name = "$(rf)_$(rt)_$(category)"
-        @info "a pseudoregion to region line $name, with $forward_cap MW fwd and $backward_cap bckwrd in $category"
-        push!(lines_array,Line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))
+        category = "VSC DC-AC converter" #this has to match the available type name in types.jl
+        name = "$(row.r*VSC_append_str)_$(row.r)_$(category)"
+        @info "a pseudoregion to region line $name, with $(row.MW) MW fwd and $(row.MW) bckwrd in $category"
+        push!(lines_array,Line(name,N,category,row.r*VSC_append_str,row.r,row.MW,row.MW,"Existing",0.0,24))
     end
 
     sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions);
@@ -264,7 +256,6 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
     vg_profiles = cf_info["block0_values"];
     start_idx = (WeatherYear-2007)*N;
 
-    #split-apply-combine to group & handle differently vintaged entries...
     vg_builds = DataFrames.combine(DataFrames.groupby(vg_builds, ["i","r"]), :MW => sum); #split-apply-combine to handle differently vintaged entries
 
     for row in eachrow(vg_builds)
@@ -318,7 +309,6 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
         push!(storages_array,Battery(name,N,string(row.r),string(row.i),row.MW,row.MW,energy_capacity_df[idx,"MWh_sum"],"New",1,1,1,gen_for,24)) 
     end
     storages_array, region_stor_idxs = get_sorted_components(storages_array,regions);
-    @info "storages array is $storages_array"
 
     stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages_array))
     stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages_array))
