@@ -84,7 +84,7 @@ function all_gens_to_pras(all_gens::Vector{<:ReEDS2PRAS.Generator},region_array:
     return (PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_gens),get_type.(sorted_gens),capacity_matrix,λ_matrix,μ_matrix),area_gen_idxs)
 end
 
-function regions_and_load(ReEDS_data,WEATHERYEAR)
+function regions_and_load(ReEDS_data::CEMdata,WEATHERYEAR::Int)
     @info "Fetching ReEDS case data to build PRAS System..."
 
     load_info = get_load_file(ReEDS_data);

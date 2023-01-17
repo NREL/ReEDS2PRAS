@@ -1,10 +1,9 @@
 function capacity_checker(capacity_data::DataFrames.DataFrame,region_map::DataFrames.DataFrame,gentype::String,region::String)
-    #@assert gentype in unique(capacity_data.i) #check valid pass
-    #@assert region in unique(capacity_data.r) #check valid pass
-    for idx in range(1,DataFrames.nrow(capacity_data))
-        slicer = findfirst(isequal(string(capacity_data[idx,"r"])), region_map[:,"rs"]);
+    
+    for row in DataFrames.eachrow(capacity_data)
+        slicer = findfirst(isequal(string(row.r)), region_map[:,"rs"]);
         if !isnothing(slicer)
-            capacity_data[idx,"r"] = region_map[slicer,"*r"];
+            row.r = region_map[slicer,"*r"];
         end
     end
     
@@ -15,30 +14,20 @@ end
 function PRAS_generator_capacity_checker(pras_system,gentype::String,region::String)
 
     name_vec = -abs.(cmp.(gentype,pras_system.generators.categories)).+1; #exact match is needed to exclude ccs
-    
     reg_vec = occursin.("$(region)_",pras_system.generators.names);
     out_vec = .*(name_vec,reg_vec); 
-
-    retained_gens = [];
-    for (idx,val) in enumerate(out_vec) #there has to be a better, way, but for now
-        if val==1
-            push!(retained_gens,idx)
-        end
-    end
+    retained_gens = [idx for (idx,val) in enumerate(out_vec) if val==1]
 
     return sum(maximum.(eachrow(pras_system.generators.capacity[Int.(retained_gens),:])))
 end
 
 function PRAS_storage_capacity_checker(pras_system,gentype::String,region::String)
+
     name_vec = occursin.(gentype,pras_system.storages.names);
     reg_vec = occursin.("$(region)_",pras_system.storages.names);
-    out_vec = .*(name_vec,reg_vec); 
-    retained_gens = [];
-    for (idx,val) in enumerate(out_vec) #there has to be a better, way, but for now
-        if val==1
-            push!(retained_gens,idx)
-        end
-    end
+    out_vec = .*(name_vec,reg_vec);
+    retained_gens = [idx for (idx,val) in enumerate(out_vec) if val==1]
+
     return sum(maximum.(eachrow(pras_system.storages.discharge_capacity[Int.(retained_gens),:])))
 end
 
@@ -77,10 +66,8 @@ function compare_generator_capacities(pras_system,ReEDSfilepath,Year)
             v2a = PRAS_generator_capacity_checker(pras_system,gentype,region);
             v2b = PRAS_storage_capacity_checker(pras_system,gentype,region);
             v2 = v2a+v2b;
-            if v1 != 0 || v2 != 0
-                if abs(v1-v2)>1
-                    @info "for $gentype-$region input is $v1 MW, output is $v2 MW. Mismatch!!"
-                end
+            if (v1 != 0 || v2 != 0) && abs(v1-v2)>1
+                @info "for $gentype-$region input is $v1 MW, output is $v2 MW. Mismatch!!"
             end
         end
     end
@@ -95,21 +82,17 @@ function compare_line_capacities(pras_system,ReEDSfilepath,Year)
         r2_vec = occursin.("$(row.rr)_",pras_system.lines.names);
         type_vec = occursin.(row.trtype,pras_system.lines.names);
         out_vec = .*(r1_vec,r2_vec,type_vec); 
-        retained_lines = [];
         mw_sum = 0;
-        for (idx,val) in enumerate(out_vec) #there has to be a better, way, but for now
-            if val==1
-                push!(retained_lines,idx)
-                mw_sum = mw_sum+row.MW;
-            end
+        retained_lines = [idx for (idx,val) in enumerate(out_vec) if val==1]
+        for idx in retained_lines #there has to be a better, way, but for now
+            mw_sum += row.MW
         end
         mw_out_fwd,mw_out_bck = get_pras_line_capacity(pras_system,Int.(retained_lines))
-        # if parse(Int64, r1[2:end])<parse(Int64, r2[2:end]) #this is a fwd line cap
+
         if row.r < row.rr #actually want to compare strings to get proper ordering
             @info "forward in MW is $mw_sum out forward is $mw_out_fwd, for $(row.r) to $(row.rr), $(row.trtype)"
             @assert abs(mw_sum-mw_out_fwd)<=1
         else #bckwd line cap
-            #mw_out_fwd,mw_out_bck = get_pras_line_capacity(pras_system,Int.(retained_lines))
             @info "backward in MW is $mw_sum out backward is $mw_out_bck for $(row.r) to $(row.rr), $(row.trtype)"
             @assert abs(mw_sum-mw_out_bck)<=1
         end

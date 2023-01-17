@@ -194,9 +194,7 @@ end
 get_generators_in_region(gens::Generators, reg::Region) = get_generators_in_region(gens, reg.name)
 
 function get_legacy_generators(gens::Generators, leg::String)
-    if ~(leg in ["Existing","New"])
-        error("Unidentified legacy passed")
-    end
+    leg in ["Existing","New"] || error("Unidentified legacy passed")
 
     leg_gen_idxs = findall(getfield.(gens,:legacy) .== leg)
     if isnothing(leg_gen_idxs)
@@ -398,9 +396,7 @@ end
 get_storages_in_region(stors::Storages, reg::Region) = get_storages_in_region(stors, reg.name)
 
 function get_legacy_storages(stors::Storages, leg::String)
-    if ~(leg in ["Existing","New"])
-        error("Unidentified legacy passed")
-    end
+    leg in ["Existing","New"] || error("Unidentified legacy passed")
 
     leg_stor_idxs = findall(getfield.(stors,:legacy) .== leg)
     if isnothing(eg_stor_idxs)
