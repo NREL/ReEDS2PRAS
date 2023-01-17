@@ -7,10 +7,7 @@
 #######################################################
 # Converting FOR and MTTR to λ and μ
 #######################################################
-function outage_to_rate(outage_data::Tuple{Float64, Int64})
-    for_gen = outage_data[1]
-    mttr = outage_data[2]
-
+function outage_to_rate(for_gen::Float64,mttr::Int64)
     if (for_gen == 0.0)
         return (λ = 0.0, μ = 1.0)
     else
@@ -29,163 +26,172 @@ function outage_to_rate(outage_data::Tuple{Float64, Int64})
     end
 end
 # Regions
-struct region
+struct Region
     name::String
     N::Int64
-    load::Vector{Int64}
+    load::Vector{Float64}
 
-     # Inner Constructors
-    region(name = "region_1", N =10) = region(name,N, zeros(Int64,N))
+    # Inner Constructors
+    # For illustration purposes
+    Region(name, N) = Region(name,N,zeros(Float64,N))
+
+    Region(nothing) = Region("region_1",10,fill(100.0,10))
 
     # Checks
-    region(x,y,z) =
-    if ~(0 < y <= 8784)
-        error("Check the PRAS timesteps (N) passed.")
-    elseif (length(z) !== y)
-        error("The length of the region load time series data should be equal to PRAS timesteps (N)")
-    elseif ~(all(z .>= 0.0))
-        error("Check for inconsistencies in load time series data")
-    else
-        new(x,y,z)
+
+    function Region(name, N, load)
+
+        0 < N <= 8784 ||
+            error("Check the PRAS timesteps (N) passed.")
+
+        length(load) == N ||
+            error("The length of the region load time series data should be equal to PRAS timesteps (N)")
+
+        all(load .>= 0.0) ||
+            error("Check for inconsistencies in load time series data")
+
+        return new(name, N, load)
+
     end
 end
 
-function get_name(reg::region)
-    return reg.name
-end
+# Getter Functions (to make broadcasting easier??)
+# According to Gord's comment - Do we need these for Region?
 
-function get_load(reg::region)
-    return permutedims(round.(Int,reg.load))
-end
+get_name(reg::Region) = reg.name
+
+get_load(reg::Region) =  permutedims(round.(Int,reg.load))
 
 # Generators
-abstract type generator end
-const generators = Vector{<:generator}
+abstract type Generator end
+const Generators = Vector{<:Generator}
 
-struct thermal_gen <:generator
+struct Thermal_Gen <:Generator
     name::String 
     N::Int64
-    region::String
-    cap::Float64
+    region_name::String
+    capacity::Float64
     fuel::String
     legacy::String
     FOR::Float64
     MTTR::Int64
 
     # Inner Constructors
-    thermal_gen(s,t,u,v,w,x,y) = thermal_gen(s,t,u,v,w,x,y,24);
-    thermal_gen(s,t,u,v,w,x) = thermal_gen(s,t,u,v,w,x,0.0,24);
-    thermal_gen(s,t,u,v,w) = thermal_gen(s,t,u,v,w,"New",0.0,24);
-    thermal_gen(s,t,u,v) = thermal_gen(s,t,u,v,"OT","New",0.0,24);
+    Thermal_Gen(name, N, region_name, capacity, fuel, legacy, FOR) = Thermal_Gen(name, N, region_name, capacity, fuel, legacy, FOR, 24)
+
+    Thermal_Gen(name, N, region_name, capacity, fuel, legacy) = Thermal_Gen(name, N, region_name, capacity, fuel, legacy, 0.0, 24)
+
+    Thermal_Gen(name, N, region_name, capacity, fuel) = Thermal_Gen(name, N, region_name, capacity, fuel, "New", 0.0, 24)
+
+    Thermal_Gen(name, N, region_name, capacity) = Thermal_Gen(name, N, region_name, capacity, "OT", "New", 0.0, 24)
+
     # For illustration purposes
-    thermal_gen(nothing) = thermal_gen("thermal_gen_1",10,"reg_1",10.0,"NG","New",0.1,24);
+    Thermal_Gen(nothing) = Thermal_Gen("thermal_gen_1",10,"reg_1",10.0,"NG","New",0.1,24)
 
     # Checks
-    thermal_gen(s,t,u,v,w,x,y,z) = 
-    if ~((0.0 <= y <= 1.0) || (z<=0))
-        error("FOR and/or MTTR values passed are not allowed")
-    elseif ~(x in ["Existing","New"])
-        error("Unidentified legacy passed")
-    elseif ~(v >= 0.0)
-        error("Generator capacity passed is not allowed") 
-    elseif ~(0 < t <= 8784)
-        error("Check the PRAS timesteps (N) passed.")
-    else
-        new(s,t,u,v,w,x,y,z)
+
+    function Thermal_Gen(name, N, region_name, capacity, fuel, legacy, FOR, MTTR)
+
+        0 < N <= 8784 ||
+            error("Check the PRAS timesteps (N) passed.")
+
+        capacity >= 0.0 ||
+            error("Generator capacity passed is not allowed")
+
+        legacy in ["Existing","New"] ||
+            error("Unidentified legacy passed")
+
+        0.0 <= FOR <= 1.0 ||
+            error("FOR value passed is not allowed")
+
+        MTTR > 0 ||
+            error("MTTR value passed is not allowed")
+
+        return new(name, N, region_name, capacity, fuel, legacy, FOR, MTTR)
+
     end
 end
 
-struct vg_gen <:generator
+struct VG_Gen <:Generator
     name::String 
     N::Int64
-    region::String
-    installed_cap::Float64
-    cap::Vector{Float64}
+    region_name::String
+    installed_capacity::Float64
+    capacity::Vector{Float64}
     type::String
     legacy::String
     FOR::Float64
     MTTR::Int64
 
     # Inner Constructors
-    vg_gen(r,s,t,u,v,w,x) = vg_gen(r,s,t,u,v,w,x,0.0,24)
-    vg_gen(r,s,t,u,v,w) =  vg_gen(r,s,t,u,v,w,"New",0.0,24)
+    VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy) = VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy, 0.0, 24)
+
+    VG_Gen(name, N, region_name, installed_capacity, capacity, type) =  VG_Gen(name, N, region_name, installed_capacity, capacity, type, "New", 0.0, 24)
+
     # For illustration purposes
-    vg_gen(nothing) = vg_gen("vg_gen_1",10,"reg_1",10.0,zeros(Float64,10),"dupv","New",0.1,24)
+    VG_Gen(nothing) = VG_Gen("vg_gen_1",10,"reg_1",10.0,zeros(Float64,10),"dupv","New",0.1,24)
    
     # Checks
-    vg_gen(r,s,t,u,v,w,x,y,z) =
-    if ~((0.0 <= y <= 1.0) || (z<=0))
-        error("FOR and/or MTTR values passed are not allowed")
-    elseif ~(x in ["Existing","New"])
-        error("Unidentified legacy passed")
-    elseif ~(0 < s <= 8784)
-        error("Check the PRAS timesteps (N) passed.")
-    elseif ~(all(0.0 .<= v .<= u))
-        error("Check for inconsistencies in VG time series data")
-    elseif (length(v) !== s)
-        error("The length of the VG time series data should be equal to PRAS timesteps (N)")
-    # elseif ~(w in ["wind-ons","wind-ofs","dupv","upv","csp","distpv"])
-    #     error("Check the type of VG being passed")
-    else 
-        new(r,s,t,u,v,w,x,y,z)
+
+    function VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy, FOR, MTTR)
+
+        0 < N <= 8784 ||
+            error("Check the PRAS timesteps (N) passed.")
+
+        all(0.0 .<= capacity .<= installed_capacity) ||
+            error("Check for inconsistencies in VG_Gen time series data")
+
+        length(capacity) == N ||
+            error("The length of the VG_Gen time series data should be equal to PRAS timesteps (N)")
+
+        # type in ["wind-ons","wind-ofs","dupv","upv","csp","distpv"] ||
+        #     error("Check the type of VG_Gen being passed")
+
+        legacy in ["Existing","New"] ||
+            error("Unidentified legacy passed")
+
+        0.0 <= FOR <= 1.0 ||
+            error("FOR value passed is not allowed")
+
+        MTTR > 0 ||
+            error("MTTR value passed is not allowed")
+
+        return new(name, N, region_name, installed_capacity, capacity, type, legacy, FOR, MTTR)
+
     end
 end
 
-function get_name(gen::GEN) where {GEN <: generator}
-    return gen.name
-end
+# Getter Functions
 
-function get_region(gen::GEN) where {GEN <: generator}
-    return gen.region
-end
+get_name(gen::GEN) where {GEN <: Generator} = gen.name
 
-function get_nameplate(gen::GEN) where {GEN <: generator}
-    return gen.cap
-end
+get_legacy(gen::GEN) where {GEN <: Generator} = gen.legacy
 
-function get_capacity(gen::thermal_gen)
-    return fill(round(Int,gen.cap),1,gen.N)
-end
+get_capacity(gen::Thermal_Gen) = fill(round(Int,gen.capacity),1,gen.N)
 
-function get_capacity(gen::vg_gen)
-    return permutedims(round.(Int,gen.cap))
-end
+get_fuel(gen::Thermal_Gen) = gen.fuel
 
-function get_legacy(gen::GEN) where {GEN <: generator}
-    return gen.legacy
-end
+get_capacity(gen::VG_Gen) = permutedims(round.(Int,gen.capacity))
 
-function get_outage_rate(gen::GEN) where {GEN <: generator}
-    rate = outage_to_rate((gen.FOR,gen.MTTR))
-    return rate
-end
 
-function get_λ(gen::GEN) where {GEN <: generator}
-    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:λ),1,gen.N)
-end
+# Helper Functions
 
-function get_μ(gen::GEN) where {GEN <: generator}
-    return fill(getfield(outage_to_rate((gen.FOR,gen.MTTR)),:μ),1,gen.N)
-end
+get_outage_rate(gen::GEN) where {GEN <: Generator} = outage_to_rate(gen.FOR,gen.MTTR)
 
-function get_type(gen::vg_gen)
-    return gen.type
-end
+get_λ(gen::GEN) where {GEN <: Generator} = fill(getfield(get_outage_rate(gen),:λ),1,gen.N)
 
-function get_type(gen::thermal_gen)
-    return gen.fuel
-end
+get_μ(gen::GEN) where {GEN <: Generator} = fill(getfield(get_outage_rate(gen),:μ),1,gen.N)
 
-function get_category(gen::vg_gen)
-    return "$(gen.legacy)_$(gen.type)"
-end
+get_category(gen::Thermal_Gen) = "$(gen.legacy)_Thermal_$(gen.fuel)"
 
-function get_category(gen::thermal_gen)
-    return "$(gen.legacy)_Thermal_$(gen.fuel)"
-end
+get_type(gen::VG_Gen) = gen.type
 
-function get_generators_in_region(gens::generators, reg_name::String)
-    reg_gen_idxs = findall(getfield.(gens,:region) .== reg_name)
+get_type(gen::Thermal_Gen) = gen.fuel
+
+get_category(gen::VG_Gen) = "$(gen.legacy)_$(gen.type)"
+
+function get_generators_in_region(gens::Generators, reg_name::String)
+    reg_gen_idxs = findall(getfield.(gens,:region_name) .== reg_name)
     if isnothing(reg_gen_idxs)
         @warn "No generators in the region"
     else
@@ -193,11 +199,11 @@ function get_generators_in_region(gens::generators, reg_name::String)
     end
 end
 
-function get_generators_in_region(gens::generators, reg::region)
+function get_generators_in_region(gens::Generators, reg::Region)
     get_generators_in_region(gens, reg.name)
 end
 
-function get_legacy_generators(gens::generators, leg::String)
+function get_legacy_generators(gens::Generators, leg::String)
     if ~(leg in ["Existing","New"])
         error("Unidentified legacy passed")
     end
@@ -211,13 +217,13 @@ function get_legacy_generators(gens::generators, leg::String)
 end
 
 # Storages
-abstract type storage end
-const storages = Vector{<:storage}
+abstract type Storage end
+const Storages = Vector{<:Storage}
 
-struct battery <:storage
+struct Battery <:Storage
     name::String 
     N::Int64
-    region::String
+    region_name::String
     type::String
     charge_cap::Float64
     discharge_cap::Float64
@@ -230,38 +236,59 @@ struct battery <:storage
     MTTR::Int64
 
     # Inner Constructors
-    battery(n,o,p,q,r,s,t,u,v,w,x) = battery(n,o,p,q,r,s,t,u,v,w,x,0.0,24)
-    battery(n,o,p,q,r,s,t,u,v,w) = battery(n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
-    battery(n,o,p,q,r,s,t,u) = battery(n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
-    battery(n,o,p,q,r,s,t) = battery(n,o,p,q,r,s,t,"New",1.0,1.0,1.0,0.0,24)
+    Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff, carryover_eff) = 
+                                       Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff, carryover_eff, 0.0, 24)
+
+    Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff) = 
+                                       Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff, 1.0, 0.0, 24)
+
+    Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy) = 
+                                       Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, 1.0, 1.0, 1.0, 0.0, 24)
+
+    Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap) = 
+                                       Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, "New", 1.0, 1.0, 1.0, 0.0, 24)
+    
     # For illustration purposes
-    battery(nothing) = battery("stor_1",10,"reg_1","4-hour",10.0,10.0,40.0,"New",0.9,1.0,1.0,0.0,24)
+
+    Battery(nothing) = Battery("stor_1",10,"reg_1","4-hour",10.0,10.0,40.0,"New",0.9,1.0,1.0,0.0,24)
    
     # Checks
-    battery(n,o,p,q,r,s,t,u,v,w,x,y,z) =
-    if ~((0.0 <= y <= 1.0) || (z < 0))
-        error("FOR and/or MTTR values passed are not allowed")
-    elseif ~(u in ["Existing","New"])
-        error("Unidentified legacy passed")
-    elseif ~(0 < o <= 8784)
-        error("Check the PRAS timesteps (N) passed.")
-    elseif ~(all(0.0 .<= [v,w,x] .<= 1.0))
-        error("Invalid charge/discharge/carryover efficiency passed")
-    elseif ~(r > 0.0)
-        error("Charge capacity passed is not allowed")
-    elseif ~(s > 0.0)
-        error("Discharge capacity passed is not allowed")
-    elseif ~(t > 0.0)
-        error("Energy capacity passed is not allowed")
-    else
-        new(n,o,p,q,r,s,t,u,v,w,x,y,z)
-    end 
+
+    function Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff, carryover_eff, FOR, MTTR)
+
+        0 < N <= 8784 ||
+            error("Check the PRAS timesteps (N) passed.")
+
+        charge_cap > 0.0 ||
+            error("Charge capacity passed is not allowed")
+
+        discharge_cap > 0.0 ||
+            error("Discharge capacity passed is not allowed")
+
+        energy_cap > 0.0 ||
+            error("Energy capacity passed is not allowed")
+
+        legacy in ["Existing","New"] ||
+            error("Unidentified legacy passed")
+
+        all(0.0 .<= [charge_eff, discharge_eff, carryover_eff] .<= 1.0) ||
+            error("Invalid charge/discharge/carryover efficiency passed")
+
+        0.0 <= FOR <= 1.0 ||
+            error("FOR value passed is not allowed")
+
+        MTTR > 0 ||
+            error("MTTR value passed is not allowed")
+
+        return new(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff, carryover_eff, FOR, MTTR)
+
+    end
 end
 
-struct gen_storage <:storage
+struct Gen_Storage <:Storage
     name::String 
     N::Int64
-    region::String
+    region_name::String
     type::String
     charge_cap::Vector{Float64}
     discharge_cap::Vector{Float64}
@@ -277,121 +304,145 @@ struct gen_storage <:storage
     MTTR::Int64
 
     # Inner Constructors
-    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,0.0,24)
-    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,1.0,0.0,24)
-    gen_storage(k,l,m,n,o,p,q,r,s,t,u) = gen_storage(k,l,m,n,o,p,q,r,s,t,u,1.0,1.0,1.0,0.0,24)
-    gen_storage(k,l,m,n,o,p,q,r,s,t) = gen_storage(k,l,m,n,o,p,q,r,s,t,"New",1.0,1.0,1.0,0.0,24)
+    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
+                carryover_eff) = Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
+                                             carryover_eff, 0.0, 24)
+
+    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff) = 
+                Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, 
+                            discharge_eff, 1.0, 0.0, 24)
+
+    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy) = 
+                Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, 1.0, 1.0, 1.0, 0.0, 24)
+
+    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap) = 
+                Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, "New", 1.0, 1.0, 1.0, 0.0, 24)
+
     # For illustration purposes
-    gen_storage(nothing) = gen_storage("gen_stor_1",10,"reg_1","4-Hour",fill(10.0,10),fill(10.0,10),fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),"New",0.9,1.0,1.0,0.0,24)
+    Gen_Storage(nothing) = Gen_Storage("gen_stor_1",10,"reg_1","4-Hour",fill(10.0,10),fill(10.0,10),fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),"New",0.9,1.0,1.0,0.0,24)
    
     # Checks
-    gen_storage(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) = 
-    if ~((0.0 <= y <= 1.0) || (z<0))
-        error("FOR and/or MTTR values passed are not allowed")
-    elseif ~(u in ["Existing","New"])
-        error("Unidentified legacy passed")
-    elseif ~(0 < l <= 8784)
-        error("Check the PRAS timesteps (N) passed.")
-    elseif ~(all(0.0 .<= [v,w,x] .<= 1.0))
-        error("Invalid charge/discharge/carryover efficiency passed")
-    elseif ~(all(length.([o,p,q,r,s,t]) .== l))
-        error("The length of the time series data associated with the storage should be equal to PRAS timesteps (N)")
-    elseif ~(all(o .>= 0.0))
-        error("Check for inconsistencies in generatorstorage charge capacity time series data")
-    elseif ~(all(p .>= 0.0))
-        error("Check for inconsistencies in generatorstorage discharge capacity time series data")
-    elseif ~(all(q .>= 0.0))
-        error("Check for inconsistencies in generatorstorage energy capacity time series data")
-    elseif ~(all(r .>= 0.0))
-        error("Check for inconsistencies in generatorstorage inflow time series data")
-    elseif ~(all(s .>= 0.0))
-        error("Check for inconsistencies in generatorstorage grid withdrawl capacity time series data")
-    elseif ~(all(t .>= 0.0))
-        error("Check for inconsistencies in generatorstorage grid injection capacity time series data")
-    else
-        new(k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z)
+
+    function Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
+                         carryover_eff, FOR, MTTR)
+
+        0 < N <= 8784 ||
+            error("Check the PRAS timesteps (N) passed.")
+
+        all(charge_cap .>= 0.0) ||
+            error("Check for inconsistencies in Gen_Storage charge capacity time series data")
+
+        all(discharge_cap .>= 0.0) ||
+            error("Check for inconsistencies in Gen_Storage discharge capacity time series data")
+
+        all(energy_cap .>= 0.0) ||
+            error("Check for inconsistencies in Gen_Storage energy capacity time series data")
+
+        all(inflow .>= 0.0) ||
+            error("Check for inconsistencies in Gen_Storage inflow time series data")
+
+        all(grid_withdrawl_cap .>= 0.0) ||
+            error("Check for inconsistencies in Gen_Storage grid withdrawl capacity time series data")
+
+        all(grid_inj_cap .>= 0.0) ||
+            error("Check for inconsistencies in Gen_Storage grid injection capacity time series data")
+
+        all(length.([charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap]) .== N) ||
+            error("Invalid charge/discharge/carryover efficiency passed")
+            
+        legacy in ["Existing","New"] ||
+            error("Unidentified legacy passed")
+
+        all(0.0 .<= [charge_eff, discharge_eff, carryover_eff] .<= 1.0) ||
+            error("Invalid charge/discharge/carryover efficiency passed")
+
+        0.0 <= FOR <= 1.0 ||
+            error("FOR value passed is not allowed")
+
+        MTTR > 0 ||
+            error("MTTR value passed is not allowed")
+
+        return new(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
+                   carryover_eff, FOR, MTTR)
+
     end
 end
 
-function get_name(stor::STOR) where {STOR <: storage}
-    return stor.name
-end
+get_name(stor::STOR) where {STOR <: Storage} = stor.name
 
-function get_type(stor::STOR) where {STOR <: storage}
-    return stor.type
-end
+get_type(stor::STOR) where {STOR <: Storage} = stor.type
 
-function get_legacy(stor::STOR) where {STOR <: storage}
+function get_legacy(stor::STOR) where {STOR <: Storage}
     return stor.legacy
 end
 
-function get_outage_rate(stor::STOR) where {STOR <: storage}
-    rate = outage_to_rate((stor.FOR,stor.MTTR))
+function get_outage_rate(stor::STOR) where {STOR <: Storage}
+    rate = outage_to_rate(stor.FOR,stor.MTTR)
     return rate
 end
 
-function get_λ(stor::STOR) where {STOR <: storage}
-    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:λ),1,stor.N)
+function get_λ(stor::STOR) where {STOR <: Storage}
+    return fill(getfield(outage_to_rate(stor.FOR,stor.MTTR),:λ),1,stor.N)
 end
 
-function get_μ(stor::STOR) where {STOR <: storage}
-    return fill(getfield(outage_to_rate((stor.FOR,stor.MTTR)),:μ),1,stor.N)
+function get_μ(stor::STOR) where {STOR <: Storage}
+    return fill(getfield(outage_to_rate(stor.FOR,stor.MTTR),:μ),1,stor.N)
 end
 
-function get_category(stor::STOR) where {STOR <: storage}
-    return stor.legacy*"_"*stor.type
+function get_category(stor::STOR) where {STOR <: Storage}
+    return "$(stor.legacy)_$(stor.type)"
 end
 
-function get_charge_capacity(stor::battery)
+function get_charge_capacity(stor::Battery)
     return fill(round(Int,stor.charge_cap),1,stor.N)
 end
 
-function get_charge_capacity(stor::gen_storage)
+function get_charge_capacity(stor::Gen_Storage)
     return permutedims(round.(Int,stor.charge_cap))
 end
 
-function get_discharge_capacity(stor::battery)
+function get_discharge_capacity(stor::Battery)
     return fill(round(Int,stor.discharge_cap),1,stor.N)
 end
 
-function get_discharge_capacity(stor::gen_storage)
+function get_discharge_capacity(stor::Gen_Storage)
     return permutedims(round.(Int,stor.discharge_cap))
 end
 
-function get_energy_capacity(stor::battery)
+function get_energy_capacity(stor::Battery)
     return fill(round(Int,stor.energy_cap),1,stor.N)
 end
 
-function get_energy_capacity(stor::gen_storage)
+function get_energy_capacity(stor::Gen_Storage)
     return permutedims(round.(Int,stor.energy_cap))
 end
 
-function get_inflow(stor::gen_storage)
+function get_inflow(stor::Gen_Storage)
     return permutedims(round.(Int,stor.inflow))
 end
 
-function get_grid_withdrawl_capacity(stor::gen_storage)
+function get_grid_withdrawl_capacity(stor::Gen_Storage)
     return permutedims(round.(Int,stor.grid_withdrawl_cap))
 end
 
-function get_grid_injection_capacity(stor::gen_storage)
+function get_grid_injection_capacity(stor::Gen_Storage)
     return permutedims(round.(Int,stor.grid_inj_cap))
 end
 
-function get_charge_efficiency(stor::STOR) where {STOR <: storage}
+function get_charge_efficiency(stor::STOR) where {STOR <: Storage}
     return fill(stor.charge_eff,1,stor.N)
 end
 
-function get_discharge_efficiency(stor::STOR) where {STOR <: storage}
+function get_discharge_efficiency(stor::STOR) where {STOR <: Storage}
     return fill(stor.discharge_eff,1,stor.N)
 end
 
-function get_carryover_efficiency(stor::STOR) where {STOR <: storage}
+function get_carryover_efficiency(stor::STOR) where {STOR <: Storage}
     return fill(stor.carryover_eff,1,stor.N)
 end
 
-function get_storages_in_region(stors::storages, reg_name::String)
-    reg_stor_idxs = findall(getfield.(stors,:region) .== reg_name)
+function get_storages_in_region(stors::Storages, reg_name::String)
+    reg_stor_idxs = findall(getfield.(stors,:region_name) .== reg_name)
     if isnothing(reg_stor_idxs)
         @warn "No storages in the region"
     else
@@ -399,11 +450,11 @@ function get_storages_in_region(stors::storages, reg_name::String)
     end
 end
 
-function get_storages_in_region(stors::storages, reg::region)
+function get_storages_in_region(stors::Storages, reg::Region)
     get_storages_in_region(stors, reg.name)
 end
 
-function get_legacy_storages(stors::storages, leg::String)
+function get_legacy_storages(stors::Storages, leg::String)
     if ~(leg in ["Existing","New"])
         error("Unidentified legacy passed")
     end
@@ -416,12 +467,12 @@ function get_legacy_storages(stors::storages, leg::String)
     end
 end
 component_dict = Dict(
-    Vector{generator} => (func = get_generators_in_region, vec = generator[]),
-    Vector{storage} => (func = get_storages_in_region, vec = storage[]),
-    Vector{gen_storage} => (func = get_storages_in_region, vec = storage[])
+    Vector{Generator} => (func = get_generators_in_region, vec = Generator[]),
+    Vector{Storage} => (func = get_storages_in_region, vec = Storage[]),
+    Vector{Gen_Storage} => (func = get_storages_in_region, vec = Storage[])
 )
 # Functions for processing ReEDS2PRAS generators and storages (preparing PRAS lines)
-function get_sorted_components(comps::Vector, region_names::Vector{String} where {COMPONENTS <: Union{generators,storages}})
+function get_sorted_components(comps::COMPONENTS, region_names::Vector{String}) where {COMPONENTS <: Union{Generators,Storages}}
     num_regions = length(region_names)
     all_comps = []
     start_id = Array{Int64}(undef,num_regions); 
@@ -443,12 +494,12 @@ function get_sorted_components(comps::Vector, region_names::Vector{String} where
     return sorted_comps, region_comp_idxs
 end
 
-function get_sorted_components(comps::Vector, regions::Vector{region} where {COMPONENTS <: Union{generators,storages}})
+function get_sorted_components(comps::COMPONENTS, regions::Vector{Region}) where {COMPONENTS <: Union{Generators,Storages}}
     get_sorted_components(comps,get_name.(regions))
 end
 
 # Lines
-struct line
+struct Line
     name::String 
     N::Int64
     category::String
@@ -459,73 +510,99 @@ struct line
     legacy::String
     FOR::Float64
     MTTR::Int64
-
+    VSC::Bool
+    converter_capacity:: Dict{String, Float64}
+    
     # Inner Constructors
-    line(q,r,s,t,u,v,w,x) = line(q,r,s,t,u,v,w,x,0.0,24)
-    line(q,r,s,t,u,v,w) = line(q,r,s,t,u,v,w,"New",0.0,24)
-    line(q,r,s,t,u,v) = line(q,r,s,t,u,v,v,"New",0.0,24)
+    Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR) = 
+                            Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR, false, Dict(region_from => 0.0, region_to => 0.0))
+
+    Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy) = 
+                            Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, false, Dict(region_from => 0.0, region_to => 0.0))
+
+    Line(name, N, category, region_from, region_to, forward_cap, backward_cap) = 
+                            Line(name, N, category, region_from, region_to, forward_cap, backward_cap, "New", 0.0, 24, false,  Dict(region_from => 0.0, region_to => 0.0))
+
+    Line(name, N, category, region_from, region_to, forward_cap) =
+                            Line(name, N, category, region_from, region_to, forward_cap, forward_cap, "New", 0.0, 24, false, Dict(region_from => 0.0, region_to => 0.0))
+
     # For illustration purposes
-    line(nothing) = line("line_1",10,"AC","1","2",10.0,10.0,"New",0.0,24)
+    
+    Line(nothing) = Line("line_1",10,"AC","1","2",10.0,10.0,"New",0.0,24,false,Dict("1" => 0.0, "2" => 0.0))
 
     # Checks
-    line(q,r,s,t,u,v,w,x,y,z) = 
-    if ~(0 < r <= 8784)
-        error("Check the PRAS timesteps (N) passed.")
-    elseif ~(s in ["AC","Two-Terminal","VSC","VSC DC-AC converter"])
-        error("Check the category of line passed")
-    elseif (t == u)
-        error("Region From and Region To cannot be the same. PRAS only considers inter-regional lines in Zonal analysis")
-    elseif ~(all([v,w] .>= 0.0))
-        error("Check the forward/backward capacity of line passed")
-    elseif ~(x in ["Existing","New"])
-        error("Unidentified legacy passed")
-    elseif ~((0.0 <= y <= 1.0) || (z<0))
-        error("FOR and/or MTTR values passed are not allowed")
-    else
-        new(q,r,s,t,u,v,w,x,y,z)
+
+    function Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR, VSC, converter_capacity)
+
+        0 < N <= 8784 ||
+            error("Check the PRAS timesteps (N) passed.")
+
+        category in ["AC","Two-Terminal","VSC","VSC DC-AC converter"] ||
+            error("Check the category of Line passed")
+
+        ~(region_from == region_to) ||
+            error("Region_From and Region_To cannot be the same. PRAS only considers inter-regional lines in Zonal analysis")
+
+        all([forward_cap, backward_cap] .>= 0.0) ||
+            error("Check the forward/backward capacity of Line passed")
+
+        legacy in ["Existing","New"] ||
+            error("Unidentified legacy passed")
+
+        0.0 <= FOR <= 1.0 ||
+            error("FOR value passed is not allowed")
+
+        MTTR > 0 ||
+            error("MTTR value passed is not allowed")
+
+        all([region_from, region_to] .∈  Ref(keys(converter_capacity))) ||
+            error("Check the keys of converter capacity dictionary for VSC DC line")
+
+        return new(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR, VSC, converter_capacity)
+
     end
 end
 
-const lines = Vector{line}
+const Lines = Vector{Line}
 
-function get_name(ln::line)
+function get_name(ln::Line)
     return ln.name
 end
 
-function get_category(ln::line)
+function get_category(ln::Line)
     return ln.category
 end
 
-function get_forward_capacity(ln::line)
+function get_forward_capacity(ln::Line)
     return fill(round(Int,ln.forward_cap),1,ln.N)
 end
 
-function get_backward_capacity(ln::line)
+function get_backward_capacity(ln::Line)
     return fill(round(Int,ln.backward_cap),1,ln.N)
 end
 
-function get_region_from(ln::line)
+function get_region_from(ln::Line)
     return ln.region_from
 end
 
-function get_region_to(ln::line)
+function get_region_to(ln::Line)
     return ln.region_to
 end
 
-function get_outage_rate(ln::line)
-    rate = outage_to_rate((ln.FOR,ln.MTTR))
+function get_outage_rate(ln::Line)
+    rate = outage_to_rate(ln.FOR,ln.MTTR)
     return rate
 end
 
-function get_λ(ln::line)
-    return fill(getfield(outage_to_rate((ln.FOR,ln.MTTR)),:λ),1,ln.N)
+function get_λ(ln::Line)
+    return fill(getfield(outage_to_rate(ln.FOR,ln.MTTR),:λ),1,ln.N)
 end
 
-function get_μ(ln::line)
-    return fill(getfield(outage_to_rate((ln.FOR,ln.MTTR)),:μ),1,ln.N)
+function get_μ(ln::Line)
+    return fill(getfield(outage_to_rate(ln.FOR,ln.MTTR),:μ),1,ln.N)
 end
 
-function get_legacy_lines(lns::lines, leg::String)
+function get_legacy_lines(lns::Lines, leg::String)
     if ~(leg in ["Existing","New"])
         error("Unidentified legacy passed")
     end
@@ -539,7 +616,7 @@ function get_legacy_lines(lns::lines, leg::String)
 end
 
 # Functions for  processing ReEDS2PRAS lines (preparing PRAS lines)
-function get_sorted_region_tuples(lns::lines, region_names::Vector{String})
+function get_sorted_region_tuples(lns::Lines, region_names::Vector{String})
     regions_from = get_region_from.(lns)
     regions_to = get_region_to.(lns)
 
@@ -556,7 +633,7 @@ function get_sorted_region_tuples(lns::lines, region_names::Vector{String})
     return regions_tuple
 end
 
-function get_sorted_region_tuples(lns::lines)
+function get_sorted_region_tuples(lns::Lines)
     regions_from = get_region_from.(lns)
     regions_to = get_region_to.(lns)
 
@@ -565,11 +642,11 @@ function get_sorted_region_tuples(lns::lines)
     get_sorted_region_tuples(lns, region_names)
 end
 
-function get_sorted_region_tuples(lns::lines, regions::Vector{region})
+function get_sorted_region_tuples(lns::Lines, regions::Vector{Region})
     get_sorted_region_tuples(lns,get_name.(regions))
 end
 
-function get_sorted_lines(lns::lines, region_names::Vector{String})
+function get_sorted_lines(lns::Lines, region_names::Vector{String})
     regions_tuple = get_sorted_region_tuples(lns, region_names)
     temp_regions_tuple = unique(regions_tuple);
     interface_dict = Dict();
@@ -580,7 +657,7 @@ function get_sorted_lines(lns::lines, region_names::Vector{String})
     end
 
     num_interfaces = length(temp_regions_tuple);
-    sorted_regional_lines = line[];
+    sorted_regional_lines = Line[];
     interface_line_idxs = Array{UnitRange{Int64},1}(undef,num_interfaces);
     start_id = Array{Int64}(undef,num_interfaces); 
     for i in 1: num_interfaces
@@ -594,15 +671,42 @@ function get_sorted_lines(lns::lines, region_names::Vector{String})
     return sorted_regional_lines, temp_regions_tuple , interface_line_idxs
 end
 
-function get_sorted_lines(lns::lines, regions::Vector{region})
+function get_sorted_lines(lns::Lines, regions::Vector{Region})
     get_sorted_lines(lns,get_name.(regions))
 end
 
-function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Vector{Any},interface_line_idxs::Vector{UnitRange{Int64}}, regions::Vector{region})
+function process_vsc_lines(lns::Lines, regions::Vector{Region})
+    N = first(regions).N
+    vsc_dc_line_idxs = findall(getfield.(lns,:VSC))
+    vsc_dc_lines_copy = lns[vsc_dc_line_idxs]
+    deleteat!(lns,vsc_dc_line_idxs)
+
+    for vsc_line in vsc_dc_lines_copy
+        dc_region_from = "DC_$(vsc_line.region_from)"
+        dc_region_to = "DC_$(vsc_line.region_to)"
+
+        for reg_name in [dc_region_from, dc_region_to]
+            if ~(reg_name in get_name.(regions))
+                push!(regions,region(reg_name,N, zeros(Float64,N)))
+            end
+        end
+
+        push!(lns, line("$(vsc_line.name)_DC", vsc_line.N, vsc_line.category, dc_region_from, dc_region_to, vsc_line.forward_cap,vsc_line.backward_cap,
+                        vsc_line.legacy,vsc_line.FOR,vsc_line.MTTR))
+        push!(lns, line("$(vsc_line.name)_Converter_From", vsc_line.N, vsc_line.category, dc_region_from, vsc_line.region_from, 
+                        vsc_line.converter_capacity[vsc_line.region_from],vsc_line.converter_capacity[vsc_line.region_from],vsc_line.legacy,vsc_line.FOR,vsc_line.MTTR))
+        push!(lns, line("$(vsc_line.name)_Converter_To", vsc_line.N, vsc_line.category, dc_region_to, vsc_line.region_to, 
+                         vsc_line.converter_capacity[vsc_line.region_to],vsc_line.converter_capacity[vsc_line.region_to],vsc_line.legacy,vsc_line.FOR,vsc_line.MTTR))
+        
+    end
+    return lns,regions
+end
+
+function make_pras_interfaces(sorted_lines::Vector{Line},temp_regions_tuples::Vector{Any},interface_line_idxs::Vector{UnitRange{Int64}}, regions::Vector{Region})
     make_pras_interfaces(sorted_lines,temp_regions_tuples,interface_line_idxs, get_name.(regions))
 end
 
-function make_pras_interfaces(sorted_lines::Vector{line},temp_regions_tuples::Vector{Any},interface_line_idxs::Vector{UnitRange{Int64}},region_names::Vector{String})
+function make_pras_interfaces(sorted_lines::Vector{Line},temp_regions_tuples::Vector{Any},interface_line_idxs::Vector{UnitRange{Int64}},region_names::Vector{String})
     num_interfaces = length(temp_regions_tuples);
     interface_regions_from = [findfirst(x->x==temp_regions_tuples[i][1],region_names) for i in 1:num_interfaces];
     interface_regions_to = [findfirst(x->x==temp_regions_tuples[i][2],region_names) for i in 1:num_interfaces];

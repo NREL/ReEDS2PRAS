@@ -13,11 +13,11 @@ module ReEDS2PRAS
 #################################################################################
 # Exports
 #################################################################################
-export generators
-export thermal_gen
-export vg_gen
-export region
-export line
+export Generators
+export Thermal_Gen
+export VG_Gen
+export Region
+export Line
 # export  make_pras_system_from_mapping_info
 #################################################################################
 # Imports

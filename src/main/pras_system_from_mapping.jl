@@ -23,6 +23,7 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     # Load the mapping metadata JSON file
     # TODO: depend on PRAS regions, not region_array in later functions
     #######################################################
+    
     VSC_append_str,N,region_array,new_regions = regions_and_load(ReEDS_data,WEATHERYEAR)
 
     #######################################################
@@ -118,7 +119,7 @@ function regions_and_load(ReEDS_data,WEATHERYEAR)
     region_array = [];
 
     for (idx,r) in enumerate(regions)
-        push!(region_array,region(r,N,floor.(Int,load_year[idx,:])))
+        push!(region_array,Region(r,N,floor.(Int,load_year[idx,:])))
     end
 
     @info "Processing pseudoregions for VSC lines, if applicable..."
@@ -130,7 +131,7 @@ function regions_and_load(ReEDS_data,WEATHERYEAR)
     if length(pseudoregions) > 0
         VSC_regions = [];
         for r in regions
-            push!(region_array,region(r*VSC_append_str,N,zeros(Int,N)))#should be an array of 0s for the load for pseudoregions
+            push!(region_array,Region(r*VSC_append_str,N,zeros(Int,N)))#should be an array of 0s for the load for pseudoregions
             push!(VSC_regions,r*VSC_append_str)#the region list must also be expanded
         end
         for r in VSC_regions
@@ -235,7 +236,7 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Yea
     gdf = DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]) #split-apply-combine b/c some lines have same name convention
     system_line_naming_data = DataFrames.combine(gdf, :MW => sum) 
 
-    lines_array = line[];
+    lines_array = Line[];
     for row in eachrow(system_line_naming_data)
         category = row.trtype
         rf = row.r
@@ -247,10 +248,10 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Yea
             rf = rf*VSC_append_str #line is between pseudoregions for VSC
             rt = rt*VSC_append_str #line is between pseudoregions for VSC 
         end
-        name = rf*"_"*rt*"_"*category
+        name = "$(rf)_$(rt)_$(category)"
         
-        @info "a line $name, with $forward_cap MW fwd and $backward_cap bckwrd"
-        push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
+        @info "a line $name, with $forward_cap MW fwd and $backward_cap bckwrd in $category"
+        push!(lines_array,Line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
     end
 
     #also create lines for the pseudoregions - region tx capacity
@@ -261,9 +262,9 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Yea
         rt = row.r #make this the real region
         forward_cap = row.MW
         backward_cap = row.MW
-        name = rf*"_"*rt*"_"*category
-        @info "a pseudoregion to region line $name, with $forward_cap MW fwd and $backward_cap bckwrd"
-        push!(lines_array,line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))
+        name = "$(rf)_$(rt)_$(category)"
+        @info "a pseudoregion to region line $name, with $forward_cap MW fwd and $backward_cap bckwrd in $category"
+        push!(lines_array,Line(name,N,category,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))
     end
 
     sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions);
@@ -280,18 +281,16 @@ function split_generator_types(ReEDS_data::CEMdata,Year::Int64)
 
     vg_types = DataFrames.dropmissing(tech_types_data,:VRE)[:,"Column1"]
     vg_types = vg_types[vg_types .!= "csp-ns"]#csp-ns causes problems, so delete for now
-
     storage_types = DataFrames.dropmissing(tech_types_data,:STORAGE)[:,"Column1"]
 
     #clean vg/storage capacity on a regex, though there might be a better way...    
     clean_names!(vg_types)
     clean_names!(storage_types)
-    expand_types!(vg_types,15) #expand so names will match
+    vg_types = expand_types!(vg_types,15) #expand so names will match
 
     vg_capacity = capacity_data[(findall(in(vg_types),capacity_data.i)),:]
     storage_capacity = capacity_data[(findall(in(storage_types),capacity_data.i)),:]
     thermal_capacity = capacity_data[(findall(!in(vcat(vg_types,storage_types)),capacity_data.i)),:]
-
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
@@ -300,7 +299,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     gdf = DataFrames.groupby(thermal_builds, ["i","r"]) #split-apply-combine to handle differently vintaged entries
     thermal_builds = DataFrames.combine(gdf, :MW => sum);
     EIA_db = Load_EIA_NEMS_DB(NEMS_path)
-    all_generators = generator[];
+    all_generators = Generator[];
     native_FOR_data = FOR_data[!,"Column1"];
     lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
     for (i,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"r"],thermal_builds[!,"MW_sum"])
@@ -324,7 +323,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
-function process_vg(generators_array::Vector{<:ReEDS2PRAS.generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,Year::Int,WeatherYear::Int,N::Int)
+function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,Year::Int,WeatherYear::Int,N::Int)
     #data loads
     region_mapper_df = get_region_mapping(ReEDS_data);
     cf_info = get_vg_cf_data(ReEDS_data);#load is now picked up from augur
@@ -340,6 +339,7 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.generator},vg_builds::
         category = string(vg_builds[idx,"i"]);
         name = category*"_"*string(vg_builds[idx,"r"]);
         slicer = findfirst(isequal(string(vg_builds[idx,"r"])), region_mapper_df[:,"rs"]);
+
         if !isnothing(slicer)
             region = region_mapper_df[slicer,"*r"];
         else
@@ -361,7 +361,7 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.generator},vg_builds::
             name = name*"_"; #append for matching reasons
         end
         
-        push!(generators_array,vg_gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
+        push!(generators_array,VG_Gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
     end
     return generators_array
 end
@@ -380,7 +380,7 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     annual_data_sum = DataFrames.combine(gdf, :MWh => sum);
     storage_energy_capacity_regions = string.(annual_data_sum[!,"r"]);
 
-    storages_array = storage[];
+    storages_array = Storage[];
     for (name,region,category,capacity,energy_capacity) in zip(storage_names,storage_regions,storage_categories,storage_capacities,annual_data_sum[!,"MWh_sum"])
         if category in FOR_data[!,"Column1"]
             for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
@@ -390,7 +390,7 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
             @info "did not find FOR for storage $name $region $category, so setting FOR to default value $gen_for"
         end 
         name = name*"_";#append for matching
-        push!(storages_array,battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
+        push!(storages_array,Battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
     end
     storages_array, region_stor_idxs = get_sorted_components(storages_array,regions);
 
