@@ -5,7 +5,7 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
+function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String)
     #######################################################
     # Loading the necessary mapping files and data
     #######################################################
@@ -14,7 +14,7 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013] 
         error("The weather year $WEATHERYEAR is not a valid VG profile year. Should be an Int in 2007-2013 currently")
     end
-    ReEDS_data = ReEDSdata(ReEDSfilepath,Year);
+    ReEDS_data = ReEDSdata(ReEDSfilepath,year);
 
     #######################################################
     # Load the mapping metadata JSON file
@@ -27,7 +27,7 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     # PRAS lines
     #######################################################
 
-    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),Year,N,VSC_append_str);
+    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),year,N,VSC_append_str);
     
     #######################################################
     # PRAS Generators
@@ -37,15 +37,15 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     #######################################################
 
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
-    thermal,storage,vg = split_generator_types(ReEDS_data,Year);
+    thermal,storage,vg = split_generator_types(ReEDS_data,year);
 
     @info "reading in ReEDS generator-type forced outage data..."
     forced_outage_data = get_forced_outage_data(ReEDS_data);
 
     @info "reading thermals..."
-    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,Year,NEMS_path);
+    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,year,NEMS_path);
     @info "reading vg..."
-    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,Year,WEATHERYEAR,N);
+    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,year,WEATHERYEAR,N);
     @info "...vg read, translating to PRAS gens"
     new_generators,area_gen_idxs = all_gens_to_pras(all_gens,region_array,N)
 
@@ -53,7 +53,7 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     # PRAS Timestamps
     #######################################################
     @info "Processing PRAS timestamps..."
-    first_ts = TimeZones.ZonedDateTime(Year, 01, 01, 00, TimeZones.tz"UTC"); #US/Eastern switch to EST/EDT
+    first_ts = TimeZones.ZonedDateTime(year, 01, 01, 00, TimeZones.tz"UTC"); #US/Eastern switch to EST/EDT
     last_ts = first_ts + Dates.Hour(N-1);
     my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
 
@@ -61,7 +61,7 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     # PRAS Storages
     #######################################################
     @info "Processing Storages..."
-    area_stor_idxs,new_storage = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),Year)
+    area_stor_idxs,new_storage = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),year)
     
     #######################################################
     # PRAS GeneratorStorages
@@ -125,7 +125,7 @@ function regions_and_load(ReEDS_data::CEMdata,WEATHERYEAR::Int)
     return (VSC_append_str,N,region_array,PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array)))))
 end
 
-function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Year::Int,N::Int,VSC_append_str::String)
+function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},year::Int,N::Int,VSC_append_str::String)
     @info "Processing lines..."
 
     line_base_cap_data = get_line_capacity_data(ReEDS_data);
@@ -201,7 +201,7 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Yea
     return (new_lines,new_interfaces,interface_line_idxs)
 end
 
-function split_generator_types(ReEDS_data::CEMdata,Year::Int64)
+function split_generator_types(ReEDS_data::CEMdata,year::Int64)
 
     tech_types_data = get_technology_types(ReEDS_data)
     capacity_data = get_ICAP_data(ReEDS_data)
@@ -221,7 +221,7 @@ function split_generator_types(ReEDS_data::CEMdata,Year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,Year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
+function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     thermal_builds = DataFrames.combine(DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
     EIA_db = Load_EIA_NEMS_DB(NEMS_path)
@@ -242,13 +242,13 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
             gen_for = 0.05
             @info "for $(row.i) $(row.r), no gen_for is found in data, so $gen_for is used"
         end
-        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,Year);
+        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,year);
         append!(all_generators,generator_array);
     end
     return all_generators
 end
 
-function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,Year::Int,WeatherYear::Int,N::Int)
+function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,year::Int,WeatherYear::Int,N::Int)
     #data loads
     region_mapper_df = get_region_mapping(ReEDS_data);
     cf_info = get_vg_cf_data(ReEDS_data);#load is now picked up from augur
@@ -289,7 +289,7 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
     return generators_array
 end
 
-function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},Year::Int64)
+function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},year::Int64)
     
     @info "handling energy capacity of storages"
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)

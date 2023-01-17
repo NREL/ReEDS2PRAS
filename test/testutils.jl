@@ -52,9 +52,9 @@ function run_pras_system(sys::PRAS.SystemModel,sample::Int)
     return shortfalls,flows
 end
 
-function compare_generator_capacities(pras_system,ReEDSfilepath,Year)
+function compare_generator_capacities(pras_system,ReEDSfilepath,year)
     #first actually have to load in case-level capacity data, which may not be passed
-    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,Year);
+    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year);
 
     capacity_data = ReEDS2PRAS.get_ICAP_data(ReEDS_data);
     region_mapper_df = ReEDS2PRAS.get_region_mapping(ReEDS_data);
@@ -73,8 +73,8 @@ function compare_generator_capacities(pras_system,ReEDSfilepath,Year)
     end
 end
 
-function compare_line_capacities(pras_system,ReEDSfilepath,Year)
-    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,Year);
+function compare_line_capacities(pras_system,ReEDSfilepath,year)
+    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year);
     line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
 
     for row in eachrow(line_df)
