@@ -75,10 +75,9 @@ function reeds_to_pras(ReEDSfilepath::String, Year::Int64, NEMS_path::String)
     pras_system = PRAS.SystemModel(new_regions, new_interfaces, new_generators, area_gen_idxs, new_storage, area_stor_idxs, new_gen_stors,
                                     area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
     return pras_system
-    
 end
 
-function all_gens_to_pras(all_gens::Vector,region_array::Vector,N::Int)
+function all_gens_to_pras(all_gens::Vector{<:ReEDS2PRAS.Generator},region_array::Vector,N::Int)
     sorted_gens, area_gen_idxs = get_sorted_components(all_gens,get_name.(region_array)); #TODO: is typing still wrong?
     
     capacity_matrix = reduce(vcat,get_capacity.(sorted_gens));
@@ -233,7 +232,6 @@ end
 function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,Year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     thermal_builds = DataFrames.combine(DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
-    # thermal_builds = DataFrames.combine(gdf, :MW => sum);
     EIA_db = Load_EIA_NEMS_DB(NEMS_path)
     
     all_generators = Generator[];
@@ -301,32 +299,26 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
 end
 
 function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},Year::Int64)
-    #get the vector of appropriate indices
-    @info "handling power capacity of storages"
-    storage_names = ["$(string(storage_builds[!,"i"][i]))_$(string(storage_builds[!,"r"][i]))" for i=1:DataFrames.nrow(storage_builds)];
-    storage_capacities = storage_builds[!,"MW"];#want capacities
-    storage_categories = string.(storage_builds[!,"i"]);
-    storage_regions = string.(storage_builds[!,"r"]);
     
     @info "handling energy capacity of storages"
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
-    gdf = DataFrames.groupby(storage_energy_capacity_data, ["i","r"]) #split-apply-combine to handle differently vintaged entries
-    annual_data_sum = DataFrames.combine(gdf, :MWh => sum);
-    storage_energy_capacity_regions = string.(annual_data_sum[!,"r"]);
+    energy_capacity_df = DataFrames.combine(DataFrames.groupby(storage_energy_capacity_data, ["i","r"]), :MWh => sum) #split-apply-combine to handle differently vintaged entries
 
     storages_array = Storage[];
-    for (name,region,category,capacity,energy_capacity) in zip(storage_names,storage_regions,storage_categories,storage_capacities,annual_data_sum[!,"MWh_sum"])
-        if category in FOR_data[!,"Column1"]
-            for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the idx
+    for (idx,row) in enumerate(eachrow(storage_builds))
+        name = "$(string(row.i))_$(string(row.r))"
+        if string(row.i) in FOR_data[!,"Column1"]
+            for_idx = findfirst(x->x==string(row.i),FOR_data[!,"Column1"])#get the idx
             gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
         else
             gen_for = 0.0;
-            @info "did not find FOR for storage $name $region $category, so setting FOR to default value $gen_for"
+            @info "did not find FOR for storage $name $(row.r) $(row.i), so setting FOR to default value $gen_for"
         end 
-        name = "$(name)_"#append for matching
-        push!(storages_array,Battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
+        name = "$(name)_"#append for later matching
+        push!(storages_array,Battery(name,N,string(row.r),string(row.i),row.MW,row.MW,energy_capacity_df[idx,"MWh_sum"],"New",1,1,1,gen_for,24)) 
     end
     storages_array, region_stor_idxs = get_sorted_components(storages_array,regions);
+    @info "storages array is $storages_array"
 
     stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages_array))
     stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages_array))

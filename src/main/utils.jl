@@ -95,15 +95,13 @@ end
 
 function get_load_file(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","plot_load_"*string(data.Year)*".h5")
-    Year = data.Year;
-    isfile(filepath) || error("The year $Year does not have an associated Augur load h5 file. Are you sure ReeDS was run and Augur results saved for $Year?")
+    isfile(filepath) || error("The year $(data.Year) does not have an associated Augur load h5 file. Are you sure ReeDS was run and Augur results saved for $(data.Year)?")
     return HDF5.h5read(filepath,"data")
 end
 
 function get_vg_cf_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","plot_vre_gen_"*string(data.Year)*".h5")
-    Year = data.Year;
-    isfile(filepath) || error("The year $Year does not have an associated Augur vg h5 file. Are you sure ReeDS was run and Augur results saved for $Year?")
+    isfile(filepath) || error("The year $(data.Year) does not have an associated Augur vg h5 file. Are you sure ReeDS was run and Augur results saved for $(data.Year)?")
     return HDF5.h5read(filepath,"data")
 end
 
@@ -115,15 +113,13 @@ end
 
 function get_line_capacity_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_"*string(data.Year)*".csv")
-    Year = data.Year
-    isfile(filepath) || error("The year $Year does not have transmission capacity data. Are you sure ReEDS was run and Augur results saved for $Year?")
+    isfile(filepath) || error("The year $(data.Year) does not have transmission capacity data. Are you sure ReEDS was run and Augur results saved for $(data.Year)?")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
 function get_converter_capacity_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","cap_converter_"*string(data.Year)*".csv")
-    Year = data.Year
-    isfile(filepath) || error("The year $Year does not have capacity converter data. Are you sure ReEDS was run and Augur results saved for $Year?")
+    isfile(filepath) || error("The year $(data.Year) does not have capacity converter data. Are you sure ReEDS was run and Augur results saved for $(data.Year)?")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -141,14 +137,12 @@ end
 
 function get_ICAP_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","max_cap_"*string(data.Year)*".csv")
-    Year = data.Year
-    isfile(filepath) || error("The year $Year does not have generator installed capacity data. Are you sure REEDS was run and Augur results saved for year $Year")
+    isfile(filepath) || error("The year $(data.Year) does not have generator installed capacity data. Are you sure REEDS was run and Augur results saved for year $(data.Year)")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
 function get_storage_energy_capacity_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","energy_cap_"*string(data.Year)*".csv")
-    Year = data.Year
-    isfile(filepath) || error("The year $Year does not have generator installed storage energy capacity data. Are you sure REEDS was run and Augur results saved for year $Year")
+    isfile(filepath) || error("The year $(data.Year) does not have generator installed storage energy capacity data. Are you sure REEDS was run and Augur results saved for year $(data.Year)")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
