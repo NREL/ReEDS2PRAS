@@ -242,28 +242,29 @@ end
 
 function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,Year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
-    gdf = DataFrames.groupby(thermal_builds, ["i","r"]) #split-apply-combine to handle differently vintaged entries
-    thermal_builds = DataFrames.combine(gdf, :MW => sum);
+    thermal_builds = DataFrames.combine(DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
+    # thermal_builds = DataFrames.combine(gdf, :MW => sum);
     EIA_db = Load_EIA_NEMS_DB(NEMS_path)
+    
     all_generators = Generator[];
     native_FOR_data = FOR_data[!,"Column1"];
     lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
-    for (i,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"r"],thermal_builds[!,"MW_sum"])
+    for row in eachrow(thermal_builds)
+    # for (i,r,MW) in zip(thermal_builds[!,"i"],thermal_builds[!,"r"],thermal_builds[!,"MW_sum"])
         #eventually, it'd be nice to lookup/pass the FOR and N
-        @info "$i $r $MW MW to disaggregate..."
+        @info "$(row.i) $(row.r) $(row.MW_sum) MW to disaggregate..."
         #get the FOR
-        if i in native_FOR_data
-            for_idx = findfirst(x->x==i,native_FOR_data)#get the idx
+        if row.i in native_FOR_data
+            for_idx = findfirst(x->x==row.i,native_FOR_data)#get the idx
             gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
-        elseif i in lowercase_FOR_data
-            for_idx = findfirst(x->x==i,lowercase_FOR_data)#get the idx
+        elseif row.i in lowercase_FOR_data
+            for_idx = findfirst(x->x==row.i,lowercase_FOR_data)#get the idx
             gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
         else
             gen_for = 0.05
-            @info "for $i $r, no gen_for is found in data, so $gen_for is used"
-            # error("we really should always find a gen_for, but did not for $i $r") #default val
+            @info "for $(row.i) $(row.r), no gen_for is found in data, so $gen_for is used"
         end
-        generator_array = disagg_existing_capacity(EIA_db,floor(Int,MW),string(i),string(r),gen_for,N,Year);
+        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,Year);
         append!(all_generators,generator_array);
     end
     return all_generators
