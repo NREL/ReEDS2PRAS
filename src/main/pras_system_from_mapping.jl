@@ -141,60 +141,6 @@ function regions_and_load(ReEDS_data,WEATHERYEAR)
     return (VSC_append_str,N,region_array,PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array)))))
 end
 
-function process_genstors(region_array,N::Int)
-    # gen_stors = gen_storage[]
-    # push!(gen_stors,gen_storage("gen_stor_1", 10, "reg_1", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
-    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
-    # push!(gen_stors,gen_storage("gen_stor_2", 10, "reg_2", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
-    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
-
-    # sorted_gen_stors, reg_genstor_idxs  = get_sorted_components(gen_stors,regs);
-
-    # gen_stor_names = get_name.(sorted_gen_stors)
-    # gen_stor_cats = get_category.(sorted_gen_stors)
-    # gen_stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_gen_stors))
-    # gen_stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_gen_stors))
-    # gen_stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_gen_stors))
-    # gen_stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_gen_stors))
-    # gen_stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_gen_stors))
-    # gen_stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_gen_stors))
-    # gen_stor_inflow_array = reduce(vcat,get_inflow.(sorted_gen_stors))
-    # gen_stor_grid_withdrawl_array = reduce(vcat,get_grid_withdrawl_capacity.(sorted_gen_stors))
-    # gen_stor_grid_inj_array = reduce(vcat,get_grid_injection_capacity.(sorted_gen_stors))
-    # gen_stor_λ = reduce(vcat,get_λ.(sorted_gen_stors))
-    # gen_stor_μ = reduce(vcat,get_μ.(sorted_gen_stors))
-
-    # new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_cats,gen_stor_cap_array, gen_stor_dis_cap_array, gen_stor_enrgy_cap_array,
-    #                                                                        gen_stor_chrg_eff_array, gen_stor_dischrg_eff_array, gen_stor_carryovr_eff_array,gen_stor_inflow_array,
-    #                                                                        gen_stor_grid_withdrawl_array, gen_stor_grid_inj_array,gen_stor_λ,gen_stor_μ);
-    gen_stor_names = String[];
-    gen_stor_categories = String[];
-
-    n_genstors = 0;
-
-    gen_stor_charge_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_discharge_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_enrgy_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_charge_eff = Matrix{Float64}(undef, n_genstors, N);
-    gen_stor_discharge_eff = Matrix{Float64}(undef, n_genstors, N);
-    gen_stor_cryovr_eff = Matrix{Float64}(undef, n_genstors, N);
-    gen_stor_inflow_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_gridwdr_cap_array = Matrix{Int64}(undef, n_genstors, N);
-    gen_stor_gridinj_cap_array = Matrix{Int64}(undef, n_genstors, N);
-
-    λ_genstors = Matrix{Float64}(undef, n_genstors, N);
-    μ_genstors = Matrix{Float64}(undef, n_genstors, N);
-
-    new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_categories,
-                                                            gen_stor_charge_cap_array, gen_stor_discharge_cap_array, gen_stor_enrgy_cap_array,
-                                                            gen_stor_charge_eff, gen_stor_discharge_eff, gen_stor_cryovr_eff,
-                                                            gen_stor_inflow_array, gen_stor_gridwdr_cap_array, gen_stor_gridinj_cap_array,
-                                                            λ_genstors, μ_genstors);
-                                                            
-    area_genstor_idxs = fill(1:0, length(get_name.(region_array)));#num_areas
-    return (new_gen_stors,area_genstor_idxs)
-end
-
 function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},Year::Int,N::Int,VSC_append_str::String)
     @info "Processing lines..."
 
@@ -356,9 +302,9 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
         end
 
         if !isnothing(slicer)
-            name = name*"_"*string(region_mapper_df[slicer,"*r"])*"_"; #add the region to the name
+            name = "$(name)_$(string(region_mapper_df[slicer,"*r"]))_"#name*"_"*string(region_mapper_df[slicer,"*r"])*"_"; #add the region to the name
         else
-            name = name*"_"; #append for matching reasons
+            name = "$(name)_"#name*"_"; #append for matching reasons
         end
         
         push!(generators_array,VG_Gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
@@ -369,7 +315,7 @@ end
 function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},Year::Int64)
     #get the vector of appropriate indices
     @info "handling power capacity of storages"
-    storage_names = [string(storage_builds[!,"i"][i])*"_"*string(storage_builds[!,"r"][i]) for i=1:DataFrames.nrow(storage_builds)];
+    storage_names = ["$(string(storage_builds[!,"i"][i]))_$(string(storage_builds[!,"r"][i]))" for i=1:DataFrames.nrow(storage_builds)];
     storage_capacities = storage_builds[!,"MW"];#want capacities
     storage_categories = string.(storage_builds[!,"i"]);
     storage_regions = string.(storage_builds[!,"r"]);
@@ -389,7 +335,7 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
             gen_for = 0.0;
             @info "did not find FOR for storage $name $region $category, so setting FOR to default value $gen_for"
         end 
-        name = name*"_";#append for matching
+        name = "$(name)_"#append for matching
         push!(storages_array,Battery(name,N,region,category,capacity,capacity,energy_capacity,"New",1,1,1,gen_for,24)) 
     end
     storages_array, region_stor_idxs = get_sorted_components(storages_array,regions);
@@ -406,4 +352,58 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
                                                 stor_charge_cap_array,stor_discharge_cap_array,stor_energy_cap_array,
                                                 stor_chrg_eff_array,stor_dischrg_eff_array, stor_cryovr_eff,
                                                 λ_stor,μ_stor))
+end
+
+function process_genstors(region_array,N::Int)
+    # gen_stors = gen_storage[]
+    # push!(gen_stors,gen_storage("gen_stor_1", 10, "reg_1", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
+    # push!(gen_stors,gen_storage("gen_stor_2", 10, "reg_2", "Pumped-Hydro", fill(10.0,10),fill(10.0,10), fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),
+    #                             "New", 0.9, 1.0, 1.0, 0.0, 24))
+
+    # sorted_gen_stors, reg_genstor_idxs  = get_sorted_components(gen_stors,regs);
+
+    # gen_stor_names = get_name.(sorted_gen_stors)
+    # gen_stor_cats = get_category.(sorted_gen_stors)
+    # gen_stor_cap_array = reduce(vcat,get_charge_capacity.(sorted_gen_stors))
+    # gen_stor_dis_cap_array = reduce(vcat,get_discharge_capacity.(sorted_gen_stors))
+    # gen_stor_enrgy_cap_array = reduce(vcat,get_energy_capacity.(sorted_gen_stors))
+    # gen_stor_chrg_eff_array = reduce(vcat,get_charge_efficiency.(sorted_gen_stors))
+    # gen_stor_dischrg_eff_array = reduce(vcat,get_discharge_efficiency.(sorted_gen_stors))
+    # gen_stor_carryovr_eff_array = reduce(vcat,get_carryover_efficiency.(sorted_gen_stors))
+    # gen_stor_inflow_array = reduce(vcat,get_inflow.(sorted_gen_stors))
+    # gen_stor_grid_withdrawl_array = reduce(vcat,get_grid_withdrawl_capacity.(sorted_gen_stors))
+    # gen_stor_grid_inj_array = reduce(vcat,get_grid_injection_capacity.(sorted_gen_stors))
+    # gen_stor_λ = reduce(vcat,get_λ.(sorted_gen_stors))
+    # gen_stor_μ = reduce(vcat,get_μ.(sorted_gen_stors))
+
+    # new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_cats,gen_stor_cap_array, gen_stor_dis_cap_array, gen_stor_enrgy_cap_array,
+    #                                                                        gen_stor_chrg_eff_array, gen_stor_dischrg_eff_array, gen_stor_carryovr_eff_array,gen_stor_inflow_array,
+    #                                                                        gen_stor_grid_withdrawl_array, gen_stor_grid_inj_array,gen_stor_λ,gen_stor_μ);
+    gen_stor_names = String[];
+    gen_stor_categories = String[];
+
+    n_genstors = 0;
+
+    gen_stor_charge_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_discharge_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_enrgy_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_charge_eff = Matrix{Float64}(undef, n_genstors, N);
+    gen_stor_discharge_eff = Matrix{Float64}(undef, n_genstors, N);
+    gen_stor_cryovr_eff = Matrix{Float64}(undef, n_genstors, N);
+    gen_stor_inflow_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_gridwdr_cap_array = Matrix{Int64}(undef, n_genstors, N);
+    gen_stor_gridinj_cap_array = Matrix{Int64}(undef, n_genstors, N);
+
+    λ_genstors = Matrix{Float64}(undef, n_genstors, N);
+    μ_genstors = Matrix{Float64}(undef, n_genstors, N);
+
+    new_gen_stors = PRAS.GeneratorStorages{N,1,PRAS.Hour,PRAS.MW,PRAS.MWh}(gen_stor_names,gen_stor_categories,
+                                                            gen_stor_charge_cap_array, gen_stor_discharge_cap_array, gen_stor_enrgy_cap_array,
+                                                            gen_stor_charge_eff, gen_stor_discharge_eff, gen_stor_cryovr_eff,
+                                                            gen_stor_inflow_array, gen_stor_gridwdr_cap_array, gen_stor_gridinj_cap_array,
+                                                            λ_genstors, μ_genstors);
+                                                            
+    area_genstor_idxs = fill(1:0, length(get_name.(region_array)));#num_areas
+    return (new_gen_stors,area_genstor_idxs)
 end

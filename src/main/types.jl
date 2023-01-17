@@ -125,14 +125,9 @@ struct VG_Gen <:Generator
 
     # Inner Constructors
     VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy) = VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy, 0.0, 24)
-
     VG_Gen(name, N, region_name, installed_capacity, capacity, type) =  VG_Gen(name, N, region_name, installed_capacity, capacity, type, "New", 0.0, 24)
-
-    # For illustration purposes
-    VG_Gen(nothing) = VG_Gen("vg_gen_1",10,"reg_1",10.0,zeros(Float64,10),"dupv","New",0.1,24)
    
     # Checks
-
     function VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy, FOR, MTTR)
 
         0 < N <= 8784 ||
@@ -162,7 +157,6 @@ struct VG_Gen <:Generator
 end
 
 # Getter Functions
-
 get_name(gen::GEN) where {GEN <: Generator} = gen.name
 
 get_legacy(gen::GEN) where {GEN <: Generator} = gen.legacy
@@ -173,9 +167,7 @@ get_fuel(gen::Thermal_Gen) = gen.fuel
 
 get_capacity(gen::VG_Gen) = permutedims(round.(Int,gen.capacity))
 
-
 # Helper Functions
-
 get_outage_rate(gen::GEN) where {GEN <: Generator} = outage_to_rate(gen.FOR,gen.MTTR)
 
 get_λ(gen::GEN) where {GEN <: Generator} = fill(getfield(get_outage_rate(gen),:λ),1,gen.N)
@@ -199,9 +191,7 @@ function get_generators_in_region(gens::Generators, reg_name::String)
     end
 end
 
-function get_generators_in_region(gens::Generators, reg::Region)
-    get_generators_in_region(gens, reg.name)
-end
+get_generators_in_region(gens::Generators, reg::Region) = get_generators_in_region(gens, reg.name)
 
 function get_legacy_generators(gens::Generators, leg::String)
     if ~(leg in ["Existing","New"])
@@ -248,12 +238,7 @@ struct Battery <:Storage
     Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap) = 
                                        Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, "New", 1.0, 1.0, 1.0, 0.0, 24)
     
-    # For illustration purposes
-
-    Battery(nothing) = Battery("stor_1",10,"reg_1","4-hour",10.0,10.0,40.0,"New",0.9,1.0,1.0,0.0,24)
-   
     # Checks
-
     function Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff, carryover_eff, FOR, MTTR)
 
         0 < N <= 8784 ||
@@ -281,7 +266,6 @@ struct Battery <:Storage
             error("MTTR value passed is not allowed")
 
         return new(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy, charge_eff, discharge_eff, carryover_eff, FOR, MTTR)
-
     end
 end
 
@@ -317,12 +301,8 @@ struct Gen_Storage <:Storage
 
     Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap) = 
                 Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, "New", 1.0, 1.0, 1.0, 0.0, 24)
-
-    # For illustration purposes
-    Gen_Storage(nothing) = Gen_Storage("gen_stor_1",10,"reg_1","4-Hour",fill(10.0,10),fill(10.0,10),fill(40.0,10),fill(10.0,10),fill(10.0,10),fill(10.0,10),"New",0.9,1.0,1.0,0.0,24)
-   
+    
     # Checks
-
     function Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
                          carryover_eff, FOR, MTTR)
 
@@ -372,74 +352,39 @@ get_name(stor::STOR) where {STOR <: Storage} = stor.name
 
 get_type(stor::STOR) where {STOR <: Storage} = stor.type
 
-function get_legacy(stor::STOR) where {STOR <: Storage}
-    return stor.legacy
-end
+get_legacy(stor::STOR) where {STOR <: Storage} = stor.legacy
 
-function get_outage_rate(stor::STOR) where {STOR <: Storage}
-    rate = outage_to_rate(stor.FOR,stor.MTTR)
-    return rate
-end
+get_outage_rate(stor::STOR) where {STOR <: Storage} = outage_to_rate(stor.FOR,stor.MTTR)
 
-function get_λ(stor::STOR) where {STOR <: Storage}
-    return fill(getfield(outage_to_rate(stor.FOR,stor.MTTR),:λ),1,stor.N)
-end
+get_λ(stor::STOR) where {STOR <: Storage} = fill(getfield(outage_to_rate(stor.FOR,stor.MTTR),:λ),1,stor.N)
 
-function get_μ(stor::STOR) where {STOR <: Storage}
-    return fill(getfield(outage_to_rate(stor.FOR,stor.MTTR),:μ),1,stor.N)
-end
+get_μ(stor::STOR) where {STOR <: Storage} = fill(getfield(outage_to_rate(stor.FOR,stor.MTTR),:μ),1,stor.N)
 
-function get_category(stor::STOR) where {STOR <: Storage}
-    return "$(stor.legacy)_$(stor.type)"
-end
+get_category(stor::STOR) where {STOR <: Storage} = "$(stor.legacy)_$(stor.type)"
 
-function get_charge_capacity(stor::Battery)
-    return fill(round(Int,stor.charge_cap),1,stor.N)
-end
+get_charge_capacity(stor::Battery) = fill(round(Int,stor.charge_cap),1,stor.N)
 
-function get_charge_capacity(stor::Gen_Storage)
-    return permutedims(round.(Int,stor.charge_cap))
-end
+get_charge_capacity(stor::Gen_Storage) = permutedims(round.(Int,stor.charge_cap))
 
-function get_discharge_capacity(stor::Battery)
-    return fill(round(Int,stor.discharge_cap),1,stor.N)
-end
+get_discharge_capacity(stor::Battery) = fill(round(Int,stor.discharge_cap),1,stor.N)
 
-function get_discharge_capacity(stor::Gen_Storage)
-    return permutedims(round.(Int,stor.discharge_cap))
-end
+get_discharge_capacity(stor::Gen_Storage) = permutedims(round.(Int,stor.discharge_cap))
 
-function get_energy_capacity(stor::Battery)
-    return fill(round(Int,stor.energy_cap),1,stor.N)
-end
+get_energy_capacity(stor::Battery) = fill(round(Int,stor.energy_cap),1,stor.N)
 
-function get_energy_capacity(stor::Gen_Storage)
-    return permutedims(round.(Int,stor.energy_cap))
-end
+get_energy_capacity(stor::Gen_Storage) = permutedims(round.(Int,stor.energy_cap))
 
-function get_inflow(stor::Gen_Storage)
-    return permutedims(round.(Int,stor.inflow))
-end
+get_inflow(stor::Gen_Storage) = permutedims(round.(Int,stor.inflow))
 
-function get_grid_withdrawl_capacity(stor::Gen_Storage)
-    return permutedims(round.(Int,stor.grid_withdrawl_cap))
-end
+get_grid_withdrawl_capacity(stor::Gen_Storage) = permutedims(round.(Int,stor.grid_withdrawl_cap))
 
-function get_grid_injection_capacity(stor::Gen_Storage)
-    return permutedims(round.(Int,stor.grid_inj_cap))
-end
+get_grid_injection_capacity(stor::Gen_Storage) = permutedims(round.(Int,stor.grid_inj_cap))
 
-function get_charge_efficiency(stor::STOR) where {STOR <: Storage}
-    return fill(stor.charge_eff,1,stor.N)
-end
+get_charge_efficiency(stor::STOR) where {STOR <: Storage} = fill(stor.charge_eff,1,stor.N)
 
-function get_discharge_efficiency(stor::STOR) where {STOR <: Storage}
-    return fill(stor.discharge_eff,1,stor.N)
-end
+get_discharge_efficiency(stor::STOR) where {STOR <: Storage} = fill(stor.discharge_eff,1,stor.N)
 
-function get_carryover_efficiency(stor::STOR) where {STOR <: Storage}
-    return fill(stor.carryover_eff,1,stor.N)
-end
+get_carryover_efficiency(stor::STOR) where {STOR <: Storage} = fill(stor.carryover_eff,1,stor.N)
 
 function get_storages_in_region(stors::Storages, reg_name::String)
     reg_stor_idxs = findall(getfield.(stors,:region_name) .== reg_name)
@@ -450,9 +395,7 @@ function get_storages_in_region(stors::Storages, reg_name::String)
     end
 end
 
-function get_storages_in_region(stors::Storages, reg::Region)
-    get_storages_in_region(stors, reg.name)
-end
+get_storages_in_region(stors::Storages, reg::Region) = get_storages_in_region(stors, reg.name)
 
 function get_legacy_storages(stors::Storages, leg::String)
     if ~(leg in ["Existing","New"])
@@ -466,6 +409,7 @@ function get_legacy_storages(stors::Storages, leg::String)
         return stors[leg_stor_idxs]
     end
 end
+
 component_dict = Dict(
     Vector{Generator} => (func = get_generators_in_region, vec = Generator[]),
     Vector{Storage} => (func = get_storages_in_region, vec = Storage[]),
@@ -494,9 +438,7 @@ function get_sorted_components(comps::COMPONENTS, region_names::Vector{String}) 
     return sorted_comps, region_comp_idxs
 end
 
-function get_sorted_components(comps::COMPONENTS, regions::Vector{Region}) where {COMPONENTS <: Union{Generators,Storages}}
-    get_sorted_components(comps,get_name.(regions))
-end
+get_sorted_components(comps::COMPONENTS, regions::Vector{Region}) where {COMPONENTS <: Union{Generators,Storages}} = get_sorted_components(comps,get_name.(regions))
 
 # Lines
 struct Line
@@ -526,12 +468,7 @@ struct Line
     Line(name, N, category, region_from, region_to, forward_cap) =
                             Line(name, N, category, region_from, region_to, forward_cap, forward_cap, "New", 0.0, 24, false, Dict(region_from => 0.0, region_to => 0.0))
 
-    # For illustration purposes
-    
-    Line(nothing) = Line("line_1",10,"AC","1","2",10.0,10.0,"New",0.0,24,false,Dict("1" => 0.0, "2" => 0.0))
-
     # Checks
-
     function Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR, VSC, converter_capacity)
 
         0 < N <= 8784 ||
@@ -559,48 +496,28 @@ struct Line
             error("Check the keys of converter capacity dictionary for VSC DC line")
 
         return new(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR, VSC, converter_capacity)
-
     end
 end
 
 const Lines = Vector{Line}
 
-function get_name(ln::Line)
-    return ln.name
-end
+get_name(ln::Line) = ln.name
 
-function get_category(ln::Line)
-    return ln.category
-end
+get_category(ln::Line) = ln.category
 
-function get_forward_capacity(ln::Line)
-    return fill(round(Int,ln.forward_cap),1,ln.N)
-end
+get_forward_capacity(ln::Line) = fill(round(Int,ln.forward_cap),1,ln.N)
 
-function get_backward_capacity(ln::Line)
-    return fill(round(Int,ln.backward_cap),1,ln.N)
-end
+get_backward_capacity(ln::Line) = fill(round(Int,ln.backward_cap),1,ln.N)
 
-function get_region_from(ln::Line)
-    return ln.region_from
-end
+get_region_from(ln::Line) = ln.region_from
 
-function get_region_to(ln::Line)
-    return ln.region_to
-end
+get_region_to(ln::Line) = ln.region_to
 
-function get_outage_rate(ln::Line)
-    rate = outage_to_rate(ln.FOR,ln.MTTR)
-    return rate
-end
+get_outage_rate(ln::Line) = outage_to_rate(ln.FOR,ln.MTTR)
 
-function get_λ(ln::Line)
-    return fill(getfield(outage_to_rate(ln.FOR,ln.MTTR),:λ),1,ln.N)
-end
+get_λ(ln::Line) = fill(getfield(outage_to_rate(ln.FOR,ln.MTTR),:λ),1,ln.N)
 
-function get_μ(ln::Line)
-    return fill(getfield(outage_to_rate(ln.FOR,ln.MTTR),:μ),1,ln.N)
-end
+get_μ(ln::Line) = fill(getfield(outage_to_rate(ln.FOR,ln.MTTR),:μ),1,ln.N)
 
 function get_legacy_lines(lns::Lines, leg::String)
     if ~(leg in ["Existing","New"])
@@ -671,9 +588,7 @@ function get_sorted_lines(lns::Lines, region_names::Vector{String})
     return sorted_regional_lines, temp_regions_tuple , interface_line_idxs
 end
 
-function get_sorted_lines(lns::Lines, regions::Vector{Region})
-    get_sorted_lines(lns,get_name.(regions))
-end
+get_sorted_lines(lns::Lines, regions::Vector{Region}) = get_sorted_lines(lns,get_name.(regions))
 
 function process_vsc_lines(lns::Lines, regions::Vector{Region})
     N = first(regions).N
