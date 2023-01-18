@@ -5,13 +5,14 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String)
+function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N::Int)
     #######################################################
     # Loading the necessary mapping files and data
     #######################################################
     #check validity of input weather and ReEDS year
     WEATHERYEAR = 2012 #just for now, force this
-    if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013] 
+    min_year = 2007 #for now, read in later
+    if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013]
         error("The weather year $WEATHERYEAR is not a valid VG profile year. Should be an Int in 2007-2013 currently")
     end
     ReEDS_data = ReEDSdata(ReEDSfilepath,year);
@@ -21,13 +22,13 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String)
     # TODO: depend on PRAS regions, not region_array in later functions
     #######################################################
     
-    VSC_append_str,N,region_array,new_regions = regions_and_load(ReEDS_data,WEATHERYEAR)
+    VSC_append_str,region_array,new_regions = regions_and_load(ReEDS_data,WEATHERYEAR,N)
 
     #######################################################
     # PRAS lines
     #######################################################
 
-    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),year,N,VSC_append_str);
+    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),year,N,VSC_append_str)
     
     #######################################################
     # PRAS Generators
@@ -37,15 +38,15 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String)
     #######################################################
 
     @info "splitting thermal, storage, vg generator types from installed ReEDS capacities..."
-    thermal,storage,vg = split_generator_types(ReEDS_data,year);
+    thermal,storage,vg = split_generator_types(ReEDS_data,year)
 
     @info "reading in ReEDS generator-type forced outage data..."
-    forced_outage_data = get_forced_outage_data(ReEDS_data);
+    forced_outage_data = get_forced_outage_data(ReEDS_data)
 
     @info "reading thermals..."
-    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,year,NEMS_path);
+    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,year,NEMS_path)
     @info "reading vg..."
-    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,year,WEATHERYEAR,N);
+    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,year,WEATHERYEAR,N,min_year)
     @info "...vg read, translating to PRAS gens"
     new_generators,area_gen_idxs = all_gens_to_pras(all_gens,region_array,N)
 
@@ -53,9 +54,9 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String)
     # PRAS Timestamps
     #######################################################
     @info "Processing PRAS timestamps..."
-    first_ts = TimeZones.ZonedDateTime(year, 01, 01, 00, TimeZones.tz"UTC"); #US/Eastern switch to EST/EDT
-    last_ts = first_ts + Dates.Hour(N-1);
-    my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts);
+    first_ts = TimeZones.ZonedDateTime(year, 01, 01, 00, TimeZones.tz"UTC") #US/Eastern switch to EST/EDT
+    last_ts = first_ts + Dates.Hour(N-1)
+    my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts)
 
     #######################################################
     # PRAS Storages
@@ -84,34 +85,32 @@ function all_gens_to_pras(all_gens::Vector{<:ReEDS2PRAS.Generator},region_array:
     return (PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_gens),get_type.(sorted_gens),capacity_matrix,λ_matrix,μ_matrix),area_gen_idxs)
 end
 
-function regions_and_load(ReEDS_data::CEMdata,WEATHERYEAR::Int)
+function regions_and_load(ReEDS_data::CEMdata,weather_year::Int, N::Int)
     @info "Fetching ReEDS case data to build PRAS System..."
 
-    load_info = get_load_file(ReEDS_data);
-    load_data = load_info["block0_values"];
-    regions = load_info["block0_items"];
+    load_info = get_load_file(ReEDS_data)
+    load_data = load_info["block0_values"]
+    regions = load_info["block0_items"]
     #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
-    slicer = findfirst(isequal(WEATHERYEAR), load_info["axis1_level1"]); #2012 weather year, Gbut, in general, this should be a user input
+    slicer = findfirst(isequal(weather_year), load_info["axis1_level1"]); #2012 weather year, but, in general, this should be a user input
     indices = findall(i->(i==(slicer-1)),load_info["axis1_label1"]); #I think b/c julia indexes from 1 we need -1 here
     
-    load_year = load_data[:,indices[1:8760]]; #should be regionsX8760, which is now just enforced
+    load_year = load_data[:,indices[1:N]]; #should be regionsX8760, which is now just enforced
     
     #should the regions be processed from the generators?
     @info "Processing Areas in the mapping file into PRAS regions..."
-    num_areas = length(regions); 
-    N = size(load_year)[2];#DataFrames.DataFrames.nrow(load_data)
-    region_array = [];
-
-    for (idx,r) in enumerate(regions)
-        push!(region_array,Region(r,N,floor.(Int,load_year[idx,:])))
-    end
+    region_array = [Region(r,N,floor.(Int,load_year[idx,:])) for (idx,r) in enumerate(regions)]
+    # region_array = []
+    # for (idx,r) in enumerate(regions)
+    #     push!(region_array,Region(r,N,floor.(Int,load_year[idx,:])))
+    # end
 
     @info "Processing pseudoregions for VSC lines, if applicable..."
     # Load the capacity converter data, since for VSC we have to create pseudo-regions from this data
-    converter_data = get_converter_capacity_data(ReEDS_data);
+    converter_data = get_converter_capacity_data(ReEDS_data)
     #check if this dataframe is empty, so for a non-VSC case we can ignore
     VSC_append_str = "_VSC"; #necessary for naming and distinguishing VSC overlay and associated pseudoregions
-    pseudoregions = [string(i)*VSC_append_str for i in converter_data[!,"r"]];
+    pseudoregions = [string(i)*VSC_append_str for i in converter_data[!,"r"]]
     if length(pseudoregions) > 0
         VSC_regions = [];
         for r in regions
@@ -122,7 +121,7 @@ function regions_and_load(ReEDS_data::CEMdata,WEATHERYEAR::Int)
             push!(regions,r)
         end
     end
-    return (VSC_append_str,N,region_array,PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array)))))
+    return (VSC_append_str,region_array,PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array)))))
 end
 
 function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},year::Int,N::Int,VSC_append_str::String)
@@ -139,10 +138,8 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},yea
     system_line_idx = []
     region_idxs = Dict(regions .=> range(1,length(regions)))
     for (idx,row) in enumerate(eachrow(line_base_cap_data))
-        pca_from = row.r
-        pca_to = row.rr
-        from_idx = region_idxs[pca_from]#findfirst(x->x==pca_from,regions)
-        to_idx = region_idxs[pca_to]#findfirst(x->x==pca_to,regions)
+        from_idx = region_idxs[row.r]#findfirst(x->x==pca_from,regions)
+        to_idx = region_idxs[row.rr]#findfirst(x->x==pca_to,regions)
         if (~(isnothing(from_idx)) && ~(isnothing(to_idx)) && (from_idx < to_idx))
             push!(system_line_idx,idx)
         end
@@ -167,7 +164,7 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},yea
         
         if occursin("VSC",row.trtype)
             rf = row.r*VSC_append_str #line is between pseudoregions for VSC
-            rt = rt*VSC_append_str #line is between pseudoregions for VSC 
+            rt = row.rr*VSC_append_str #line is between pseudoregions for VSC 
         else
             rf = row.r
             rt = row.rr
@@ -187,16 +184,16 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},yea
         push!(lines_array,Line(name,N,category,row.r*VSC_append_str,row.r,row.MW,row.MW,"Existing",0.0,24))
     end
 
-    sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions);
+    sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions)
 
-    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(sorted_regional_lines));
-    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(sorted_regional_lines));
+    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(sorted_regional_lines))
+    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(sorted_regional_lines))
     λ_lines = reduce(vcat,get_λ.(sorted_regional_lines))
     μ_lines = reduce(vcat,get_μ.(sorted_regional_lines))
-    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_regional_lines), get_category.(sorted_regional_lines), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines);
+    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_regional_lines), get_category.(sorted_regional_lines), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines)
 
     @info "Making PRAS Interfaces..."
-    new_interfaces = make_pras_interfaces(sorted_regional_lines,temp_regions_tuple,interface_line_idxs,regions);
+    new_interfaces = make_pras_interfaces(sorted_regional_lines,temp_regions_tuple,interface_line_idxs,regions)
     
     return (new_lines,new_interfaces,interface_line_idxs)
 end
@@ -248,13 +245,13 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
-function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,year::Int,WeatherYear::Int,N::Int)
+function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,year::Int,weather_year::Int,N::Int,min_year::Int)
     #data loads
     region_mapper_df = get_region_mapping(ReEDS_data);
     cf_info = get_vg_cf_data(ReEDS_data);#load is now picked up from augur
     
     vg_profiles = cf_info["block0_values"];
-    start_idx = (WeatherYear-2007)*N;
+    start_idx = (weather_year-min_year)*N;
 
     vg_builds = DataFrames.combine(DataFrames.groupby(vg_builds, ["i","r"]), :MW => sum); #split-apply-combine to handle differently vintaged entries
 
