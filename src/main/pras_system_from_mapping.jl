@@ -5,14 +5,14 @@
 # ReEDS2PRAS for NTP
 # Make a PRAS System from ReEDS H5s and CSVs
 
-function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N::Int)
+function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N::Int, WEATHERYEAR::Int)
     #######################################################
     # Loading the necessary mapping files and data
     #######################################################
     #check validity of input weather and ReEDS year
-    WEATHERYEAR = 2012 #just for now, force this
+    # WEATHERYEAR = 2012 #just for now, force this
     min_year = 2007 #for now, read in later
-    if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013]
+    if WEATHERYEAR ∉ [2007,2008,2009,2010,2011,2012,2013] 
         error("The weather year $WEATHERYEAR is not a valid VG profile year. Should be an Int in 2007-2013 currently")
     end
     ReEDS_data = ReEDSdata(ReEDSfilepath,year);
@@ -194,6 +194,9 @@ end
 
 function expand_vg_types!(vgl::Vector{<:AbstractString},vgt::Vector)
     #TODO: vgt/vgl check
+    for l in vgl
+        @assert occursin(l,join(vgt))
+    end 
     return vec(["$(a)" for a in vgt])
 end
 
@@ -204,7 +207,7 @@ function split_generator_types(ReEDS_data::CEMdata,year::Int64)
     vg_resource_types = get_valid_resources(ReEDS_data)
 
     vg_types = DataFrames.dropmissing(tech_types_data,:VRE)[:,"Column1"]
-    # vg_types = vg_types[vg_types .!= "csp-ns"]#csp-ns causes problems, so delete for now
+    vg_types = vg_types[vg_types .!= "csp-ns"]#csp-ns causes problems, so delete for now
     storage_types = DataFrames.dropmissing(tech_types_data,:STORAGE)[:,"Column1"]
 
     #clean vg/storage capacity on a regex, though there might be a better way...    
@@ -236,39 +239,39 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
             gen_for = 0.05
             @info "for $(row.i) $(row.r), no gen_for is found in data, so $gen_for is used"
         end
-        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,year);
-        append!(all_generators,generator_array);
+        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,year)
+        append!(all_generators,generator_array)
     end
     return all_generators
 end
 
 function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_dict::Dict,ReEDS_data::CEMdata,year::Int,weather_year::Int,N::Int,min_year::Int)
     #data loads
-    region_mapper_df = get_region_mapping(ReEDS_data);
-    cf_info = get_vg_cf_data(ReEDS_data);#load is now picked up from augur
+    region_mapper_df = get_region_mapping(ReEDS_data)
+    cf_info = get_vg_cf_data(ReEDS_data)#load is now picked up from augur
     
-    vg_profiles = cf_info["block0_values"];
-    start_idx = (weather_year-min_year)*N;
+    vg_profiles = cf_info["block0_values"]
+    start_idx = (weather_year-min_year)*N
 
-    vg_builds = DataFrames.combine(DataFrames.groupby(vg_builds, ["i","r"]), :MW => sum); #split-apply-combine to handle differently vintaged entries
+    vg_builds = DataFrames.combine(DataFrames.groupby(vg_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
 
     for row in eachrow(vg_builds)
         category = string(row.i)
-        name = "$(category)_$(string(row.r))";
-        slicer = findfirst(isequal(string(row.r)), region_mapper_df[:,"rs"]);
+        name = "$(category)_$(string(row.r))"
+        slicer = findfirst(isequal(string(row.r)), region_mapper_df[:,"rs"])
 
         if !isnothing(slicer)
-            region = region_mapper_df[slicer,"*r"];
+            region = region_mapper_df[slicer,"*r"]
         else
             region = string(row.r)
         end
-        profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1];
-        size_comp = size(vg_profiles)[1];
-        profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)];
+        profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
+        size_comp = size(vg_profiles)[1]
+        profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)]
         if category in keys(FOR_dict)
             gen_for = FOR_dict[category]
         else
-            gen_for = .05;
+            gen_for = .05
         end
 
         if !isnothing(slicer)

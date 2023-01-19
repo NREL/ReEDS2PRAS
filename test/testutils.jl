@@ -11,6 +11,28 @@ function capacity_checker(capacity_data::DataFrames.DataFrame,region_map::DataFr
     return sum(capacity_data_subset[!,"MW"])# sum the capacity for the input region/gentype
 end
 
+function vg_capacity_checker(cf_info::Dict,region_map::DataFrames.DataFrame,gentype::String,region::String)
+
+    name = "$(gentype)_$(region)"
+    slicer = findfirst(isequal(region), region_map[:,"*r"])
+
+    if !isnothing(slicer)
+        region = region_map[slicer,"*r"]
+        name = "$(gentype)_$(region)"
+    end
+    # a0 = cf_info["axis0"]
+    # @info "cf info is $(a0), off $slicer and $region"
+    profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
+    
+    if isnothing(profile_index)
+        return 0
+    else
+        profile = cf_info["block0_values"][profile_index,:]
+        return maximum(profile)
+    end
+
+end
+
 function PRAS_generator_capacity_checker(pras_system,gentype::String,region::String)
 
     name_vec = -abs.(cmp.(gentype,pras_system.generators.categories)).+1; #exact match is needed to exclude ccs
@@ -52,28 +74,36 @@ function run_pras_system(sys::PRAS.SystemModel,sample::Int)
     return shortfalls,flows
 end
 
-function compare_generator_capacities(pras_system,ReEDSfilepath,year)
+function compare_generator_capacities(pras_system::PRAS.SystemModel,ReEDSfilepath,year::Int)
     #first actually have to load in case-level capacity data, which may not be passed
-    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year);
+    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year)
 
-    capacity_data = ReEDS2PRAS.get_ICAP_data(ReEDS_data);
-    region_mapper_df = ReEDS2PRAS.get_region_mapping(ReEDS_data);
-
+    capacity_data = ReEDS2PRAS.get_ICAP_data(ReEDS_data)
+    region_mapper_df = ReEDS2PRAS.get_region_mapping(ReEDS_data)
+    vg_resource_types = ReEDS2PRAS.get_valid_resources(ReEDS_data)
+    cf_info = ReEDS2PRAS.get_vg_cf_data(ReEDS_data)#load is now picked up from augur
+    
     for gentype in unique(capacity_data.i)
-        gentype = string(gentype);
+        gentype = string(gentype)
         for region in pras_system.regions.names
-            v1 = capacity_checker(capacity_data,region_mapper_df,gentype,region); #need to split out numbering for vg...
-            v2a = PRAS_generator_capacity_checker(pras_system,gentype,region);
-            v2b = PRAS_storage_capacity_checker(pras_system,gentype,region);
+            if occursin(gentype,join(unique(vg_resource_types.i)))#vg only
+                v1 = vg_capacity_checker(cf_info,region_mapper_df,gentype,region)
+                delta = .9
+            else
+                v1 = capacity_checker(capacity_data,region_mapper_df,gentype,region) #need to split out numbering for vg...
+                delta = 1.
+            end
+            v2a = PRAS_generator_capacity_checker(pras_system,gentype,region)
+            v2b = PRAS_storage_capacity_checker(pras_system,gentype,region)
             v2 = v2a+v2b;
-            if (v1 != 0 || v2 != 0) && abs(v1-v2)>1
+            if (v1 != 0 || v2 != 0) && (1/delta)>=(abs(v1-v2)/v2)>=delta
                 @info "for $gentype-$region input is $v1 MW, output is $v2 MW. Mismatch!!"
             end
         end
     end
 end
 
-function compare_line_capacities(pras_system,ReEDSfilepath,year)
+function compare_line_capacities(pras_system::PRAS.SystemModel,ReEDSfilepath,year::Int)
     ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year);
     line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
 
@@ -99,7 +129,7 @@ function compare_line_capacities(pras_system,ReEDSfilepath,year)
     end
 end
 
-function get_pras_line_capacity(pras_system,idx_list::Vector)
+function get_pras_line_capacity(pras_system::PRAS.SystemModel,idx_list::Vector)
     #TODO: check backward capacity? 
     fwd = sum(maximum.(eachrow(pras_system.lines.forward_capacity[idx_list,:]))); #get pras line fwd capacity
     bck = sum(maximum.(eachrow(pras_system.lines.backward_capacity[idx_list,:]))); #get pras line fwd capacity
