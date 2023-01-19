@@ -132,8 +132,8 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},yea
     system_line_idx = []
     region_idxs = Dict(regions .=> range(1,length(regions)))
     for (idx,row) in enumerate(eachrow(line_base_cap_data))
-        from_idx = region_idxs[row.r]#findfirst(x->x==pca_from,regions)
-        to_idx = region_idxs[row.rr]#findfirst(x->x==pca_to,regions)
+        from_idx = region_idxs[row.r]
+        to_idx = region_idxs[row.rr]
         if (~(isnothing(from_idx)) && ~(isnothing(to_idx)) && (from_idx < to_idx))
             push!(system_line_idx,idx)
         end
