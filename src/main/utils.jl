@@ -8,8 +8,8 @@ function clean_names!(input_vec::Vector{<:AbstractString})
 end
 
 function Load_EIA_NEMS_DB(ReEDS_directory::String)
-    EIA_NEMS_loc = joinpath(ReEDS_directory,"inputs","capacitydata","ReEDS_generator_database_final_EIA-NEMS.csv"); #there is also a _prm file, not sure which is right?
-    EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc));
+    EIA_NEMS_loc = joinpath(ReEDS_directory,"inputs","capacitydata","ReEDS_generator_database_final_EIA-NEMS.csv") #there is also a _prm file, not sure which is right?
+    EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc))
     return EIA_NEMS_data
 end
 
@@ -17,7 +17,7 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     
     MTTR = 24;
     # @info "capacity in for $tech $pca is $built_capacity MW"
-    tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=year) .& (eia_df.StartYear.<=year), :];
+    tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=year) .& (eia_df.StartYear.<=year), :]
     
     if DataFrames.nrow(tech_ba_year_existing)==0
         return [Thermal_Gen("$(tech)_$(pca)_1",N,pca,built_capacity,tech,"New",gen_for,MTTR)]
@@ -26,7 +26,7 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     remaining_capacity = built_capacity;
     existing_capacity = tech_ba_year_existing[!,"cap"]
     
-    tech_len = length(existing_capacity);
+    tech_len = length(existing_capacity)
     max_cap = maximum(existing_capacity)
     avg_cap = Statistics.mean(existing_capacity)
 

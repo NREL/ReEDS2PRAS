@@ -108,12 +108,8 @@ struct VG_Gen <:Generator
     FOR::Float64
     MTTR::Int64
 
-    # Inner Constructors
-    VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy) = VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy, 0.0, 24)
-    VG_Gen(name, N, region_name, installed_capacity, capacity, type) =  VG_Gen(name, N, region_name, installed_capacity, capacity, type, "New", 0.0, 24)
-   
-    # Checks
-    function VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy, FOR, MTTR)
+    # Inner Constructors & Checks
+    function VG_Gen(name, N, region_name, installed_capacity, capacity, type, legacy = "New", FOR = 0.0, MTTR = 24)
 
         0 < N <= 8784 ||
             error("Check the PRAS timesteps (N) passed.")
@@ -210,7 +206,6 @@ struct Battery <:Storage
     MTTR::Int64
 
     # Inner Constructors & Checks
-
     function Battery(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, legacy = "New", charge_eff = 1.0, discharge_eff = 1.0, carryover_eff = 1.0,
                      FOR = 0.0, MTTR = 24)
 
@@ -261,24 +256,9 @@ struct Gen_Storage <:Storage
     FOR::Float64
     MTTR::Int64
 
-    # Inner Constructors
-    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
-                carryover_eff) = Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
-                                             carryover_eff, 0.0, 24)
-
-    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff) = 
-                Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, 
-                            discharge_eff, 1.0, 0.0, 24)
-
-    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy) = 
-                Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, 1.0, 1.0, 1.0, 0.0, 24)
-
-    Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap) = 
-                Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, "New", 1.0, 1.0, 1.0, 0.0, 24)
-    
-    # Checks
-    function Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy, charge_eff, discharge_eff, 
-                         carryover_eff, FOR, MTTR)
+    # Inner Constructors & Checks
+    function Gen_Storage(name, N, region_name, type, charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap, grid_inj_cap, legacy = "New", 
+        charge_eff = 1.0, discharge_eff = 1.0, carryover_eff = 1.0, FOR = 0.0, MTTR = 24)
 
         0 < N <= 8784 ||
             error("Check the PRAS timesteps (N) passed.")
@@ -353,7 +333,6 @@ get_discharge_efficiency(stor::STOR) where {STOR <: Storage} = fill(stor.dischar
 get_carryover_efficiency(stor::STOR) where {STOR <: Storage} = fill(stor.carryover_eff,1,stor.N)
 
 # Helper Functions
-
 get_outage_rate(stor::STOR) where {STOR <: Storage} = outage_to_rate(stor.FOR,stor.MTTR)
 
 get_λ(stor::STOR) where {STOR <: Storage} = fill(getfield(get_outage_rate(stor),:λ),1,stor.N)
@@ -385,12 +364,6 @@ function get_legacy_storages(stors::Vector{<:Storage}, leg::String)
         return leg_stors
     end
 end
-
-# component_dict = Dict(
-#     Vector{Generator} => (func = get_generators_in_region, vec = Generator[]),
-#     Vector{Storage} => (func = get_storages_in_region, vec = Storage[]),
-#     Vector{Gen_Storage} => (func = get_storages_in_region, vec = Storage[])
-# )
 
 emptyvec(::Vector{<:Generator}) = Generator[]
 
@@ -446,21 +419,9 @@ struct Line
     VSC::Bool
     converter_capacity:: Dict{String, Float64}
     
-    # Inner Constructors
-    Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR) = 
-                            Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR, false, Dict(region_from => 0.0, region_to => 0.0))
-
-    Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy) = 
-                            Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, false, Dict(region_from => 0.0, region_to => 0.0))
-
-    Line(name, N, category, region_from, region_to, forward_cap, backward_cap) = 
-                            Line(name, N, category, region_from, region_to, forward_cap, backward_cap, "New", 0.0, 24, false,  Dict(region_from => 0.0, region_to => 0.0))
-
-    Line(name, N, category, region_from, region_to, forward_cap) =
-                            Line(name, N, category, region_from, region_to, forward_cap, forward_cap, "New", 0.0, 24, false, Dict(region_from => 0.0, region_to => 0.0))
-
-    # Checks
-    function Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy, FOR, MTTR, VSC, converter_capacity)
+    # Inner Constructors & Checks
+    function Line(name, N, category, region_from, region_to, forward_cap, backward_cap, legacy = "New", FOR = 0.0, MTTR = 24, VSC = false, 
+        converter_capacity = Dict(region_from => 0.0, region_to => 0.0))
 
         0 < N <= 8784 ||
             error("Check the PRAS timesteps (N) passed.")
