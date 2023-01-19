@@ -18,18 +18,20 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N:
     ReEDS_data = ReEDSdata(ReEDSfilepath,year);
 
     #######################################################
-    # Load the mapping metadata JSON file
+    # Regions, Lines, and VSC overlay
     # TODO: depend on PRAS regions, not region_array in later functions
     #######################################################
     
-    VSC_append_str,region_array,new_regions = regions_and_load(ReEDS_data,WEATHERYEAR,N)
+    # VSC_append_str,region_array,new_regions = regions_and_load(ReEDS_data,WEATHERYEAR,N)
+    region_array = regions_and_load(ReEDS_data,WEATHERYEAR,N)
+    # new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),year,N,VSC_append_str)
+    all_lines = process_lines(ReEDS_data,get_name.(region_array),year,N)
+    all_lines,regions = process_vsc_lines(all_lines,region_array)
 
-    #######################################################
-    # PRAS lines
-    #######################################################
+    sorted_lines, interface_reg_idxs , interface_line_idxs = get_sorted_lines(all_lines,regions)
+    new_lines, new_interfaces = make_pras_interfaces(sorted_lines,interface_reg_idxs,interface_line_idxs,regions)
+    new_regions = PRAS.Regions{N,PRAS.MW}(get_name.(regions), reduce(vcat,get_load.(regions)));
 
-    new_lines,new_interfaces,interface_line_idxs = process_lines(ReEDS_data,get_name.(region_array),year,N,VSC_append_str)
-    
     #######################################################
     # PRAS Generators
     # **TODO: Should 0 MW generators be allowed after disaggregation?
@@ -55,7 +57,7 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N:
     # PRAS Timestamps
     #######################################################
     @info "Processing PRAS timestamps..."
-    first_ts = TimeZones.ZonedDateTime(year, 01, 01, 00, TimeZones.tz"UTC") #US/Eastern switch to EST/EDT
+    first_ts = TimeZones.ZonedDateTime(year, 01, 01, 00, TimeZones.tz"UTC") #US/Eastern switch to EST/EDT #@str"NewYork/America"
     last_ts = first_ts + Dates.Hour(N-1)
     my_timestamps = StepRange(first_ts, Dates.Hour(1), last_ts)
 
@@ -75,6 +77,8 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N:
                                     area_genstor_idxs, new_lines,interface_line_idxs,my_timestamps);
     return pras_system
 end
+
+# function 
 
 function all_gens_to_pras(all_gens::Vector{<:ReEDS2PRAS.Generator},region_array::Vector,N::Int)
     sorted_gens, area_gen_idxs = get_sorted_components(all_gens,get_name.(region_array)); #TODO: is typing still wrong?
@@ -102,26 +106,16 @@ function regions_and_load(ReEDS_data::CEMdata,weather_year::Int, N::Int)
     @info "Processing regions and pseudoregions (if VSC) in the mapping file into PRAS regions..."
     region_array = [Region(r,N,floor.(Int,load_year[idx,:])) for (idx,r) in enumerate(regions)]
 
-    converter_data = get_converter_capacity_data(ReEDS_data)
-    VSC_append_str = "_VSC"; #necessary for naming and distinguishing VSC overlay and associated pseudoregions
-    pseudoregions = [string(i)*VSC_append_str for i in converter_data[!,"r"]]
-    if length(pseudoregions) > 0  #check if this dataframe is empty, so for a non-VSC case we can ignore
-        VSC_regions = []
-        for r in regions
-            push!(region_array,Region(r*VSC_append_str,N,zeros(Int,N)))#should be an array of 0s for the load for pseudoregions
-            push!(VSC_regions,r*VSC_append_str)#the region list must also be expanded
-        end
-        for r in VSC_regions
-            push!(regions,r)
-        end
-    end
-    return (VSC_append_str,region_array,PRAS.Regions{N,PRAS.MW}(get_name.(region_array),reduce(vcat,(get_load.(region_array)))))
+    return region_array
 end
 
-function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},year::Int,N::Int,VSC_append_str::String)
+function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},year::Int,N::Int)
     @info "Processing lines..."
 
-    line_base_cap_data = get_line_capacity_data(ReEDS_data);
+    line_base_cap_data = get_line_capacity_data(ReEDS_data)
+    converter_capacity_data = get_converter_capacity_data(ReEDS_data)
+    converter_capacity_dict = Dict(converter_capacity_data[!,"r"] .=> converter_capacity_data[!,"MW"])
+    @info "converter_cap is $(converter_capacity_data)"
     ####################################################### 
     # PRAS lines
     ####################################################### 
@@ -149,47 +143,24 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},yea
     # end
     # system_line_naming_data = DataFrames.subset(line_base_cap_data,keep_line(line_base_cap_data.r, line_base_cap_data.rr, region_idxs))
 
+    # closure - keep_line() function has region line information embedded and instructions. 
+
     system_line_naming_data = DataFrames.combine(DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]), :MW => sum) #split-apply-combine b/c some lines have same name convention
 
     lines_array = Line[];
     for row in eachrow(system_line_naming_data)
         forward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==row.r) .& (line_base_cap_data.rr.==row.rr) .& (line_base_cap_data.trtype.==row.trtype),"MW"])
         backward_cap = sum(line_base_cap_data[(line_base_cap_data.r.==row.rr) .& (line_base_cap_data.rr.==row.r) .& (line_base_cap_data.trtype.==row.trtype),"MW"])
-        
-        if occursin("VSC",row.trtype)
-            rf = row.r*VSC_append_str #line is between pseudoregions for VSC
-            rt = row.rr*VSC_append_str #line is between pseudoregions for VSC 
+
+        name = "$(row.r)_$(row.rr)_$(row.trtype)"        
+        @info "a line $name, with $forward_cap MW fwd and $backward_cap bckwrd in $(row.trtype)"
+        if row.trtype!="VSC-DC"
+            push!(lines_array,Line(name,N,row.trtype,row.r,row.rr,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
         else
-            rf = row.r
-            rt = row.rr
+            push!(lines_array,Line(name,N,row.trtype,row.r,row.rr,forward_cap,backward_cap,"Existing",0.0,24,true,Dict(row.r => converter_capacity_dict[row.r], row.rr => converter_capacity_dict[row.rr])))
         end
-        name = "$(rf)_$(rt)_$(row.trtype)"
-        
-        # @info "a line $name, with $forward_cap MW fwd and $backward_cap bckwrd in $(row.trtype)"
-        push!(lines_array,Line(name,N,row.trtype,rf,rt,forward_cap,backward_cap,"Existing",0.0,24))#for and mttr will be defaults
     end
-
-    #also create lines for the pseudoregions - region tx capacity
-    line_base_cap_data = get_converter_capacity_data(ReEDS_data)
-    for row in eachrow(line_base_cap_data) #if empty, this shouldn't iterate
-        category = "VSC DC-AC converter" #this has to match the available type name in types.jl
-        name = "$(row.r*VSC_append_str)_$(row.r)_$(category)"
-        @info "a pseudoregion to region line $name, with $(row.MW) MW fwd and $(row.MW) bckwrd in $category"
-        push!(lines_array,Line(name,N,category,row.r*VSC_append_str,row.r,row.MW,row.MW,"Existing",0.0,24))
-    end
-
-    sorted_regional_lines,temp_regions_tuple,interface_line_idxs = get_sorted_lines(lines_array,regions)
-
-    line_forward_capacity_array = reduce(vcat,get_forward_capacity.(sorted_regional_lines))
-    line_backward_capacity_array = reduce(vcat,get_backward_capacity.(sorted_regional_lines))
-    λ_lines = reduce(vcat,get_λ.(sorted_regional_lines))
-    μ_lines = reduce(vcat,get_μ.(sorted_regional_lines))
-    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_regional_lines), get_category.(sorted_regional_lines), line_forward_capacity_array, line_backward_capacity_array, λ_lines, μ_lines)
-
-    @info "Making PRAS Interfaces..."
-    new_interfaces = make_pras_interfaces(sorted_regional_lines,temp_regions_tuple,interface_line_idxs,regions)
-    
-    return (new_lines,new_interfaces,interface_line_idxs)
+    return lines_array
 end
 
 function expand_vg_types!(vgl::Vector{<:AbstractString},vgt::Vector)
