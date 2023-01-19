@@ -7,10 +7,6 @@ function clean_names!(input_vec::Vector{<:AbstractString})
     return input_vec
 end
 
-function expand_types!(vg_vec::Vector{<:AbstractString},N::Int64)
-    return vec(["$(a)_$(n)" for a in vg_vec, n in 1:N])
-end
-
 function Load_EIA_NEMS_DB(ReEDS_directory::String)
     EIA_NEMS_loc = joinpath(ReEDS_directory,"inputs","capacitydata","ReEDS_generator_database_final_EIA-NEMS.csv"); #there is also a _prm file, not sure which is right?
     EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc));
@@ -108,7 +104,20 @@ end
 function get_forced_outage_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"inputs_case","outage_forced.csv")
     isfile(filepath) || error("No forced outage data is found.")
-    return DataFrames.DataFrame(CSV.File(filepath,header=false))
+    df = DataFrames.DataFrame(CSV.File(filepath,header=false))
+    return DataFrames.rename!(df,["ResourceType","FOR"]) #update to give meaningful column names
+end
+
+function get_valid_resources(data::ReEDSdata)
+    filepath = joinpath(data.ReEDSfilepath,"inputs_case","resources.csv")
+    isfile(filepath) || error("No resource table is found.")
+    return DataFrames.DataFrame(CSV.File(filepath))
+end
+
+function get_technology_types(data::ReEDSdata)
+    filepath = joinpath(data.ReEDSfilepath,"inputs_case","tech-subset-table.csv")
+    isfile(filepath) || error("no table of technology types!")
+    return DataFrames.DataFrame(CSV.File(filepath))
 end
 
 function get_line_capacity_data(data::ReEDSdata)
@@ -120,12 +129,6 @@ end
 function get_converter_capacity_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","cap_converter_"*string(data.year)*".csv")
     isfile(filepath) || error("The year $(data.year) does not have capacity converter data. Are you sure ReEDS was run and Augur results saved for $(data.year)?")
-    return DataFrames.DataFrame(CSV.File(filepath))
-end
-
-function get_technology_types(data::ReEDSdata)
-    filepath = joinpath(data.ReEDSfilepath,"inputs_case","tech-subset-table.csv")
-    isfile(filepath) || error("no table of technology types!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 

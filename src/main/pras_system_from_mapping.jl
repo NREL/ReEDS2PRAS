@@ -42,11 +42,12 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N:
 
     @info "reading in ReEDS generator-type forced outage data..."
     forced_outage_data = get_forced_outage_data(ReEDS_data)
+    forced_outage_dict = Dict(forced_outage_data[!,"ResourceType"] .=> forced_outage_data[!,"FOR"])
 
     @info "reading thermals..."
-    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_data,N,year,NEMS_path)
+    therm_gens = process_thermals_with_disaggregation(thermal,forced_outage_dict,N,year,NEMS_path)
     @info "reading vg..."
-    all_gens = process_vg(therm_gens,vg,forced_outage_data,ReEDS_data,year,WEATHERYEAR,N,min_year)
+    all_gens = process_vg(therm_gens,vg,forced_outage_dict,ReEDS_data,year,WEATHERYEAR,N,min_year)
     @info "...vg read, translating to PRAS gens"
     new_generators,area_gen_idxs = all_gens_to_pras(all_gens,region_array,N)
 
@@ -62,7 +63,7 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N:
     # PRAS Storages
     #######################################################
     @info "Processing Storages..."
-    area_stor_idxs,new_storage = process_storages(storage,forced_outage_data,ReEDS_data,N,get_name.(region_array),year)
+    area_stor_idxs,new_storage = process_storages(storage,forced_outage_dict,ReEDS_data,N,get_name.(region_array),year)
     
     #######################################################
     # PRAS GeneratorStorages
@@ -98,21 +99,14 @@ function regions_and_load(ReEDS_data::CEMdata,weather_year::Int, N::Int)
     load_year = load_data[:,indices[1:N]]; #should be regionsX8760, which is now just enforced
     
     #should the regions be processed from the generators?
-    @info "Processing Areas in the mapping file into PRAS regions..."
+    @info "Processing regions and pseudoregions (if VSC) in the mapping file into PRAS regions..."
     region_array = [Region(r,N,floor.(Int,load_year[idx,:])) for (idx,r) in enumerate(regions)]
-    # region_array = []
-    # for (idx,r) in enumerate(regions)
-    #     push!(region_array,Region(r,N,floor.(Int,load_year[idx,:])))
-    # end
 
-    @info "Processing pseudoregions for VSC lines, if applicable..."
-    # Load the capacity converter data, since for VSC we have to create pseudo-regions from this data
     converter_data = get_converter_capacity_data(ReEDS_data)
-    #check if this dataframe is empty, so for a non-VSC case we can ignore
     VSC_append_str = "_VSC"; #necessary for naming and distinguishing VSC overlay and associated pseudoregions
     pseudoregions = [string(i)*VSC_append_str for i in converter_data[!,"r"]]
-    if length(pseudoregions) > 0
-        VSC_regions = [];
+    if length(pseudoregions) > 0  #check if this dataframe is empty, so for a non-VSC case we can ignore
+        VSC_regions = []
         for r in regions
             push!(region_array,Region(r*VSC_append_str,N,zeros(Int,N)))#should be an array of 0s for the load for pseudoregions
             push!(VSC_regions,r*VSC_append_str)#the region list must also be expanded
@@ -198,19 +192,26 @@ function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},yea
     return (new_lines,new_interfaces,interface_line_idxs)
 end
 
+function expand_vg_types!(vgl::Vector{<:AbstractString},vgt::Vector)
+    #TODO: vgt/vgl check
+    return vec(["$(a)" for a in vgt])
+end
+
 function split_generator_types(ReEDS_data::CEMdata,year::Int64)
 
     tech_types_data = get_technology_types(ReEDS_data)
     capacity_data = get_ICAP_data(ReEDS_data)
+    vg_resource_types = get_valid_resources(ReEDS_data)
 
     vg_types = DataFrames.dropmissing(tech_types_data,:VRE)[:,"Column1"]
-    vg_types = vg_types[vg_types .!= "csp-ns"]#csp-ns causes problems, so delete for now
+    # vg_types = vg_types[vg_types .!= "csp-ns"]#csp-ns causes problems, so delete for now
     storage_types = DataFrames.dropmissing(tech_types_data,:STORAGE)[:,"Column1"]
 
     #clean vg/storage capacity on a regex, though there might be a better way...    
     clean_names!(vg_types)
     clean_names!(storage_types)
-    vg_types = expand_types!(vg_types,15) #expand so names will match
+    #vg_types = expand_types!(vg_types,15) #expand so names will match
+    vg_types = expand_vg_types!(vg_types,unique(vg_resource_types.i)) 
 
     vg_capacity = capacity_data[(findall(in(vg_types),capacity_data.i)),:]
     storage_capacity = capacity_data[(findall(in(storage_types),capacity_data.i)),:]
@@ -218,23 +219,19 @@ function split_generator_types(ReEDS_data::CEMdata,year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,N::Int,year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
+function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_dict::Dict,N::Int,year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     thermal_builds = DataFrames.combine(DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
     EIA_db = Load_EIA_NEMS_DB(NEMS_path)
     
-    all_generators = Generator[];
-    native_FOR_data = FOR_data[!,"Column1"];
-    lowercase_FOR_data = [lowercase(i) for i in FOR_data[!,"Column1"]];
+    all_generators = Generator[]
+    lowercase_FOR_dict = Dict([lowercase(i) for i in keys(FOR_dict)] .=> values(FOR_dict))
     for row in eachrow(thermal_builds) #this loop gets the FOR for each build/tech
-        #TODO: eventually, it'd be nice to lookup/pass the FOR (as dict?) and N
         @info "$(row.i) $(row.r) $(row.MW_sum) MW to disaggregate..."
-        if row.i in native_FOR_data
-            for_idx = findfirst(x->x==row.i,native_FOR_data)#get the idx
-            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
-        elseif row.i in lowercase_FOR_data
-            for_idx = findfirst(x->x==row.i,lowercase_FOR_data)#get the idx
-            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+        if row.i in keys(FOR_dict)#native_FOR_data
+            gen_for = FOR_dict[row.i]
+        elseif row.i in keys(lowercase_FOR_dict)
+            gen_for = lowercase_FOR_dict[row.i]
         else
             gen_for = 0.05
             @info "for $(row.i) $(row.r), no gen_for is found in data, so $gen_for is used"
@@ -245,7 +242,7 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
-function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,year::Int,weather_year::Int,N::Int,min_year::Int)
+function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_dict::Dict,ReEDS_data::CEMdata,year::Int,weather_year::Int,N::Int,min_year::Int)
     #data loads
     region_mapper_df = get_region_mapping(ReEDS_data);
     cf_info = get_vg_cf_data(ReEDS_data);#load is now picked up from augur
@@ -268,9 +265,8 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
         profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1];
         size_comp = size(vg_profiles)[1];
         profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)];
-        if category in FOR_data[!,"Column1"]
-            for_idx = findfirst(x->x==category,FOR_data[!,"Column1"])#get the index
-            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+        if category in keys(FOR_dict)
+            gen_for = FOR_dict[category]
         else
             gen_for = .05;
         end
@@ -286,7 +282,7 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
     return generators_array
 end
 
-function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFrames.DataFrame,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},year::Int64)
+function process_storages(storage_builds::DataFrames.DataFrame,FOR_dict::Dict,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},year::Int64)
     
     @info "handling energy capacity of storages"
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
@@ -295,9 +291,8 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_data::DataFra
     storages_array = Storage[];
     for (idx,row) in enumerate(eachrow(storage_builds))
         name = "$(string(row.i))_$(string(row.r))"
-        if string(row.i) in FOR_data[!,"Column1"]
-            for_idx = findfirst(x->x==string(row.i),FOR_data[!,"Column1"])#get the idx
-            gen_for = FOR_data[for_idx,"Column2"]#pull the FOR
+        if string(row.i) in keys(FOR_dict)
+            gen_for = FOR_dict[string(row.i)]
         else
             gen_for = 0.0;
             @info "did not find FOR for storage $name $(row.r) $(row.i), so setting FOR to default value $gen_for"
