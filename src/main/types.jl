@@ -49,12 +49,6 @@ struct Region
     end
 end
 
-# For illustration purposes
-Region(nothing) =  Region("region_1",10,fill(100.0,10))
-
-# Getter Functions (to make broadcasting easier??)
-# According to Gord's comment - Do we need these for Region?
-
 get_name(reg::Region) = reg.name
 
 get_load(reg::Region) =  permutedims(round.(Int,reg.load))
@@ -585,8 +579,8 @@ function make_pras_interfaces(sorted_lines::Vector{Line},interface_reg_idxs::Vec
     interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
 
     for i in 1:num_interfaces
-    interface_forward_capacity_array[i,:] =  sum(line_forward_cap[interface_line_idxs[i],:],dims=1)
-    interface_backward_capacity_array[i,:] =  sum(line_backward_cap[interface_line_idxs[i],:],dims=1)
+        interface_forward_capacity_array[i,:] =  sum(line_forward_cap[interface_line_idxs[i],:],dims=1)
+        interface_backward_capacity_array[i,:] =  sum(line_backward_cap[interface_line_idxs[i],:],dims=1)
     end
 
     new_interfaces = PRAS.Interfaces{N,PRAS.MW}(interface_regions_from, interface_regions_to, interface_forward_capacity_array, interface_backward_capacity_array);

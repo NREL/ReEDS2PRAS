@@ -52,19 +52,20 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     return generators_array
 end
 
-function add_new_capacity!(generators_array::Vector{<:Any},new_capacity::Int,avg::Int,max::Int,tech::String,pca::String,gen_for::Float64,N::Int,year::Int,MTTR::Int)
-    if avg==0
+function add_new_capacity!(generators_array::Vector{<:Any},new_capacity::Int,existing_avg_unit_cap::Int,max::Int,tech::String,pca::String,gen_for::Float64,N::Int,year::Int,MTTR::Int)
+
+    if existing_avg_unit_cap==0 #if there are no existing units to determine size of new unit(s), build all new capacity as a single generator
         return push!(generators_array,Thermal_Gen("$(tech)_$(pca)_new_1",N,pca,new_capacity,tech,"New",gen_for,MTTR))
     end
     
-    n_gens = floor(Int,new_capacity/avg);
+    n_gens = floor(Int,new_capacity/existing_avg_unit_cap);
     if n_gens==0
         return push!(generators_array,Thermal_Gen("$(tech)_$(pca)_new_1",N,pca,new_capacity,tech,"New",gen_for,MTTR))
     end
 
-    remainder = new_capacity-(n_gens*avg);
+    remainder = new_capacity-(n_gens*existing_avg_unit_cap);
     addtl_cap_per_gen = floor(Int,remainder/n_gens);
-    per_gen_cap = avg+addtl_cap_per_gen;
+    per_gen_cap = existing_avg_unit_cap+addtl_cap_per_gen;
     for i in range(1,n_gens)
         push!(generators_array,Thermal_Gen("$(tech)_$(pca)_new_$(i)",N,pca,per_gen_cap,tech,"New",gen_for,MTTR))
     end
@@ -77,8 +78,7 @@ function add_new_capacity!(generators_array::Vector{<:Any},new_capacity::Int,avg
     return generators_array
 end
 
-abstract type CEMdata end
-struct ReEDSdata <:CEMdata
+struct ReEDSdata
     ReEDSfilepath::String
     year::Int
 

@@ -24,7 +24,7 @@ function reeds_to_pras(ReEDSfilepath::String, year::Int64, NEMS_path::String, N:
     return create_pras_system(regions,all_lines,all_gens,storages_array,genstor_array,N,year)
 end
 
-function create_objects(ReEDS_data::CEMdata,WEATHERYEAR::Int,N::Int,year::Int,NEMS_path::String,min_year::Int)
+function create_objects(ReEDS_data,WEATHERYEAR::Int,N::Int,year::Int,NEMS_path::String,min_year::Int)
     
     #######################################################
     # Create regions and associate load profiles
@@ -128,7 +128,7 @@ function create_pras_system(regions::Vector{Region},lines::Vector{Line},gens::Ve
                                         
 end
 
-function process_regions_and_load(ReEDS_data::CEMdata,weather_year::Int, N::Int)
+function process_regions_and_load(ReEDS_data,weather_year::Int, N::Int)
 
     load_info = get_load_file(ReEDS_data)
     load_data = load_info["block0_values"]
@@ -142,7 +142,7 @@ function process_regions_and_load(ReEDS_data::CEMdata,weather_year::Int, N::Int)
     return [Region(r,N,floor.(Int,load_year[idx,:])) for (idx,r) in enumerate(regions)]
 end
 
-function process_lines(ReEDS_data::CEMdata,regions::Vector{<:AbstractString},year::Int,N::Int)
+function process_lines(ReEDS_data,regions::Vector{<:AbstractString},year::Int,N::Int)
 
     line_base_cap_data = get_line_capacity_data(ReEDS_data)
     converter_capacity_data = get_converter_capacity_data(ReEDS_data)
@@ -204,7 +204,7 @@ function expand_vg_types!(vgl::Vector{<:AbstractString},vgt::Vector)
     return vec(["$(a)" for a in vgt])
 end
 
-function split_generator_types(ReEDS_data::CEMdata,year::Int64)
+function split_generator_types(ReEDS_data,year::Int64)
 
     tech_types_data = get_technology_types(ReEDS_data)
     capacity_data = get_ICAP_data(ReEDS_data)
@@ -249,9 +249,10 @@ function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFra
     return all_generators
 end
 
-function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_dict::Dict,ReEDS_data::CEMdata,year::Int,weather_year::Int,N::Int,min_year::Int)
+function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::DataFrames.DataFrame,FOR_dict::Dict,ReEDS_data,year::Int,weather_year::Int,N::Int,min_year::Int)
     #data loads
     region_mapper_df = get_region_mapping(ReEDS_data)
+    region_mapper_dict = Dict(region_mapper_df[!,"rs"] .=> region_mapper_df[!,"*r"])
     cf_info = get_vg_cf_data(ReEDS_data)#load is now picked up from augur
     
     vg_profiles = cf_info["block0_values"]
@@ -262,13 +263,13 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
     for row in eachrow(vg_builds)
         category = string(row.i)
         name = "$(category)_$(string(row.r))"
-        slicer = findfirst(isequal(string(row.r)), region_mapper_df[:,"rs"])
-
-        if !isnothing(slicer)
-            region = region_mapper_df[slicer,"*r"]
+        
+        if string(row.r) in keys(region_mapper_dict)
+            region = region_mapper_dict[string(row.r)]
         else
             region = string(row.r)
         end
+
         profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
         size_comp = size(vg_profiles)[1]
         profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)]
@@ -277,19 +278,14 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
         else
             gen_for = .05
         end
-
-        if !isnothing(slicer)
-            name = "$(name)_$(string(region_mapper_df[slicer,"*r"]))_" #add the region to the name
-        else
-            name = "$(name)_" #append for matching reasons
-        end
+        name = "$(name)_"
         
         push!(generators_array,VG_Gen(name,N,region,maximum(profile),profile,category,"New",gen_for,24)) 
     end
     return generators_array
 end
 
-function process_storages(storage_builds::DataFrames.DataFrame,FOR_dict::Dict,ReEDS_data::CEMdata,N::Int,regions::Vector{<:AbstractString},year::Int64)
+function process_storages(storage_builds::DataFrames.DataFrame,FOR_dict::Dict,ReEDS_data,N::Int,regions::Vector{<:AbstractString},year::Int64)
     
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
     energy_capacity_df = DataFrames.combine(DataFrames.groupby(storage_energy_capacity_data, ["i","r"]), :MWh => sum) #split-apply-combine to handle differently vintaged entries
