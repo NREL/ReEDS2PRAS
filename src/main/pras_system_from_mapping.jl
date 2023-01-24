@@ -149,10 +149,12 @@ function process_lines(ReEDS_data,regions::Vector{<:AbstractString},year::Int,N:
     converter_capacity_dict = Dict(converter_capacity_data[!,"r"] .=> converter_capacity_data[!,"MW"])
 
     #add 0 converter capacity for regions that lack a converter
-    for reg in regions
-        if !(reg in keys(converter_capacity_dict))
-            @info "$reg does not have VSC converter capacity, so adding a 0"
-            converter_capacity_dict[string(reg)] = 0
+    if length(keys(converter_capacity_dict))>0
+        for reg in regions
+            if !(reg in keys(converter_capacity_dict))
+                @info "$reg does not have VSC converter capacity, so adding a 0"
+                converter_capacity_dict[string(reg)] = 0
+            end
         end
     end
 
