@@ -107,7 +107,9 @@ end
 
 function compare_line_capacities(pras_system::PRAS.SystemModel,ReEDSfilepath,year::Int)
     ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year);
-    line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
+    # line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
+    line_data = ReEDS2PRAS.get_prm_line_capacity_data(ReEDS_data)
+    line_df = line_data[(line_data.year.==year),:]
 
     for row in eachrow(line_df)
         r1_vec = occursin.("$(row.r)_",pras_system.lines.names);

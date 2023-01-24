@@ -108,6 +108,12 @@ function get_forced_outage_data(data::ReEDSdata)
     return DataFrames.rename!(df,["ResourceType","FOR"]) #update to give meaningful column names
 end
 
+function get_upgrade_link(data::ReEDSdata)
+    filepath = joinpath(data.ReEDSfilepath,"inputs_case","upgrade_link.csv")
+    isfile(filepath) || error("No data linking refurbishment/upgrades is found.")
+    return DataFrames.DataFrame(CSV.File(filepath))
+end
+
 function get_valid_resources(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"inputs_case","resources.csv")
     isfile(filepath) || error("No resource table is found.")
@@ -124,6 +130,13 @@ function get_line_capacity_data(data::ReEDSdata)
     filepath = joinpath(data.ReEDSfilepath,"ReEDS_Augur","augur_data","tran_cap_$(string(data.year)).csv")
     isfile(filepath) || error("The year $(data.year) does not have transmission capacity data. Are you sure ReEDS was run and Augur results saved for $(data.year)?")
     return DataFrames.DataFrame(CSV.File(filepath))
+end
+
+function get_prm_line_capacity_data(data::ReEDSdata)
+    filepath = joinpath(data.ReEDSfilepath,"outputs","tran_cap_prm.csv")
+    isfile(filepath) || error("The year $(data.year) does not have PRM transmission capacity data. Are you sure ReEDS was run and output results saved for $(data.year)?")
+    df = DataFrames.DataFrame(CSV.File(filepath))
+    return DataFrames.rename!(df,["r","rr","trtype","year","MW"])
 end
 
 function get_converter_capacity_data(data::ReEDSdata)

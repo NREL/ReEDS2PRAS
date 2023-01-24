@@ -53,7 +53,7 @@ function create_objects(ReEDS_data,WEATHERYEAR::Int,N::Int,year::Int,NEMS_path::
     forced_outage_dict = Dict(forced_outage_data[!,"ResourceType"] .=> forced_outage_data[!,"FOR"])
 
     @info "reading thermals..."
-    thermal_gens = process_thermals_with_disaggregation(thermal,forced_outage_dict,N,year,NEMS_path)
+    thermal_gens = process_thermals_with_disaggregation(ReEDS_data,thermal,forced_outage_dict,N,year,NEMS_path)
     @info "reading vg..."
     gens_array = process_vg(thermal_gens,variable_gens,forced_outage_dict,ReEDS_data,year,WEATHERYEAR,N,min_year)
 
@@ -144,7 +144,10 @@ end
 
 function process_lines(ReEDS_data,regions::Vector{<:AbstractString},year::Int,N::Int)
 
-    line_base_cap_data = get_line_capacity_data(ReEDS_data)
+    # line_base_cap_data = get_line_capacity_data(ReEDS_data)
+    line_prm_cap_data = get_prm_line_capacity_data(ReEDS_data)
+    line_base_cap_data = line_prm_cap_data[(line_prm_cap_data.year.==year),:] #only for the active year
+
     converter_capacity_data = get_converter_capacity_data(ReEDS_data)
     converter_capacity_dict = Dict(converter_capacity_data[!,"r"] .=> converter_capacity_data[!,"MW"])
 
@@ -228,22 +231,31 @@ function split_generator_types(ReEDS_data,year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_dict::Dict,N::Int,year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
+function process_thermals_with_disaggregation(ReEDS_data,thermal_builds::DataFrames.DataFrame,FOR_dict::Dict,N::Int,year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     thermal_builds = DataFrames.combine(DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
     EIA_db = Load_EIA_NEMS_DB(NEMS_path)
+
+    link_data = get_upgrade_link(ReEDS_data)
+    link_dict = Dict([lowercase(i) for i in link_data[!,"*TO"]] .=> [lowercase(i) for i in link_data[!,"DELTA"]])
     
     all_generators = Generator[]
     lowercase_FOR_dict = Dict([lowercase(i) for i in keys(FOR_dict)] .=> values(FOR_dict))
     for row in eachrow(thermal_builds) #this loop gets the FOR for each build/tech
-        # @info "$(row.i) $(row.r) $(row.MW_sum) MW to disaggregate..."
-        if row.i in keys(FOR_dict)#native_FOR_data
-            gen_for = FOR_dict[row.i]
-        elseif row.i in keys(lowercase_FOR_dict)
-            gen_for = lowercase_FOR_dict[row.i]
+        #upgrade mapping
+        if row.i in keys(link_dict)
+            FOR_map_val = link_dict[row.i]
+        else
+            FOR_map_val = row.i
+        end
+        
+        if FOR_map_val in keys(FOR_dict)#native_FOR_data
+            gen_for = FOR_dict[FOR_map_val]
+        elseif FOR_map_val in keys(lowercase_FOR_dict)
+            gen_for = lowercase_FOR_dict[FOR_map_val]
         else
             gen_for = 0.05
-            @info "for $(row.i) $(row.r), no gen_for is found in data, so $gen_for is used"
+            @info "for $(row.i), mapped, to $(FOR_map_val), and region $(row.r), no gen_for is found in data, so $gen_for is used"
         end
         generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,year)
         append!(all_generators,generator_array)
@@ -261,10 +273,10 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
     start_idx = (weather_year-min_year)*N
 
     vg_builds = DataFrames.combine(DataFrames.groupby(vg_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
-
     for row in eachrow(vg_builds)
         category = string(row.i)
         name = "$(category)_$(string(row.r))"
+
         
         if string(row.r) in keys(region_mapper_dict)
             region = region_mapper_dict[string(row.r)]
@@ -275,10 +287,12 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
         profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
         size_comp = size(vg_profiles)[1]
         profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)]
+
         if category in keys(FOR_dict)
             gen_for = FOR_dict[category]
         else
-            gen_for = .05
+            gen_for = .00 #make this 0 for vg if no match
+            # @info "for $(row.i), and region $(row.r), no gen_for is found in data, so $gen_for is used"
         end
         name = "$(name)_"
         
