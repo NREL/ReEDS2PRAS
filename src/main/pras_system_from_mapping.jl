@@ -144,9 +144,9 @@ end
 
 function process_lines(ReEDS_data,regions::Vector{<:AbstractString},year::Int,N::Int)
 
-    # line_base_cap_data = get_line_capacity_data(ReEDS_data)
-    line_prm_cap_data = get_prm_line_capacity_data(ReEDS_data)
-    line_base_cap_data = line_prm_cap_data[(line_prm_cap_data.year.==year),:] #only for the active year
+    line_base_cap_data = get_line_capacity_data(ReEDS_data)
+    # line_prm_cap_data = get_prm_line_capacity_data(ReEDS_data)
+    # line_base_cap_data = line_prm_cap_data[(line_prm_cap_data.year.==year),:] #only for the active year
 
     converter_capacity_data = get_converter_capacity_data(ReEDS_data)
     converter_capacity_dict = Dict(converter_capacity_data[!,"r"] .=> converter_capacity_data[!,"MW"])
@@ -156,33 +156,17 @@ function process_lines(ReEDS_data,regions::Vector{<:AbstractString},year::Int,N:
         for reg in regions
             if !(reg in keys(converter_capacity_dict))
                 @info "$reg does not have VSC converter capacity, so adding a 0"
-                converter_capacity_dict[string(reg)] = 0
+                converter_capacity_dict[String(reg)] = 0
             end
         end
     end
 
-    system_line_idx = []
-    region_idxs = Dict(regions .=> range(1,length(regions)))
-    for (idx,row) in enumerate(eachrow(line_base_cap_data))
-        from_idx = region_idxs[row.r]
-        to_idx = region_idxs[row.rr]
-        if (~(isnothing(from_idx)) && ~(isnothing(to_idx)) && (from_idx < to_idx))
-            push!(system_line_idx,idx)
-        end
+    function keep_line(from_pca, to_pca)
+        from_idx = findfirst(x->x==from_pca,regions)
+        to_idx = findfirst(x->x==to_pca,regions)
+        return ~isnothing(from_idx) && ~isnothing(to_idx) && (from_idx < to_idx)
     end
-    #order is assumed preserved in splitting these dfs for now but should likely be checked
-    system_line_naming_data = line_base_cap_data[system_line_idx,:] # all line capacities
-
-    ###TODO: THERE IS A BETTER WAY HERE BUT I NEED TO UNDERSTAND SUBSET IN JULIA 
-    # function keep_line(from_pca, to_pca, region_idxs)
-    #     from_idx = region_idxs[from_pca]
-    #     to_idx = region_idxs[to_pca]
-    #     return ~isnothing(from_idx) && ~isnothing(to_idx) && (from_idx < to_idx)
-    # end
-    # system_line_naming_data = DataFrames.subset(line_base_cap_data,keep_line(line_base_cap_data.r, line_base_cap_data.rr, region_idxs))
-
-    # closure - keep_line() function has region line information embedded and instructions. 
-
+    system_line_naming_data = DataFrames.subset(line_base_cap_data, [:r, :rr] => DataFrames.ByRow(keep_line))
     system_line_naming_data = DataFrames.combine(DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]), :MW => sum) #split-apply-combine b/c some lines have same name convention
 
     lines_array = Line[]
@@ -257,7 +241,7 @@ function process_thermals_with_disaggregation(ReEDS_data,thermal_builds::DataFra
             gen_for = 0.05
             @info "for $(row.i), mapped, to $(FOR_map_val), and region $(row.r), no gen_for is found in data, so $gen_for is used"
         end
-        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,year)
+        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),String(row.i),String(row.r),gen_for,N,year)
         append!(all_generators,generator_array)
     end
     return all_generators

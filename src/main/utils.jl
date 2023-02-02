@@ -17,8 +17,9 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,built_capacity::I
     
     MTTR = 24;
     # @info "capacity in for $tech $pca is $built_capacity MW"
-    tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=year) .& (eia_df.StartYear.<=year), :]
-    
+    # tech_ba_year_existing = eia_df[(eia_df.tech.==tech) .& (eia_df.reeds_ba.==pca) .& (eia_df.RetireYear.>=year) .& (eia_df.StartYear.<=year), :]
+    tech_ba_year_existing = DataFrames.subset(eia_df, :tech=>DataFrames.ByRow(==(tech)), :reeds_ba=>DataFrames.ByRow(==(pca)),:RetireYear=>DataFrames.ByRow(>=(year)),:StartYear=>DataFrames.ByRow(<=(year)))
+    # @info "$(tech_ba_year_existing) vs $(t2)"
     if DataFrames.nrow(tech_ba_year_existing)==0
         return [Thermal_Gen("$(tech)_$(pca)_1",N,pca,built_capacity,tech,"New",gen_for,MTTR)]
     end
