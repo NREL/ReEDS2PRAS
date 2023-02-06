@@ -13,7 +13,7 @@ inpath = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs")
 ###
 
 ty = 2035
-tp = joinpath(inpath,"v20220627_NTPg0_AC_DemHi_100by2035__core")
+tp = joinpath(inpath,"ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core")
 psys_LD = ReEDS2PRAS.reeds_to_pras(tp,ty,NP,8760,2012)
 # PRAS.savemodel(psys_LD,joinpath(tp,"outputs","VSC_DemLo_CurrentPolEarlyPhaseout_"*string(ty)*".pras"))
 short,flow = run_pras_system(psys_LD,10)#just two for now to save time but eventually more
