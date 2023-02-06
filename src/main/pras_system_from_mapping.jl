@@ -49,11 +49,12 @@ function create_objects(ReEDS_data,WEATHERYEAR::Int,N::Int,year::Int,NEMS_path::
     thermal,storage,variable_gens = split_generator_types(ReEDS_data,year)
 
     @info "reading in ReEDS generator-type forced outage data..."
+    
     forced_outage_data = get_forced_outage_data(ReEDS_data)
     forced_outage_dict = Dict(forced_outage_data[!,"ResourceType"] .=> forced_outage_data[!,"FOR"])
 
     @info "reading thermals..."
-    thermal_gens = process_thermals_with_disaggregation(thermal,forced_outage_dict,N,year,NEMS_path)
+    thermal_gens = process_thermals_with_disaggregation(ReEDS_data,thermal,forced_outage_dict,N,year,NEMS_path)
     @info "reading vg..."
     gens_array = process_vg(thermal_gens,variable_gens,forced_outage_dict,ReEDS_data,year,WEATHERYEAR,N,min_year)
 
@@ -88,7 +89,7 @@ function create_pras_system(regions::Vector{Region},lines::Vector{Line},gens::Ve
     μ_matrix = reduce(vcat,get_μ.(sorted_gens))
     pras_gens = PRAS.Generators{N,1,PRAS.Hour,PRAS.MW}(get_name.(sorted_gens),get_type.(sorted_gens),capacity_matrix,λ_matrix,μ_matrix)
     ##
-    storages, stor_idxs = get_sorted_components(storages,regions);
+    storages, stor_idxs = get_sorted_components(storages,regions)
 
     stor_charge_cap_array = reduce(vcat,get_charge_capacity.(storages))
     stor_discharge_cap_array = reduce(vcat,get_discharge_capacity.(storages))
@@ -134,17 +135,18 @@ function process_regions_and_load(ReEDS_data,weather_year::Int, N::Int)
     load_data = load_info["block0_values"]
     regions = load_info["block0_items"]
     #To-Do: can get a bug/error here if ReEDS case lacks multiple load years
-    slicer = findfirst(isequal(weather_year), load_info["axis1_level1"]); #slices based on input weather year
-    indices = findall(i->(i==(slicer-1)),load_info["axis1_label1"]); #I think b/c julia indexes from 1 we need -1 here
+    slicer = findfirst(isequal(weather_year), load_info["axis1_level1"]) #slices based on input weather year
+    indices = findall(i->(i==(slicer-1)),load_info["axis1_label1"]) #I think b/c julia indexes from 1 we need -1 here
     
-    load_year = load_data[:,indices[1:N]]; #should be regionsX8760, which is now just enforced
+    load_year = load_data[:,indices[1:N]] #should be regionsX8760, which is now just enforced
 
     return [Region(r,N,floor.(Int,load_year[idx,:])) for (idx,r) in enumerate(regions)]
 end
 
 function process_lines(ReEDS_data,regions::Vector{<:AbstractString},year::Int,N::Int)
 
-    line_base_cap_data = get_line_capacity_data(ReEDS_data)
+    line_base_cap_data = get_line_capacity_data(ReEDS_data) #it is assumed this has prm line capacity data
+
     converter_capacity_data = get_converter_capacity_data(ReEDS_data)
     converter_capacity_dict = Dict(converter_capacity_data[!,"r"] .=> converter_capacity_data[!,"MW"])
 
@@ -153,33 +155,17 @@ function process_lines(ReEDS_data,regions::Vector{<:AbstractString},year::Int,N:
         for reg in regions
             if !(reg in keys(converter_capacity_dict))
                 @info "$reg does not have VSC converter capacity, so adding a 0"
-                converter_capacity_dict[string(reg)] = 0
+                converter_capacity_dict[String(reg)] = 0
             end
         end
     end
 
-    system_line_idx = []
-    region_idxs = Dict(regions .=> range(1,length(regions)))
-    for (idx,row) in enumerate(eachrow(line_base_cap_data))
-        from_idx = region_idxs[row.r]
-        to_idx = region_idxs[row.rr]
-        if (~(isnothing(from_idx)) && ~(isnothing(to_idx)) && (from_idx < to_idx))
-            push!(system_line_idx,idx)
-        end
+    function keep_line(from_pca, to_pca)
+        from_idx = findfirst(x->x==from_pca,regions)
+        to_idx = findfirst(x->x==to_pca,regions)
+        return ~isnothing(from_idx) && ~isnothing(to_idx) && (from_idx < to_idx)
     end
-    #order is assumed preserved in splitting these dfs for now but should likely be checked
-    system_line_naming_data = line_base_cap_data[system_line_idx,:] # all line capacities
-
-    ###TODO: THERE IS A BETTER WAY HERE BUT I NEED TO UNDERSTAND SUBSET IN JULIA 
-    # function keep_line(from_pca, to_pca, region_idxs)
-    #     from_idx = region_idxs[from_pca]
-    #     to_idx = region_idxs[to_pca]
-    #     return ~isnothing(from_idx) && ~isnothing(to_idx) && (from_idx < to_idx)
-    # end
-    # system_line_naming_data = DataFrames.subset(line_base_cap_data,keep_line(line_base_cap_data.r, line_base_cap_data.rr, region_idxs))
-
-    # closure - keep_line() function has region line information embedded and instructions. 
-
+    system_line_naming_data = DataFrames.subset(line_base_cap_data, [:r, :rr] => DataFrames.ByRow(keep_line))
     system_line_naming_data = DataFrames.combine(DataFrames.groupby(system_line_naming_data, ["r","rr","trtype"]), :MW => sum) #split-apply-combine b/c some lines have same name convention
 
     lines_array = Line[]
@@ -219,7 +205,6 @@ function split_generator_types(ReEDS_data,year::Int64)
     #clean vg/storage capacity on a regex, though there might be a better way...    
     clean_names!(vg_types)
     clean_names!(storage_types)
-    #vg_types = expand_types!(vg_types,15) #expand so names will match
     vg_types = expand_vg_types!(vg_types,unique(vg_resource_types.i)) 
 
     vg_capacity = capacity_data[(findall(in(vg_types),capacity_data.i)),:]
@@ -228,24 +213,22 @@ function split_generator_types(ReEDS_data,year::Int64)
     return(thermal_capacity,storage_capacity,vg_capacity)
 end
 
-function process_thermals_with_disaggregation(thermal_builds::DataFrames.DataFrame,FOR_dict::Dict,N::Int,year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
+function process_thermals_with_disaggregation(ReEDS_data,thermal_builds::DataFrames.DataFrame,FOR_dict::Dict,N::Int,year::Int,NEMS_path::String)#FOR_data::DataFrames.DataFrame,
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :] #csp-ns is not a thermal; just drop in for rn
     thermal_builds = DataFrames.combine(DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
     EIA_db = Load_EIA_NEMS_DB(NEMS_path)
-    
+
     all_generators = Generator[]
-    lowercase_FOR_dict = Dict([lowercase(i) for i in keys(FOR_dict)] .=> values(FOR_dict))
     for row in eachrow(thermal_builds) #this loop gets the FOR for each build/tech
-        # @info "$(row.i) $(row.r) $(row.MW_sum) MW to disaggregate..."
-        if row.i in keys(FOR_dict)#native_FOR_data
+
+        if row.i in keys(FOR_dict)
             gen_for = FOR_dict[row.i]
-        elseif row.i in keys(lowercase_FOR_dict)
-            gen_for = lowercase_FOR_dict[row.i]
         else
-            gen_for = 0.05
-            @info "for $(row.i) $(row.r), no gen_for is found in data, so $gen_for is used"
+            gen_for = 0.00 #assume as 0 for gens dropped from ReEDS table
+            @info "CONVENTIONAL GENERATION: for $(row.i), and region $(row.r), no gen_for is found in ReEDS forced outage data, so $gen_for is used"
         end
-        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),string(row.i),string(row.r),gen_for,N,year)
+
+        generator_array = disagg_existing_capacity(EIA_db,floor(Int,row.MW_sum),String(row.i),String(row.r),gen_for,N,year)
         append!(all_generators,generator_array)
     end
     return all_generators
@@ -261,10 +244,10 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
     start_idx = (weather_year-min_year)*N
 
     vg_builds = DataFrames.combine(DataFrames.groupby(vg_builds, ["i","r"]), :MW => sum) #split-apply-combine to handle differently vintaged entries
-
     for row in eachrow(vg_builds)
         category = string(row.i)
         name = "$(category)_$(string(row.r))"
+
         
         if string(row.r) in keys(region_mapper_dict)
             region = region_mapper_dict[string(row.r)]
@@ -275,10 +258,12 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},vg_builds::
         profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
         size_comp = size(vg_profiles)[1]
         profile = vg_profiles[profile_index,(start_idx+1):(start_idx+N)]
+
         if category in keys(FOR_dict)
             gen_for = FOR_dict[category]
         else
-            gen_for = .05
+            gen_for = .00 #make this 0 for vg if no match
+            # @info "VARIABLE GENERATION: for $(row.i), and region $(row.r), no gen_for is found in ReEDS forced outage data, so $gen_for is used"
         end
         name = "$(name)_"
         
@@ -292,17 +277,19 @@ function process_storages(storage_builds::DataFrames.DataFrame,FOR_dict::Dict,Re
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
     energy_capacity_df = DataFrames.combine(DataFrames.groupby(storage_energy_capacity_data, ["i","r"]), :MWh => sum) #split-apply-combine to handle differently vintaged entries
 
-    storages_array = Storage[];
+    storages_array = Storage[]
     for (idx,row) in enumerate(eachrow(storage_builds))
         name = "$(string(row.i))_$(string(row.r))"
         if string(row.i) in keys(FOR_dict)
             gen_for = FOR_dict[string(row.i)]
         else
-            gen_for = 0.0;
-            @info "did not find FOR for storage $name $(row.r) $(row.i), so setting FOR to default value $gen_for"
+            gen_for = 0.0
+            @info "STORAGE: did not find FOR for storage $name $(row.r) $(row.i), so setting FOR to default value $gen_for"
         end 
         name = "$(name)_"#append for later matching
-        push!(storages_array,Battery(name,N,string(row.r),string(row.i),row.MW,row.MW,energy_capacity_df[idx,"MWh_sum"],"New",1,1,1,gen_for,24)) 
+
+        int_duration = round(energy_capacity_df[idx,"MWh_sum"]/row.MW) #as per discussion w/ patrick, find duration of storage, then make energy capacity on that duration?
+        push!(storages_array,Battery(name,N,string(row.r),string(row.i),row.MW,row.MW,round(Int,row.MW)*int_duration,"New",1,1,1,gen_for,24))#energy_capacity_df[idx,"MWh_sum"]
     end
     return storages_array
 end

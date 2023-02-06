@@ -420,7 +420,7 @@ struct Line
         0 < N <= 8784 ||
             error("Check the PRAS timesteps (N) passed.")
 
-        category in ["AC","Two-Terminal","VSC","VSC DC-AC converter"] ||
+        category in ["AC","B2B","LCC","VSC","VSC DC-AC converter"] ||
             error("Check the category of Line passed")
 
         ~(region_from == region_to) ||

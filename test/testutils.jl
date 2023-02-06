@@ -1,7 +1,7 @@
 function capacity_checker(capacity_data::DataFrames.DataFrame,region_map::DataFrames.DataFrame,gentype::String,region::String)
     
     for row in DataFrames.eachrow(capacity_data)
-        slicer = findfirst(isequal(string(row.r)), region_map[:,"rs"]);
+        slicer = findfirst(isequal(String(row.r)), region_map[:,"rs"]);
         if !isnothing(slicer)
             row.r = region_map[slicer,"*r"];
         end
@@ -47,7 +47,7 @@ end
 
 function clean_gentype(input_name::String)
     if occursin("*",input_name)
-        input_name = string(match(r"\*([a-zA-Z]+-*[a-zA-Z]*)_*", input_name)[1]);
+        input_name = String(match(r"\*([a-zA-Z]+-*[a-zA-Z]*)_*", input_name)[1]);
         input_vec = expand_vg_types([input_name],15);
     else
         input_vec = [input_name];
@@ -77,17 +77,17 @@ function compare_generator_capacities(pras_system::PRAS.SystemModel,ReEDSfilepat
     cf_info = ReEDS2PRAS.get_vg_cf_data(ReEDS_data)#load is now picked up from augur
     
     for gentype in unique(capacity_data.i)
-        gentype = string(gentype)
+        gentype = String(gentype)
         for region in pras_system.regions.names
             if occursin(gentype,join(unique(vg_resource_types.i)))#vg only
                 v1 = 0
                 for row in eachrow(vg_resource_types)
-                    if row.i==gentype && haskey(region_mapper_dict, string(row.r))#region_mapper_dict[row.r]==region
-                        if region_mapper_dict[string(row.r)]==region
-                            v1+=vg_capacity_checker(cf_info,gentype,string(row.r))
+                    if row.i==gentype && haskey(region_mapper_dict, String(row.r))#region_mapper_dict[row.r]==region
+                        if region_mapper_dict[String(row.r)]==region
+                            v1+=vg_capacity_checker(cf_info,gentype,String(row.r))
                         end
-                    elseif row.i==gentype && string(row.r)==region
-                        v1+=vg_capacity_checker(cf_info,gentype,string(row.r))
+                    elseif row.i==gentype && String(row.r)==region
+                        v1+=vg_capacity_checker(cf_info,gentype,String(row.r))
                     end
                 end
                 delta = .95
@@ -107,7 +107,9 @@ end
 
 function compare_line_capacities(pras_system::PRAS.SystemModel,ReEDSfilepath,year::Int)
     ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year);
-    line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
+    # line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
+    line_data = ReEDS2PRAS.get_prm_line_capacity_data(ReEDS_data)
+    line_df = line_data[(line_data.year.==year),:]
 
     for row in eachrow(line_df)
         r1_vec = occursin.("$(row.r)_",pras_system.lines.names);
