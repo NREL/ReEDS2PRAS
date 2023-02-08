@@ -11,3 +11,14 @@ Assuming  the user can access the julia REPL and clone ReEDS2PRAS, the other nec
 
 If you have a completed ReEDS run and a REPL with ReEDS2PRAS, an example of running ReEDS to PRAS is provided below
 
+```
+NP = joinpath("/projects/ntps/llavin/ReEDS-2.0") #directory where user has ReEDS. This is used to find the input EIA database for disaggregating generators.
+runpath = joinpath(/projects/ntps/llavin/ReEDS-2.0/runs/ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core") #path to completed ReEDS runs
+ReEDS_solve_year = 2035 #
+Weather_year = 2012 #must be 2007-2013
+Timestamps = 8760
+
+pras_system = ReEDS2PRAS.reeds_to_pras(runpath,ReEDS_solve_year,NP,Timestamps,Weather_year) #returns a parameterized PRAS system
+```
+
+This will save out a pras system to the variable `pras_system` from the ReEDS2PRAS run.
