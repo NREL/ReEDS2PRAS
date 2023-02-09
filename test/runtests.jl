@@ -11,8 +11,5 @@ using TimeZones
 include("testutils.jl")
 
 @testset "ReEDS2PRAS" begin
-    include("ercot/ntpscenarios.jl")
-    # include("ercot/standardscenarios.jl")
-    # include("ercot/toyercot.jl")
-    # include("ercot/ntpscenarios_plot.jl")
+    include("ntptests/ntpscenarios.jl")
 end

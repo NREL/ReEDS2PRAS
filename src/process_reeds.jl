@@ -1,12 +1,8 @@
-#####################################################
 # Surya
 # NREL
 # December 2022
-# ReEDS2PRAS - NTPS
-# Structs to make objects from ReEDS data
-#######################################################
+
 # Converting FOR and MTTR to λ and μ
-#######################################################
 function outage_to_rate(for_gen::Float64,mttr::Int64)
     if (for_gen == 0.0)
         return (λ = 0.0, μ = 1.0)
@@ -25,14 +21,13 @@ function outage_to_rate(for_gen::Float64,mttr::Int64)
         return (λ = λ, μ = μ)
     end
 end
-# Regions
+
 struct Region
     name::String
     N::Int64
     load::Vector{Float64}
 
-    # Inner Constructors
-    # For illustration purposes
+    # Inner Constructors & Checks
     function Region(name, N, load = zeros(Float64,N))
 
         0 < N <= 8784 ||
@@ -55,7 +50,6 @@ get_load(reg::Region) =  permutedims(round.(Int,reg.load))
 
 # Generators
 abstract type Generator end
-# const Generators = Vector{<:Generator}
 
 struct Thermal_Gen <:Generator
     name::String 
@@ -68,7 +62,6 @@ struct Thermal_Gen <:Generator
     MTTR::Int64
 
     # Inner Constructors & Checks
-
     function Thermal_Gen(name, N, region_name, capacity, fuel = "OT", legacy = "New", FOR = 0.0, MTTR = 24)
 
         0 < N <= 8784 ||
@@ -549,42 +542,4 @@ function process_vsc_lines(lines::Vector{Line}, regions::Vector{Region})
         
     end
     return non_vsc_dc_lines,regions
-end
-
-function make_pras_interfaces(sorted_lines::Vector{Line},interface_reg_idxs::Vector{Tuple{Int64, Int64}},interface_line_idxs::Vector{UnitRange{Int64}},
-    regions::Vector{Region})
-    make_pras_interfaces(sorted_lines,interface_reg_idxs,interface_line_idxs, get_name.(regions))
-end
-
-function make_pras_interfaces(sorted_lines::Vector{Line},interface_reg_idxs::Vector{Tuple{Int64, Int64}},interface_line_idxs::Vector{UnitRange{Int64}},
-    region_names::Vector{String})
-
-    num_interfaces = length(interface_reg_idxs);
-    interface_regions_from = first.(interface_reg_idxs);
-    interface_regions_to = last.(interface_reg_idxs);
-
-    N = first(sorted_lines).N
-
-    # Lines
-    line_names = get_name.(sorted_lines)
-    line_cats = get_category.(sorted_lines)
-    line_forward_cap = reduce(vcat,get_forward_capacity.(sorted_lines))
-    line_backward_cap = reduce(vcat,get_backward_capacity.(sorted_lines))
-    line_λ = reduce(vcat,get_λ.(sorted_lines))
-    line_μ = reduce(vcat,get_μ.(sorted_lines))
-
-    new_lines = PRAS.Lines{N,1,PRAS.Hour,PRAS.MW}(line_names, line_cats, line_forward_cap, line_backward_cap, line_λ ,line_μ);
-
-    interface_forward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
-    interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, N);
-
-    for i in 1:num_interfaces
-        interface_forward_capacity_array[i,:] =  sum(line_forward_cap[interface_line_idxs[i],:],dims=1)
-        interface_backward_capacity_array[i,:] =  sum(line_backward_cap[interface_line_idxs[i],:],dims=1)
-    end
-
-    new_interfaces = PRAS.Interfaces{N,PRAS.MW}(interface_regions_from, interface_regions_to, interface_forward_capacity_array, interface_backward_capacity_array);
-
-    return new_lines, new_interfaces
-
 end

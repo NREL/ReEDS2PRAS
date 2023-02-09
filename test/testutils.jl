@@ -68,7 +68,7 @@ end
 
 function compare_generator_capacities(pras_system::PRAS.SystemModel,ReEDSfilepath,year::Int)
     #first actually have to load in case-level capacity data, which may not be passed
-    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year)
+    ReEDS_data = ReEDS2PRAS.ReEDSdatapaths(ReEDSfilepath,year)
 
     capacity_data = ReEDS2PRAS.get_ICAP_data(ReEDS_data)
     region_mapper_df = ReEDS2PRAS.get_region_mapping(ReEDS_data)
@@ -106,7 +106,7 @@ function compare_generator_capacities(pras_system::PRAS.SystemModel,ReEDSfilepat
 end
 
 function compare_line_capacities(pras_system::PRAS.SystemModel,ReEDSfilepath,year::Int)
-    ReEDS_data = ReEDS2PRAS.ReEDSdata(ReEDSfilepath,year);
+    ReEDS_data = ReEDS2PRAS.ReEDSdatapaths(ReEDSfilepath,year);
     # line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
     line_data = ReEDS2PRAS.get_prm_line_capacity_data(ReEDS_data)
     line_df = line_data[(line_data.year.==year),:]
