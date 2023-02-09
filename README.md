@@ -28,4 +28,4 @@ pras_system = ReEDS2PRAS.reeds_to_pras(runpath,ReEDS_solve_year,NP,Timestamps,We
 This will save out a pras system to the variable `pras_system` from the ReEDS2PRAS run.
 
 ## Acknowledgements
-The developers are Luke Lavin and Surya Dhulipala. They acknowlege Gord Stephen for many helpfful comments for improving this package.
+The developers are Luke Lavin and Surya Dhulipala. They acknowlege Gord Stephen for many helpful comments for improving this package.
