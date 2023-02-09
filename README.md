@@ -25,7 +25,7 @@ Timestamps = 8760
 pras_system = ReEDS2PRAS.reeds_to_pras(runpath,ReEDS_solve_year,NP,Timestamps,Weather_year) #returns a parameterized PRAS system
 ```
 
-This will save out a pras system to the variable `pras_system` from the ReEDS2PRAS run.
+This will save out a pras system to the variable `pras_system` from the ReEDS2PRAS run. The user can also save a PRAS system to a specific location using `PRAS.savemodel(pras_system,joinpath("MYPATH"*".pras")`. The saved PRAS system may then be read in by other tools like PRAS Analytics (`https://github.nrel.gov/PRAS/PRAS-Analytics`) for further analysis, post-processing, and plotting.
 
 ## Acknowledgements
 The developers are Luke Lavin and Surya Dhulipala. They acknowlege Gord Stephen for many helpful comments for improving this package.

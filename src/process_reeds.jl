@@ -48,7 +48,6 @@ get_name(reg::Region) = reg.name
 
 get_load(reg::Region) =  permutedims(round.(Int,reg.load))
 
-# Generators
 abstract type Generator end
 
 struct Thermal_Gen <:Generator
@@ -174,7 +173,6 @@ function get_legacy_generators(gens::Vector{<:Generator}, leg::String)
     end
 end
 
-# Storages
 abstract type Storage end
 
 struct Battery <:Storage
@@ -297,21 +295,21 @@ get_legacy(stor::STOR) where {STOR <: Storage} = stor.legacy
 
 get_charge_capacity(stor::Battery) = fill(round(Int,stor.charge_cap),1,stor.N)
 
-get_charge_capacity(stor::Gen_Storage) = fill(round(Int,stor.charge_cap),1,stor.N)#permutedims(round.(Int,stor.charge_cap))
+get_charge_capacity(stor::Gen_Storage) = fill(round(Int,stor.charge_cap),1,stor.N)
 
 get_discharge_capacity(stor::Battery) = fill(round(Int,stor.discharge_cap),1,stor.N)
 
-get_discharge_capacity(stor::Gen_Storage) = fill(round(Int,stor.discharge_cap),1,stor.N)#permutedims(round.(Int,stor.discharge_cap))
+get_discharge_capacity(stor::Gen_Storage) = fill(round(Int,stor.discharge_cap),1,stor.N)
 
 get_energy_capacity(stor::Battery) = fill(round(Int,stor.energy_cap),1,stor.N)
 
-get_energy_capacity(stor::Gen_Storage) = fill(round(Int,stor.energy_cap),1,stor.N)#permutedims(round.(Int,stor.energy_cap))
+get_energy_capacity(stor::Gen_Storage) = fill(round(Int,stor.energy_cap),1,stor.N)
 
-get_inflow(stor::Gen_Storage) = fill(round(Int,stor.inflow),1,stor.N)#permutedims(round.(Int,stor.inflow))
+get_inflow(stor::Gen_Storage) = fill(round(Int,stor.inflow),1,stor.N)
 
-get_grid_withdrawl_capacity(stor::Gen_Storage) = fill(round(Int,stor.grid_withdrawl_cap),1,stor.N)#permutedims(round.(Int,stor.grid_withdrawl_cap))
+get_grid_withdrawl_capacity(stor::Gen_Storage) = fill(round(Int,stor.grid_withdrawl_cap),1,stor.N)
 
-get_grid_injection_capacity(stor::Gen_Storage) = fill(round(Int,stor.grid_inj_cap),1,stor.N)#permutedims(round.(Int,stor.grid_inj_cap))
+get_grid_injection_capacity(stor::Gen_Storage) = fill(round(Int,stor.grid_inj_cap),1,stor.N)
 
 get_charge_efficiency(stor::STOR) where {STOR <: Storage} = fill(stor.charge_eff,1,stor.N)
 
