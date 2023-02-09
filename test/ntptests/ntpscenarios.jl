@@ -9,6 +9,7 @@ WEATHERYEAR = 2008 #2007-2013
 psys_LD = ReEDS2PRAS.reeds_to_pras(tp,ty,NP,8760,WEATHERYEAR)
 
 compare_generator_capacities(psys_LD,tp,ty)
+compare_line_capacities(psys_LD,tp,ty)
 
 #Testing PRAS Analytics can be done, but not as part of ReEDS2PRAS
 # include("/projects/ntps/llavin/PRAS-Analytics/src/PRAS_Analytics.jl") #will only work if you have this path for this test
