@@ -1,14 +1,14 @@
 function capacity_checker(capacity_data::DataFrames.DataFrame,region_map::DataFrames.DataFrame,gentype::String,region::String)
     
     for row in DataFrames.eachrow(capacity_data)
-        slicer = findfirst(isequal(String(row.r)), region_map[:,"rs"]);
+        slicer = findfirst(isequal(String(row.r)), region_map[:,"rs"])
         if !isnothing(slicer)
-            row.r = region_map[slicer,"*r"];
+            row.r = region_map[slicer,"*r"]
         end
     end
     
-    capacity_data_subset = capacity_data[(capacity_data.i.==gentype) .& (capacity_data.r.==region), :];
-    return sum(capacity_data_subset[!,"MW"])# sum the capacity for the input region/gentype
+    capacity_data_subset = capacity_data[(capacity_data.i.==gentype) .& (capacity_data.r.==region), :]
+    return sum(capacity_data_subset[!,"MW"])
 end
 
 function vg_capacity_checker(cf_info::Dict,gentype::String,region::String)
@@ -27,9 +27,9 @@ end
 
 function PRAS_generator_capacity_checker(pras_system,gentype::String,region::String)
 
-    name_vec = -abs.(cmp.(gentype,pras_system.generators.categories)).+1; #exact match is needed to exclude ccs
-    reg_vec = occursin.("$(region)_",pras_system.generators.names);
-    out_vec = .*(name_vec,reg_vec); 
+    name_vec = -abs.(cmp.(gentype,pras_system.generators.categories)).+1 #exact match is needed to exclude ccs
+    reg_vec = occursin.("$(region)_",pras_system.generators.names)
+    out_vec = .*(name_vec,reg_vec) 
     retained_gens = [idx for (idx,val) in enumerate(out_vec) if val==1]
 
     return sum(maximum.(eachrow(pras_system.generators.capacity[Int.(retained_gens),:])))
@@ -37,9 +37,9 @@ end
 
 function PRAS_storage_capacity_checker(pras_system,gentype::String,region::String)
 
-    name_vec = occursin.(gentype,pras_system.storages.names);
-    reg_vec = occursin.("$(region)_",pras_system.storages.names);
-    out_vec = .*(name_vec,reg_vec);
+    name_vec = occursin.(gentype,pras_system.storages.names)
+    reg_vec = occursin.("$(region)_",pras_system.storages.names)
+    out_vec = .*(name_vec,reg_vec)
     retained_gens = [idx for (idx,val) in enumerate(out_vec) if val==1]
 
     return sum(maximum.(eachrow(pras_system.storages.discharge_capacity[Int.(retained_gens),:])))
@@ -47,10 +47,10 @@ end
 
 function clean_gentype(input_name::String)
     if occursin("*",input_name)
-        input_name = String(match(r"\*([a-zA-Z]+-*[a-zA-Z]*)_*", input_name)[1]);
-        input_vec = expand_vg_types([input_name],15);
+        input_name = String(match(r"\*([a-zA-Z]+-*[a-zA-Z]*)_*", input_name)[1])
+        input_vec = expand_vg_types([input_name],15)
     else
-        input_vec = [input_name];
+        input_vec = [input_name]
     end
     return input_vec
 end
@@ -74,7 +74,7 @@ function compare_generator_capacities(pras_system::PRAS.SystemModel,ReEDSfilepat
     region_mapper_df = ReEDS2PRAS.get_region_mapping(ReEDS_data)
     region_mapper_dict = Dict(region_mapper_df[!,"rs"] .=> region_mapper_df[!,"*r"])
     vg_resource_types = ReEDS2PRAS.get_valid_resources(ReEDS_data)
-    cf_info = ReEDS2PRAS.get_vg_cf_data(ReEDS_data)#load is now picked up from augur
+    cf_info = ReEDS2PRAS.get_vg_cf_data(ReEDS_data)
     
     for gentype in unique(capacity_data.i)
         gentype = String(gentype)
@@ -82,7 +82,7 @@ function compare_generator_capacities(pras_system::PRAS.SystemModel,ReEDSfilepat
             if occursin(gentype,join(unique(vg_resource_types.i)))#vg only
                 v1 = 0
                 for row in eachrow(vg_resource_types)
-                    if row.i==gentype && haskey(region_mapper_dict, String(row.r))#region_mapper_dict[row.r]==region
+                    if row.i==gentype && haskey(region_mapper_dict, String(row.r))
                         if region_mapper_dict[String(row.r)]==region
                             v1+=vg_capacity_checker(cf_info,gentype,String(row.r))
                         end
@@ -106,19 +106,17 @@ function compare_generator_capacities(pras_system::PRAS.SystemModel,ReEDSfilepat
 end
 
 function compare_line_capacities(pras_system::PRAS.SystemModel,ReEDSfilepath,year::Int)
-    ReEDS_data = ReEDS2PRAS.ReEDSdatapaths(ReEDSfilepath,year);
-    # line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data);
-    line_data = ReEDS2PRAS.get_prm_line_capacity_data(ReEDS_data)
-    line_df = line_data[(line_data.year.==year),:]
+    ReEDS_data = ReEDS2PRAS.ReEDSdatapaths(ReEDSfilepath,year)
+    line_df = ReEDS2PRAS.get_line_capacity_data(ReEDS_data)
 
     for row in eachrow(line_df)
-        r1_vec = occursin.("$(row.r)_",pras_system.lines.names);
-        r2_vec = occursin.("$(row.rr)_",pras_system.lines.names);
-        type_vec = occursin.(row.trtype,pras_system.lines.names);
-        out_vec = .*(r1_vec,r2_vec,type_vec); 
-        mw_sum = 0;
+        r1_vec = occursin.("$(row.r)_",pras_system.lines.names)
+        r2_vec = occursin.("$(row.rr)_",pras_system.lines.names)
+        type_vec = occursin.(row.trtype,pras_system.lines.names)
+        out_vec = .*(r1_vec,r2_vec,type_vec) 
+        mw_sum = 0
         retained_lines = [idx for (idx,val) in enumerate(out_vec) if val==1]
-        for idx in retained_lines #there has to be a better, way, but for now
+        for idx in retained_lines #TODO: there has to be a better, way, but for now
             mw_sum += row.MW
         end
         mw_out_fwd,mw_out_bck = get_pras_line_capacity(pras_system,Int.(retained_lines))
@@ -135,7 +133,7 @@ end
 
 function get_pras_line_capacity(pras_system::PRAS.SystemModel,idx_list::Vector)
     #TODO: check backward capacity? 
-    fwd = sum(maximum.(eachrow(pras_system.lines.forward_capacity[idx_list,:]))); #get pras line fwd capacity
-    bck = sum(maximum.(eachrow(pras_system.lines.backward_capacity[idx_list,:]))); #get pras line fwd capacity
+    fwd = sum(maximum.(eachrow(pras_system.lines.forward_capacity[idx_list,:]))) #get pras line fwd capacity
+    bck = sum(maximum.(eachrow(pras_system.lines.backward_capacity[idx_list,:]))) #get pras line fwd capacity
     return fwd,bck
 end
