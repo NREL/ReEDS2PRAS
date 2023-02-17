@@ -1,9 +1,11 @@
+"Includes functions used for loading ReEDS data"
+
 function clean_names!(input_vec::Vector{<:AbstractString})
     for (idx,a) in enumerate(input_vec)
         if occursin("*",a)
             input_vec[idx] = match(r"\*([a-zA-Z]+-*[a-zA-Z]*)_*", a)[1]
         end
-    end 
+    end
     return input_vec
 end
 
