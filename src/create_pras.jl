@@ -253,7 +253,7 @@ function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
     regions : Vector{<:AbstractString}
         Vector of region names.
     year : Int
-        Year of the data.
+        ReEDS solve year of the data.
     timesteps : Int
         Number of timesteps.
 
