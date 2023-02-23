@@ -1,9 +1,6 @@
 """Methods used to create PRAS system"""
 
-function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
-                      timesteps::Int, year::Int, NEMS_path::String,
-                      min_year::Int)
-    """
+"""
     This function creates PRAS objects based on data from the ReEDS
     capacity expansion model. It processes regional load profiles,
     interregional transmission lines, thermal generators,
@@ -37,7 +34,10 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
         contains Storage objects
     genstor_array : Array{GeneratorStorage}
         contains GeneratorStorage objects
-    """
+"""
+function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
+                      timesteps::Int, year::Int, NEMS_path::String,
+                      min_year::Int)
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
 
@@ -77,26 +77,20 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
     return lines, regions, gens_array, storage_array, genstor_array
 end
 
-
-function create_pras_system(regions::Vector{Region}, lines::Vector{Line},
-                            gens::Vector{<:Generator},
-                            storages::Vector{<:Storage},
-                            gen_stors::Vector{<:Gen_Storage},
-                            timesteps::Int, year::Int)
-    """
+"""
     This function creates a PRAS (Probabilistic Resource Adequacy System) model
     from a set of regions, lines, generators, storages, and generator-storages.
     It takes in a vector of Region objects, a vector of Line objects, a vector
     of Generator objects, a vector of Storage objects, a vector of Gen_Storage
-    objects, an integer timesteps representing the number of timesteps, and an integer
-    year representing the year of the simulation. It then switches to US/EST
-    from UTC, creates a StepRange object for the timestamps, creates PRAS lines
-    and interfaces from the sorted lines and interface indices, creates PRAS
-    regions from the regions, creates PRAS generators from the sorted
-    generators and generator indices, creates PRAS storages from the storages
-    and storage indices, creates PRAS generator-storages from the sorted
-    generator-storages and generator-storage indices, and finally returns a
-    PRAS system model object.
+    objects, an integer timesteps representing the number of timesteps, and an
+    integer year representing the year of the simulation. It then switches to
+    US/EST from UTC, creates a StepRange object for the timestamps, creates
+    PRAS lines and interfaces from the sorted lines and interface indices,
+    creates PRAS regions from the regions, creates PRAS generators from the
+    sorted generators and generator indices, creates PRAS storages from the
+    storages and storage indices, creates PRAS generator-storages from the
+    sorted generator-storages and generator-storage indices, and finally
+    returns a PRAS system model object.
 
     Parameters
     ----------
@@ -119,8 +113,12 @@ function create_pras_system(regions::Vector{Region}, lines::Vector{Line},
     -------
     PRAS.SystemModel
         PRAS system model object.
-    """
-
+"""
+function create_pras_system(regions::Vector{Region}, lines::Vector{Line},
+                            gens::Vector{<:Generator},
+                            storages::Vector{<:Storage},
+                            gen_stors::Vector{<:Gen_Storage},
+                            timesteps::Int, year::Int)
     # switched to US/EST from UTC
     first_ts = TimeZones.ZonedDateTime(year, 01, 01, 00, TimeZones.tz"EST")
     last_ts = first_ts + Dates.Hour(timesteps - 1)
@@ -195,8 +193,7 @@ function create_pras_system(regions::Vector{Region}, lines::Vector{Line},
 
 end
 
-function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
-    """
+"""
     Processes ReEDS data and loads the specified weather year and number of
     time steps.
 
@@ -214,8 +211,8 @@ function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
     List
         A list of Region objects containing the load data for the specified
         weather year and number of time steps.
-    """
-
+"""
+function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
     load_info = get_load_file(ReEDS_data)
     load_data = load_info["block0_values"]
     regions = load_info["block0_items"]
@@ -233,9 +230,7 @@ function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
 end
 
 
-function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
-                       year::Int, timesteps::Int)
-    """
+"""
     This function takes in ReEDS data, a vector of regions, a year, and a
     number of time steps, and returns an array of Line objects. It first gets
     the line capacity data from the ReEDS data, then gets the converter
@@ -261,7 +256,9 @@ function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
     -------
     lines_array : Vector{Line}
         Vector of Line objects.
-    """
+"""
+function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
+                       year::Int, timesteps::Int)
     #it is assumed this has prm line capacity data
     line_base_cap_data = get_line_capacity_data(ReEDS_data)
 
@@ -321,8 +318,7 @@ function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
     return lines_array
 end
 
-function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
-    """
+"""
     Expand VG Types.
 
     This function expands valid lookups in a vector of strings against a
@@ -344,7 +340,8 @@ function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
     ------
     AssertionError
         If `vgl` contains keys not found in `vgt`.
-    """
+"""
+function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
     #TODO: vgt/vgl check
     for l in vgl
         @assert occursin(l, join(vgt))
@@ -353,8 +350,8 @@ function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
 end
 
 
-function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
-    """Split generator types into thermal, storage, and variable generation
+"""
+    Split generator types into thermal, storage, and variable generation
     resources
 
     Parameters
@@ -368,8 +365,8 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     -------
     DataFrames
         Thermal capacity, Storage capacity, Variable Generation capacity
-    """
-
+"""
+function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     tech_types_data = get_technology_types(ReEDS_data)
     capacity_data = get_ICAP_data(ReEDS_data)
     vg_resource_types = get_valid_resources(ReEDS_data)
@@ -396,10 +393,8 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
 end
 
 
-function process_thermals_with_disaggregation(
-        ReEDS_data, thermal_builds::DataFrames.DataFrame, FOR_dict::Dict,
-        timesteps::Int, year::Int, NEMS_path::String) # FOR_data::DataFrames.DataFrame,
-    """Process existing thermal capacities with disaggregation.
+"""
+    Process existing thermal capacities with disaggregation.
 
     Parameters
     ----------
@@ -421,8 +416,10 @@ function process_thermals_with_disaggregation(
     all_generators : Generator[]
         Array of Generator objects containing the disaggregated capacity for
         each resource
-    """
-
+"""
+function process_thermals_with_disaggregation(
+        ReEDS_data, thermal_builds::DataFrames.DataFrame, FOR_dict::Dict,
+        timesteps::Int, year::Int, NEMS_path::String) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :]
     # split-apply-combine to handle differently vintaged entries
@@ -453,11 +450,7 @@ function process_thermals_with_disaggregation(
     return all_generators
 end
 
-function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},
-                    vg_builds::DataFrames.DataFrame, FOR_dict::Dict,
-                    ReEDS_data, year::Int, weather_year::Int, timesteps::Int,
-                    min_year::Int)
-    """
+"""
     This function is used to process variable generation (VG) builds, taking
     into account different vintages.
 
@@ -484,7 +477,11 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},
     -------
     generators_array : Vector{<:ReEDS2PRAS.Generator}
         An array of the VG generators
-    """
+"""
+function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},
+                    vg_builds::DataFrames.DataFrame, FOR_dict::Dict,
+                    ReEDS_data, year::Int, weather_year::Int, timesteps::Int,
+                    min_year::Int)
     region_mapper_df = get_region_mapping(ReEDS_data)
     region_mapper_dict = Dict(region_mapper_df[!,"rs"] .=>
                               region_mapper_df[!,"*r"])
@@ -524,10 +521,7 @@ function process_vg(generators_array::Vector{<:ReEDS2PRAS.Generator},
     return generators_array
 end
 
-function process_storages(storage_builds::DataFrames.DataFrame, FOR_dict::Dict,
-                          ReEDS_data, timesteps::Int,
-                          regions::Vector{<:AbstractString}, year::Int64)
-    """
+"""
     Process data associated with the regional storage build for modeled time
     period
 
@@ -550,7 +544,10 @@ function process_storages(storage_builds::DataFrames.DataFrame, FOR_dict::Dict,
     -------
     storages_array : Storage[]
         array of modeled storages
-    """
+"""
+function process_storages(storage_builds::DataFrames.DataFrame, FOR_dict::Dict,
+                          ReEDS_data, timesteps::Int,
+                          regions::Vector{<:AbstractString}, year::Int64)
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
     # split-apply-combine to handle differently vintaged entries
     energy_capacity_df = DataFrames.combine(
@@ -580,8 +577,7 @@ function process_storages(storage_builds::DataFrames.DataFrame, FOR_dict::Dict,
     return storages_array
 end
 
-function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
-    """
+"""
     Parameters
     ----------
     regions : Vector{<:AbstractString}
@@ -594,7 +590,8 @@ function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
     gen_stors : Gen_Storage
         a Gen_Storage struct containing information about generators/storage
         technologies for each region.
-    """
+"""
+function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
     gen_stors = Gen_Storage[Gen_Storage("blank_1", timesteps, regions[1],
                                         "blank_genstor", 0.0, 0.0, 0.0, 0.0,
                                         0.0, 0.0)] # empty for now
@@ -602,11 +599,7 @@ function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
     return gen_stors
 end
 
-function disagg_existing_capacity(eia_df::DataFrames.DataFrame,
-                                  built_capacity::Int, tech::String,
-                                  pca::String, gen_for::Float64,
-                                  timesteps::Int, year::Int)
-    """
+"""
     Disaggregates the existing capacity of a thermal generator given a certain
     year, by taking into account its technology and associated balancing
     authority.
@@ -633,8 +626,11 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,
     generators_array : array
         An array composed of thermal generator objects created with the
         disaggregated existing capacities.
-    """
-
+"""
+function disagg_existing_capacity(eia_df::DataFrames.DataFrame,
+                                  built_capacity::Int, tech::String,
+                                  pca::String, gen_for::Float64,
+                                  timesteps::Int, year::Int)
     MTTR = 24
     tech_ba_year_existing = DataFrames.subset(
         eia_df, :tech=>DataFrames.ByRow(==(tech)),
@@ -679,11 +675,7 @@ function disagg_existing_capacity(eia_df::DataFrames.DataFrame,
     return generators_array
 end
 
-function add_new_capacity!(generators_array::Vector{<:Any}, new_capacity::Int,
-                           existing_avg_unit_cap::Int, max::Int, tech::String,
-                           pca::String, gen_for::Float64, timesteps::Int,
-                           year::Int, MTTR::Int)
-    """
+"""
     This function adds new capacity to an existing list of generators. The
     existing_avg_unit_cap parameter is used to determine how many generators
     must be constructed to create the total new_capacity. If there are no
@@ -721,7 +713,11 @@ function add_new_capacity!(generators_array::Vector{<:Any}, new_capacity::Int,
     -------
     generators_array: Vector{<:Any}
         updated vector or list of generators containing the new capacity
-    """
+"""
+function add_new_capacity!(generators_array::Vector{<:Any}, new_capacity::Int,
+                           existing_avg_unit_cap::Int, max::Int, tech::String,
+                           pca::String, gen_for::Float64, timesteps::Int,
+                           year::Int, MTTR::Int)
     # if there are no existing units to determine size of new unit(s), build
     # all new capacity as a single generator
     if existing_avg_unit_cap == 0
@@ -757,11 +753,7 @@ function add_new_capacity!(generators_array::Vector{<:Any}, new_capacity::Int,
     return generators_array
 end
 
-function make_pras_interfaces(sorted_lines::Vector{Line},
-                              interface_reg_idxs::Vector{Tuple{Int64, Int64}},
-                              interface_line_idxs::Vector{UnitRange{Int64}},
-                              regions::Vector{Region})
-    """
+"""
     This function creates interfaces between lines that are contained in
     different regions. The get_name function then assigns the associated region
     name to each interface.
@@ -776,16 +768,16 @@ function make_pras_interfaces(sorted_lines::Vector{Line},
         A vector containing indices of the lines involved in the interface
     regions: Vector{Region}
         A vector containing the region information
-    """
+"""
+function make_pras_interfaces(sorted_lines::Vector{Line},
+                              interface_reg_idxs::Vector{Tuple{Int64, Int64}},
+                              interface_line_idxs::Vector{UnitRange{Int64}},
+                              regions::Vector{Region})
     make_pras_interfaces(sorted_lines, interface_reg_idxs, interface_line_idxs,
                          get_name.(regions))
 end
 
-function make_pras_interfaces(sorted_lines::Vector{Line},
-                              interface_reg_idxs::Vector{Tuple{Int64, Int64}},
-                              interface_line_idxs::Vector{UnitRange{Int64}},
-                              region_names::Vector{String})
-    """
+"""
     This function creates a Lines and Interfaces object from the given input
     arguments.
 
@@ -808,7 +800,11 @@ function make_pras_interfaces(sorted_lines::Vector{Line},
     new_interfaces : PRAS.Interfaces{, PRAS.MW}
         A new interfaces object created from interface_reg_idxs and
         interface_line_idxs
-    """
+"""
+function make_pras_interfaces(sorted_lines::Vector{Line},
+                              interface_reg_idxs::Vector{Tuple{Int64, Int64}},
+                              interface_line_idxs::Vector{UnitRange{Int64}},
+                              region_names::Vector{String})
     num_interfaces = length(interface_reg_idxs)
     interface_regions_from = first.(interface_reg_idxs)
     interface_regions_to = last.(interface_reg_idxs)

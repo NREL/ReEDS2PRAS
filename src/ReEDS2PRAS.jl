@@ -1,8 +1,8 @@
 """
 Copyright 2022 Alliance for Sustainable Energy and other
 NTP Project Developers. See the top-level COPYRIGHT file for details.
-Author: Luke Lavin, Surya Chandan Dhulipala
-Email: luke.lavin@nrel.gov, suryachandan.dhulipala@nrel.gov
+Author: Luke Lavin, Surya Chandan Dhulipala, Brandon Norton Benton
+Email: luke.lavin@nrel.gov, suryachandan.dhulipala@nrel.gov, brandon.benton@nrel.gov
 """
 module ReEDS2PRAS
 # Exports
@@ -28,9 +28,7 @@ include("create_pras.jl")
 
 
 #runs ReEDS2PRAS
-function reeds_to_pras(reeds_filepath::String, solve_year::Int64,
-                       nems_path::String, timesteps::Int, weather_year::Int)
-    """
+"""
     Generates a PRAS system from data in ReEDSfilepath
 
     Parameters
@@ -54,7 +52,9 @@ function reeds_to_pras(reeds_filepath::String, solve_year::Int64,
         region_gen_idxs, storages, region_stor_idxs, generatorstorages,
         region_genstor_idxs, lines, interface_line_idxs, timestamps
 
-    """
+"""
+function reeds_to_pras(reeds_filepath::String, solve_year::Int64,
+                       nems_path::String, timesteps::Int, weather_year::Int)
     # assume valid weather years as hardcode for now. These should eventually
     # be read in from ReEDS
     if weather_year ∉ [2007, 2008, 2009, 2010, 2011, 2012, 2013]
