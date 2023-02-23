@@ -58,9 +58,8 @@ function reeds_to_pras(reeds_filepath::String, solve_year::Int64,
     # assume valid weather years as hardcode for now. These should eventually
     # be read in from ReEDS
     if weather_year ∉ [2007, 2008, 2009, 2010, 2011, 2012, 2013]
-        msg = "The weather year $weather_year is not a valid VG profile year. "
-              "Should be an Int in 2007-2013 currently"
-        error(msg)
+        error("The weather year $weather_year is not a valid VG profile " *
+              "year. Should be an Int in 2007-2013 currently")
     end
     ReEDS_data_filepaths = ReEDSdatapaths(reeds_filepath, solve_year)
 

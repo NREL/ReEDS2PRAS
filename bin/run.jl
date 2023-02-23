@@ -1,7 +1,7 @@
 """
 Run script for reeds_to_pras routine
 """
-using ReEDS2PRAS
+include("../src/ReEDS2PRAS.jl")
 
 import PRAS
 import ArgParse
@@ -14,8 +14,8 @@ function parse_commandline()
 
     @ArgParse.add_arg_table s begin
         "reeds_filepath"
-            help = "Location of ReEDS filepath where inputs, results, and
-                    outputs are stored"
+            help = "Location of ReEDS filepath where inputs, results, and " *
+                   "outputs are stored"
             required = true
         "solve_year"
             help = "Year for the case being generated"
@@ -30,8 +30,7 @@ function parse_commandline()
             help = "The year corresponding to the vg profiles"
             required = true
         "output_filepath"
-            help = "The path for saving the final PRAS model. e.g.
-                    ./model.pras"
+            help = "The path for saving the final model. e.g. ./model.pras"
             required = false
     end
     return ArgParse.parse_args(s)
@@ -44,17 +43,15 @@ function main()
     for (arg, val) in parsed_args
         @info "$arg  =>  $val"
     end
-    pras_system = reeds_to_pras(parsed_args["reeds_filepath"],
+    pras_system = ReEDS2PRAS.reeds_to_pras(parsed_args["reeds_filepath"],
                                 parse(Int64, parsed_args["solve_year"]),
                                 parsed_args["nems_path"],
                                 parse(Int64, parsed_args["timesteps"]),
                                 parse(Int64, parsed_args["weather_year"]))
-    if "output_filepath" in parsed_args
+    if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])
     end
 end
 
 # Run ReEDS2PRAS from command line arguments
 main()
-
-end
