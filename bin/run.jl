@@ -44,11 +44,10 @@ function main()
     for (arg, val) in parsed_args
         @info "$arg  =>  $val"
     end
-    pras_system = ReEDS2PRAS.reeds_to_pras(parsed_args["reeds_filepath"],
-                                parse(Int64, parsed_args["solve_year"]),
-                                parsed_args["nems_path"],
-                                parse(Int64, parsed_args["timesteps"]),
-                                parse(Int64, parsed_args["weather_year"]))
+    pras_system = ReEDS2PRAS.reeds_to_pras(
+        parsed_args["reeds_filepath"], parse(Int64, parsed_args["solve_year"]),
+        parsed_args["nems_path"], parse(Int64, parsed_args["timesteps"]),
+        parse(Int64, parsed_args["weather_year"]))
     if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])
     end
