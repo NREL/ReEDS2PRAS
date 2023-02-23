@@ -73,8 +73,4 @@ function reeds_to_pras(reeds_filepath::String, solve_year::Int64,
                               genstor_array, timesteps, solve_year)
 end
 
-
-# Run ReEDS2PRAS from command line arguments
-main()
-
 end
