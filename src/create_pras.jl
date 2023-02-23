@@ -4,10 +4,10 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
                       timesteps::Int, year::Int, NEMS_path::String,
                       min_year::Int)
     """
-    This function creates system objects based on data from the ReEDS
-    Optimization Platform. It processes regional load profiles and associated
-    lines, thermal generators (both with and without disaggregation),
-    storage units, and GeneratorStorages in an array form suitable for creating
+    This function creates PRAS objects based on data from the ReEDS
+    capacity expansion model. It processes regional load profiles,
+    interregional transmission lines, thermal generators,
+    storages, and GeneratorStorages into arrays suitable for creating
     a PRAS system.
 
     Parameters
@@ -15,13 +15,13 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
     ReEDS_data : ReEDSdatapaths
         data paths with specific ReEDS file paths
     WEATHERYEAR : Int
-        vg generation profile year
+        variable generation profile year
     timesteps : Int
-        number of time points
+        Number of timesteps
     year : Int
-        target year
+        ReEDS solve year
     NEMS_path : String
-        path to NEMS region-specific load profile data
+        Path to EIA NEMS database
     min_year : Int
         starting year for projections
 

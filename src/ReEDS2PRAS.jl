@@ -39,13 +39,13 @@ function reeds_to_pras(reeds_filepath::String, solve_year::Int64,
         Location of ReEDS filepath where inputs, results, and outputs are
         stored
     year : Int64
-        Year for the case being generated
+        ReEDS solve year
     NEMS_path : String
-        Path to NEMS public resource database
+        Path to EIA NEMS database
     timesteps : Int
         Number of timesteps
     WEATHERYEAR : Int
-        The particular year at which vg profiles are based
+        The weather year for variable gen profiles and load
 
     Returns
     -------
