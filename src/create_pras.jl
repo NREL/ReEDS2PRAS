@@ -49,8 +49,8 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
     # **TODO: Should 0 MW generators be allowed after disaggregation?
     # **TODO: Should hydro be split out as a generator-storage?
     # **TODO: is it important to also handle planned outages?
-    @info "splitting thermal, storage, vg generator types from installed ReEDS
-           capacities..."
+    @info("splitting thermal, storage, vg generator types from installed " *
+          "ReEDS capacities...")
     thermal, storage, variable_gens = split_generator_types(ReEDS_data, year)
 
     @info "reading in ReEDS generator-type forced outage data..."
@@ -270,8 +270,8 @@ function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
     if length(keys(converter_capacity_dict))>0
         for reg in regions
             if !(reg in keys(converter_capacity_dict))
-                @info "$reg does not have VSC converter capacity, so adding
-                       a 0"
+                @info("$reg does not have VSC converter capacity, so adding" *
+                      " a 0")
                 converter_capacity_dict[String(reg)] = 0
             end
         end
@@ -300,8 +300,8 @@ function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
             (line_base_cap_data.trtype.==row.trtype), "MW"])
 
         name = "$(row.r)_$(row.rr)_$(row.trtype)"
-        @info "a line $name, with $forward_cap MW forward and $backward_cap
-               backward in $(row.trtype)"
+        @info("a line $name, with $forward_cap MW forward and $backward_cap" *
+              " backward in $(row.trtype)")
         if row.trtype!="VSC"
             push!(lines_array,
                   Line(name, timesteps, row.trtype, row.r, row.rr, forward_cap,
@@ -435,9 +435,9 @@ function process_thermals_with_disaggregation(
             gen_for = FOR_dict[row.i]
         else
             gen_for = 0.00 #assume as 0 for gens dropped from ReEDS table
-            @info "CONVENTIONAL GENERATION: for $(row.i), and region $(row.r),
-                   no gen_for is found in ReEDS forced outage data, so
-                   $gen_for is used"
+            @info("CONVENTIONAL GENERATION: for $(row.i), and region " *
+                  "$(row.r), no gen_for is found in ReEDS forced outage " *
+                  "data, so $gen_for is used")
         end
 
         generator_array = disagg_existing_capacity(EIA_db,
