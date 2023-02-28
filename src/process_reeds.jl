@@ -67,8 +67,6 @@ struct Region
 
     # Inner Constructors & Checks
     function Region(name, timesteps, load=zeros(Float64, timesteps))
-        0 < timesteps <= 8784 ||
-            error("Check the PRAS timesteps (timesteps)  passed.")
 
         length(load) == timesteps ||
             error("The length of the region load time series data should be
@@ -130,8 +128,6 @@ struct Thermal_Gen <:Generator
     # Inner Constructors & Checks
     function Thermal_Gen(name, timesteps, region_name, capacity, fuel="OT",
                          legacy="New", FOR=0.0, MTTR=24)
-        0 < timesteps <= 8784 ||
-            error("Check the PRAS timesteps (timesteps)  passed.")
 
         capacity >= 0.0 ||
             error("Generator capacity passed is not allowed")
@@ -197,8 +193,6 @@ struct VG_Gen <:Generator
     # Inner Constructors & Checks
     function VG_Gen(name, timesteps, region_name, installed_capacity, capacity,
                     type, legacy="New", FOR=0.0, MTTR=24)
-        0 < timesteps <= 8784 ||
-            error("Check the PRAS timesteps (timesteps)  passed.")
 
         all(0.0 .<= capacity .<= installed_capacity) ||
             error("Check for inconsistencies in VG_Gen time series data")
@@ -343,8 +337,6 @@ struct Battery <:Storage
     function Battery(name, timesteps, region_name, type, charge_cap,
                      discharge_cap, energy_cap, legacy="New", charge_eff=1.0,
                      discharge_eff=1.0, carryover_eff=1.0, FOR=0.0, MTTR=24)
-        0 < timesteps <= 8784 ||
-            error("Check the PRAS timesteps (timesteps)  passed.")
 
         charge_cap > 0.0 ||
             error("Charge capacity passed is not allowed")
@@ -453,8 +445,6 @@ struct Gen_Storage <:Storage
                          grid_inj_cap, legacy ="New", charge_eff=1.0,
                          discharge_eff=1.0, carryover_eff=1.0, FOR=0.0,
                          MTTR=24)
-        0 < timesteps <= 8784 ||
-            error("Check the PRAS timesteps (timesteps)  passed.")
 
         all(charge_cap .>= 0.0) ||
             error("Check for inconsistencies in Gen_Storage charge capacity
@@ -730,8 +720,6 @@ struct Line
                   forward_cap, backward_cap, legacy="New", FOR=0.0, MTTR=24,
                   VSC=false, converter_capacity=Dict(region_from => 0.0,
                                                      region_to => 0.0))
-        0 < timesteps <= 8784 ||
-            error("Check the PRAS timesteps (timesteps)  passed.")
 
         category in ["AC", "B2B", "LCC", "VSC", "VSC DC-AC converter"] ||
             error("Check the category of Line passed")

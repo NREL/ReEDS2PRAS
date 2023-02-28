@@ -223,9 +223,17 @@ function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
     indices = findall(i -> (i == (slicer - 1)), load_info["axis1_label1"])
 
     # should be regionsX8760, which is now just enforced
-    load_year = load_data[:, indices[1:timesteps]]
+    if timesteps > 8760
+        load_year = load_data[:, indices[1:8760]]
+        load_timesteps = repeat(load_year,1,floor(Int,timesteps/8760))
+        if timesteps%8760>0
+            load_timesteps = hcat(load_timesteps,load_data[:, indices[1:timesteps%8760]])
+        end
+    else
+        load_timesteps = load_data[:, indices[1:timesteps]]
+    end
 
-    return [Region(r, timesteps, floor.(Int, load_year[idx, :])) for (idx, r)
+    return [Region(r, timesteps, floor.(Int, load_timesteps[idx, :])) for (idx, r)
             in enumerate(regions)]
 end
 
