@@ -338,6 +338,8 @@ struct Battery <:Storage
                      discharge_cap, energy_cap, legacy="New", charge_eff=1.0,
                      discharge_eff=1.0, carryover_eff=1.0, FOR=0.0, MTTR=24)
 
+        @debug "cap_P = $(discharge_cap) MW and cap_E = $(energy_cap) MWh"
+
         charge_cap > 0.0 ||
             error("Charge capacity passed is not allowed")
 

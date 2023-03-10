@@ -68,6 +68,7 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
                             ReEDS_data, year, WEATHERYEAR, timesteps, min_year)
 
     @info "Processing Storages..."
+    @debug "storage is $(storage)"
     storage_array = process_storages(storage, forced_outage_dict, ReEDS_data,
                                      timesteps, get_name.(regions), year)
 
@@ -308,7 +309,7 @@ function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
             (line_base_cap_data.trtype.==row.trtype), "MW"])
 
         name = "$(row.r)_$(row.rr)_$(row.trtype)"
-        @info("a line $name, with $forward_cap MW forward and $backward_cap" *
+        @debug("a line $name, with $forward_cap MW forward and $backward_cap" *
               " backward in $(row.trtype)")
         if row.trtype!="VSC"
             push!(lines_array,
@@ -443,7 +444,7 @@ function process_thermals_with_disaggregation(
             gen_for = FOR_dict[row.i]
         else
             gen_for = 0.00 #assume as 0 for gens dropped from ReEDS table
-            @info("CONVENTIONAL GENERATION: for $(row.i), and region " *
+            @warn("CONVENTIONAL GENERATION: for $(row.i), and region " *
                   "$(row.r), no gen_for is found in ReEDS forced outage " *
                   "data, so $gen_for is used")
         end
@@ -557,6 +558,7 @@ function process_storages(storage_builds::DataFrames.DataFrame, FOR_dict::Dict,
                           ReEDS_data, timesteps::Int,
                           regions::Vector{<:AbstractString}, year::Int64)
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
+    @debug "storage_energy_capacity_data is $(storage_energy_capacity_data)"
     # split-apply-combine to handle differently vintaged entries
     energy_capacity_df = DataFrames.combine(
         DataFrames.groupby(storage_energy_capacity_data, ["i","r"]),
