@@ -17,7 +17,7 @@
         Number of timesteps
     year : Int
         ReEDS solve year
-    NEMS_path : String
+    reedspath : String
         Path to EIA NEMS database
     min_year : Int
         starting year for projections
@@ -36,7 +36,7 @@
         contains GeneratorStorage objects
 """
 function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
-                      timesteps::Int, year::Int, NEMS_path::String,
+                      timesteps::Int, year::Int, reedspath::String,
                       min_year::Int)
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
@@ -62,7 +62,7 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
     thermal_gens = process_thermals_with_disaggregation(ReEDS_data, thermal,
                                                         forced_outage_dict,
                                                         timesteps, year,
-                                                        NEMS_path)
+                                                        reedspath)
     @info "Processing variable generation..."
     gens_array = process_vg(thermal_gens, variable_gens, forced_outage_dict,
                             ReEDS_data, year, WEATHERYEAR, timesteps, min_year)
@@ -417,7 +417,7 @@ end
         Number of slices to disaggregate the capacity
     year : int
         Year associated with the capacity
-    NEMS_path: str
+    reedspath: str
         Path used to load the EIA NEMS database
 
     Returns
@@ -428,13 +428,13 @@ end
 """
 function process_thermals_with_disaggregation(
         ReEDS_data, thermal_builds::DataFrames.DataFrame, FOR_dict::Dict,
-        timesteps::Int, year::Int, NEMS_path::String) # FOR_data::DataFrames.DataFrame,
+        timesteps::Int, year::Int, reedspath::String) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :]
     # split-apply-combine to handle differently vintaged entries
     thermal_builds = DataFrames.combine(
         DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum)
-    EIA_db = Load_EIA_NEMS_DB(NEMS_path)
+    EIA_db = Load_EIA_NEMS_DB(reedspath)
 
     all_generators = Generator[]
     # this loop gets the FOR for each build/tech
