@@ -6,6 +6,7 @@ include("../src/ReEDS2PRAS.jl")
 
 import PRAS
 import ArgParse
+import Logging
 
 function parse_commandline()
     """
@@ -44,6 +45,13 @@ function main()
     for (arg, val) in parsed_args
         @info "$arg  =>  $val"
     end
+    # Set up logger
+    if ~isnothing(parsed_args["output_filepath"])
+        logfile = replace(parsed_args["output_filepath"], ".pras"=>".log")
+        logger = Logging.SimpleLogger(open(logfile, "w+"))
+        Logging.global_logger(logger)
+    end
+    # Run ReEDS2PRAS
     pras_system = ReEDS2PRAS.reeds_to_pras(
         parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
         parsed_args["reedspath"], parse(Int64, parsed_args["timesteps"]),
