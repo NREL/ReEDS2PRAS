@@ -16,24 +16,27 @@ function parse_commandline()
     s = ArgParse.ArgParseSettings()
 
     @ArgParse.add_arg_table s begin
-        "reedscase"
-            help = "Location of ReEDS filepath where inputs, results, and " *
-                   "outputs are stored"
+        "--reedspath"
+            help = "Path to ReEDS-2.0 folder"
             required = true
-        "solve_year"
+        "--reedscase"
+            help = "Path to ReEDS run (usually .../ReEDS-2.0/runs/{casename})"
+            required = true
+        "--solve_year"
             help = "Year for the case being generated"
+            arg_type = Int
             required = true
-        "reedspath"
-            help = "Path to NEMS public resource database"
-            required = true
-        "timesteps"
-            help = "Number of timesteps to use"
-            required = true
-        "weather_year"
+        "--weather_year"
             help = "The year corresponding to the vg profiles"
+            arg_type = Int
             required = true
-        "output_filepath"
+        "--output_filepath"
             help = "The path for saving the final model. e.g. ./model.pras"
+            required = false
+        "--timesteps"
+            help = "Number of timesteps to use"
+            arg_type = Int
+            default = 8760
             required = false
         "--log_console"
             help = "Indicate whether to log to console in addition to file"
@@ -84,9 +87,9 @@ function main()
     end
     # Run ReEDS2PRAS
     pras_system = ReEDS2PRAS.reeds_to_pras(
-        parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
-        parsed_args["reedspath"], parse(Int64, parsed_args["timesteps"]),
-        parse(Int64, parsed_args["weather_year"]))
+        parsed_args["reedscase"], parsed_args["solve_year"],
+        parsed_args["reedspath"], parsed_args["timesteps"],
+        parsed_args["weather_year"])
     if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])
     end
