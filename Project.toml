@@ -1,6 +1,7 @@
 name = "ReEDS2PRAS"
 uuid = "c1db39dc-6a9d-11ed-0c9a-05c3ea2a1475"
-authors = ["Luke Lavin <luke.lavin@nrel.gov>", "Surya Chandan Dhulipala <suryachandan.dhulipala@nrel.gov>", "Brandon Norton Benton <brandon.benton@nrel.gov"]
+authors = ["Luke Lavin <luke.lavin@nrel.gov>", "Surya Chandan Dhulipala <suryachandan.dhulipala@nrel.gov>",
+           "Brandon Norton Benton <brandon.benton@nrel.gov"]
 version = "0.1.1"
 
 [deps]

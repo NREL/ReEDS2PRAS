@@ -34,7 +34,7 @@ This will save out a pras system to the variable `pras_system` from the ReEDS2PR
 ### This can also be run through the command line:
 
 ```
-julia --project=. bin/run.jl --reedspath=<reedspath> --reedscase=<reedscase> --solve_year=<solve_year> --weather_year=<weather_year> --output_filepath=<output_filepath>
+julia --project=. bin/run.jl <reedscase> <solve_year> <reedspath> <timesteps> <weather_year> <output_filepath>
 ```
 
 The `output_filepath` specifies the location to save the pras model.
