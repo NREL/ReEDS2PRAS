@@ -24,7 +24,3 @@ docs/site/
 Manifest.toml
 
 output/*
-
-# IDE and mac stuff
-*.vscode
-*.DS_Store
