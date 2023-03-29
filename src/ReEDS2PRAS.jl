@@ -69,7 +69,7 @@ function reeds_to_pras(reedscase::String, solve_year::Int64,
     all_lines, regions, all_gens, storages_array, genstor_array = out
     @info "...objects are created, writing to PRAS system"
     return create_pras_system(regions, all_lines, all_gens, storages_array,
-                              genstor_array, timesteps, solve_year)
+                              genstor_array, timesteps, weather_year)
 end
 
 end

@@ -346,8 +346,9 @@ struct Battery <:Storage
         discharge_cap > 0.0 ||
             error("Discharge capacity passed is not allowed")
 
-        energy_cap > 0.0 ||
-            error("Energy capacity passed is not allowed")
+        energy_cap > 0.0 || error(
+            "Energy capacity passed is not allowed: "
+            *"$(name) $(charge_cap)MW $(energy_cap)MWh")
 
         legacy in ["Existing","New"] ||
             error("Unidentified legacy passed")

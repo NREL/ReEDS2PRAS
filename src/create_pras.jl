@@ -52,6 +52,7 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
     @info("splitting thermal, storage, vg generator types from installed " *
           "ReEDS capacities...")
     thermal, storage, variable_gens = split_generator_types(ReEDS_data, year)
+    @debug "variable_gens: $(variable_gens)"
 
     @info "reading in ReEDS generator-type forced outage data..."
     forced_outage_data = get_forced_outage_data(ReEDS_data)
@@ -353,7 +354,7 @@ end
 function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
     #TODO: vgt/vgl check
     for l in vgl
-        @assert occursin(l, join(vgt))
+        @assert occursin(l, join(vgt)) "$(l) is not in $(vgt)"
     end
     return vec(["$(a)" for a in vgt])
 end
@@ -377,10 +378,13 @@ end
 """
 function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     tech_types_data = get_technology_types(ReEDS_data)
+    @debug "tech_types_data is $(tech_types_data)"
     capacity_data = get_ICAP_data(ReEDS_data)
     vg_resource_types = get_valid_resources(ReEDS_data)
+    @debug "vg_resource_types is $(vg_resource_types)"
 
     vg_types = DataFrames.dropmissing(tech_types_data, :VRE)[:, "Column1"]
+    @debug "vg_types is $(vg_types)"
     # csp-ns causes problems, so delete for now
     vg_types = vg_types[vg_types .!= "csp-ns"]
     storage_types = DataFrames.dropmissing(tech_types_data,
