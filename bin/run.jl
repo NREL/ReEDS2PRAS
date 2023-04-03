@@ -14,14 +14,14 @@ function parse_commandline()
     s = ArgParse.ArgParseSettings()
 
     @ArgParse.add_arg_table s begin
-        "reeds_filepath"
+        "reedscase"
             help = "Location of ReEDS filepath where inputs, results, and " *
                    "outputs are stored"
             required = true
         "solve_year"
             help = "Year for the case being generated"
             required = true
-        "nems_path"
+        "reedspath"
             help = "Path to NEMS public resource database"
             required = true
         "timesteps"
@@ -45,8 +45,8 @@ function main()
         @info "$arg  =>  $val"
     end
     pras_system = ReEDS2PRAS.reeds_to_pras(
-        parsed_args["reeds_filepath"], parse(Int64, parsed_args["solve_year"]),
-        parsed_args["nems_path"], parse(Int64, parsed_args["timesteps"]),
+        parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
+        parsed_args["reedspath"], parse(Int64, parsed_args["timesteps"]),
         parse(Int64, parsed_args["weather_year"]))
     if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])

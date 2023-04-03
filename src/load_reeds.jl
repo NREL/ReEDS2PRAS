@@ -68,7 +68,7 @@ struct ReEDSdatapaths
 
     function ReEDSdatapaths(x,y)
         msg = ("year should be between 2020 and 2050 for ReEDS case for now")
-        (2020 < y <= 2050) || error(msg)
+        (2020 <= y <= 2050) || error(msg)
         return new(x,y)
     end
 end
@@ -91,7 +91,7 @@ end
 """
 function get_load_file(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "plot_load_$(string(data.year)).h5")
+                        "pras_load_$(string(data.year)).h5")
     msg = "The year $(data.year) does not have an associated Augur load h5 "
           "file. Are you sure ReeDS was run and Augur results saved for "
           "$(data.year)?"
@@ -121,7 +121,7 @@ end
 """
 function get_vg_cf_data(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "plot_vre_gen_$(string(data.year)).h5")
+                        "pras_vre_gen_$(string(data.year)).h5")
     msg = "The year $(data.year) does not have an associated Augur vg h5 file.
            Are you sure ReeDS was run and Augur results saved for
            $(data.year)?"
@@ -146,7 +146,7 @@ end
 """
 function get_forced_outage_data(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "forced_outage.csv")
+                        "forced_outage_$(string(data.year)).csv")
     isfile(filepath) || error("No augur-based forced outage data is found.")
     df = DataFrames.DataFrame(CSV.File(filepath,header=true))
     return DataFrames.rename!(df,["ResourceType","FOR"])

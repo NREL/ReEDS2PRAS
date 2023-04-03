@@ -17,7 +17,7 @@
         Number of timesteps
     year : Int
         ReEDS solve year
-    NEMS_path : String
+    reedspath : String
         Path to EIA NEMS database
     min_year : Int
         starting year for projections
@@ -36,7 +36,7 @@
         contains GeneratorStorage objects
 """
 function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
-                      timesteps::Int, year::Int, NEMS_path::String,
+                      timesteps::Int, year::Int, reedspath::String,
                       min_year::Int)
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
@@ -52,6 +52,7 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
     @info("splitting thermal, storage, vg generator types from installed " *
           "ReEDS capacities...")
     thermal, storage, variable_gens = split_generator_types(ReEDS_data, year)
+    @debug "variable_gens: $(variable_gens)"
 
     @info "reading in ReEDS generator-type forced outage data..."
     forced_outage_data = get_forced_outage_data(ReEDS_data)
@@ -62,12 +63,13 @@ function load_objects(ReEDS_data::ReEDSdatapaths, WEATHERYEAR::Int,
     thermal_gens = process_thermals_with_disaggregation(ReEDS_data, thermal,
                                                         forced_outage_dict,
                                                         timesteps, year,
-                                                        NEMS_path)
+                                                        reedspath)
     @info "Processing variable generation..."
     gens_array = process_vg(thermal_gens, variable_gens, forced_outage_dict,
                             ReEDS_data, year, WEATHERYEAR, timesteps, min_year)
 
     @info "Processing Storages..."
+    @debug "storage is $(storage)"
     storage_array = process_storages(storage, forced_outage_dict, ReEDS_data,
                                      timesteps, get_name.(regions), year)
 
@@ -308,7 +310,7 @@ function process_lines(ReEDS_data, regions::Vector{<:AbstractString},
             (line_base_cap_data.trtype.==row.trtype), "MW"])
 
         name = "$(row.r)_$(row.rr)_$(row.trtype)"
-        @info("a line $name, with $forward_cap MW forward and $backward_cap" *
+        @debug("a line $name, with $forward_cap MW forward and $backward_cap" *
               " backward in $(row.trtype)")
         if row.trtype!="VSC"
             push!(lines_array,
@@ -352,7 +354,7 @@ end
 function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
     #TODO: vgt/vgl check
     for l in vgl
-        @assert occursin(l, join(vgt))
+        @assert occursin(l, join(vgt)) "$(l) is not in $(vgt)"
     end
     return vec(["$(a)" for a in vgt])
 end
@@ -376,10 +378,13 @@ end
 """
 function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     tech_types_data = get_technology_types(ReEDS_data)
+    @debug "tech_types_data is $(tech_types_data)"
     capacity_data = get_ICAP_data(ReEDS_data)
     vg_resource_types = get_valid_resources(ReEDS_data)
+    @debug "vg_resource_types is $(vg_resource_types)"
 
     vg_types = DataFrames.dropmissing(tech_types_data, :VRE)[:, "Column1"]
+    @debug "vg_types is $(vg_types)"
     # csp-ns causes problems, so delete for now
     vg_types = vg_types[vg_types .!= "csp-ns"]
     storage_types = DataFrames.dropmissing(tech_types_data,
@@ -416,7 +421,7 @@ end
         Number of slices to disaggregate the capacity
     year : int
         Year associated with the capacity
-    NEMS_path: str
+    reedspath: str
         Path used to load the EIA NEMS database
 
     Returns
@@ -427,13 +432,13 @@ end
 """
 function process_thermals_with_disaggregation(
         ReEDS_data, thermal_builds::DataFrames.DataFrame, FOR_dict::Dict,
-        timesteps::Int, year::Int, NEMS_path::String) # FOR_data::DataFrames.DataFrame,
+        timesteps::Int, year::Int, reedspath::String) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i.!= "csp-ns"), :]
     # split-apply-combine to handle differently vintaged entries
     thermal_builds = DataFrames.combine(
         DataFrames.groupby(thermal_builds, ["i","r"]), :MW => sum)
-    EIA_db = Load_EIA_NEMS_DB(NEMS_path)
+    EIA_db = Load_EIA_NEMS_DB(reedspath)
 
     all_generators = Generator[]
     # this loop gets the FOR for each build/tech
@@ -443,7 +448,7 @@ function process_thermals_with_disaggregation(
             gen_for = FOR_dict[row.i]
         else
             gen_for = 0.00 #assume as 0 for gens dropped from ReEDS table
-            @info("CONVENTIONAL GENERATION: for $(row.i), and region " *
+            @warn("CONVENTIONAL GENERATION: for $(row.i), and region " *
                   "$(row.r), no gen_for is found in ReEDS forced outage " *
                   "data, so $gen_for is used")
         end
@@ -557,6 +562,7 @@ function process_storages(storage_builds::DataFrames.DataFrame, FOR_dict::Dict,
                           ReEDS_data, timesteps::Int,
                           regions::Vector{<:AbstractString}, year::Int64)
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
+    @debug "storage_energy_capacity_data is $(storage_energy_capacity_data)"
     # split-apply-combine to handle differently vintaged entries
     energy_capacity_df = DataFrames.combine(
         DataFrames.groupby(storage_energy_capacity_data, ["i","r"]),
