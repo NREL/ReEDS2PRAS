@@ -1,57 +1,40 @@
-name: CI
-# Run on master, tags, or any pull request
+name: Main - CI
+
 on:
   schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC (8 PM CST)
+  - cron: "0 0 * * 1-5"
   push:
-    branches: [main]
-    tags: ["*"]
-  pull_request:
+    branches:
+      - main
+
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
-    runs-on: self-hosted
+    name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
-        version:
-          - "1.3"  # Min supported
-          - "1"    # Latest Release
-        os:
-          - ubuntu-latest
-          - macOS-latest
-          - windows-latest
-        arch:
-          - x64
+        julia-version: ['1', 'nightly']
+        julia-arch: [x64]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
-          version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
-      - uses: actions/cache@v2
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-${{ matrix.arch }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-${{ matrix.arch }}-test-
-            ${{ runner.os }}-${{ matrix.arch }}-
-            ${{ runner.os }}-
-      - run: julia -e 'import Pkg;
-                       Pkg.Registry.add("General");
-                       Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/NREL/JuliaRegistry.git"))'
-        shell: bash
+          version: ${{ matrix.julia-version }}
+          arch: ${{ matrix.julia-arch }}
       - uses: julia-actions/julia-buildpkg@latest
-      - run: |
-          git config --global user.name Tester
-          git config --global user.email te@st.er
-      - uses: julia-actions/julia-runtest@latest
         env:
-            JULIA_NUM_THREADS: 2
+          PYTHON: ""
+      - uses: julia-actions/julia-runtest@latest
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+        env:
+          PYTHON: ""
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v1
         with:
-          file: lcov.info
+          file: ./lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
