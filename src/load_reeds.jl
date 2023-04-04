@@ -15,8 +15,8 @@
         Vector of strings which has been cleaned of '*'
 """
 function clean_names!(input_vec::Vector{<:AbstractString})
-    for (idx,a) in enumerate(input_vec)
-        if occursin("*",a)
+    for (idx, a) in enumerate(input_vec)
+        if occursin("*", a)
             input_vec[idx] = match(r"\*([a-zA-Z]+-*[a-zA-Z]*)_*", a)[1]
         end
     end
@@ -39,12 +39,15 @@ end
 """
 function Load_EIA_NEMS_DB(ReEDS_directory::String)
     #there is also a _prm file, not sure which is right?
-    EIA_NEMS_loc = joinpath(ReEDS_directory, "inputs", "capacitydata",
-                            "ReEDS_generator_database_final_EIA-NEMS.csv")
+    EIA_NEMS_loc = joinpath(
+        ReEDS_directory,
+        "inputs",
+        "capacitydata",
+        "ReEDS_generator_database_final_EIA-NEMS.csv",
+    )
     EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc))
     return EIA_NEMS_data
 end
-
 
 """
     Creates a datapath for a given year within the valid date period: 2020
@@ -66,10 +69,10 @@ struct ReEDSdatapaths
     ReEDSfilepath::String  # The filepath where Augur data is saved
     year::Int              # year 2020-2050
 
-    function ReEDSdatapaths(x,y)
+    function ReEDSdatapaths(x, y)
         msg = ("year should be between 2020 and 2050 for ReEDS case for now")
         (2020 <= y <= 2050) || error(msg)
-        return new(x,y)
+        return new(x, y)
     end
 end
 
@@ -90,15 +93,18 @@ end
 
 """
 function get_load_file(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "pras_load_$(string(data.year)).h5")
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "pras_load_$(string(data.year)).h5",
+    )
     msg = "The year $(data.year) does not have an associated Augur load h5 "
-          "file. Are you sure ReeDS was run and Augur results saved for "
-          "$(data.year)?"
+    "file. Are you sure ReeDS was run and Augur results saved for "
+    "$(data.year)?"
     isfile(filepath) || error(msg)
-    return HDF5.h5read(filepath,"data")
+    return HDF5.h5read(filepath, "data")
 end
-
 
 """
     This function reads a hdf5 file from the ReEDS Augur directory, based on
@@ -120,15 +126,18 @@ end
         If the year does not have an associated Augur vg h5 file.
 """
 function get_vg_cf_data(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "pras_vre_gen_$(string(data.year)).h5")
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "pras_vre_gen_$(string(data.year)).h5",
+    )
     msg = "The year $(data.year) does not have an associated Augur vg h5 file.
            Are you sure ReeDS was run and Augur results saved for
            $(data.year)?"
     isfile(filepath) || error(msg)
-    return HDF5.h5read(filepath,"data")
+    return HDF5.h5read(filepath, "data")
 end
-
 
 """
     Get the forced outage data from the augur files.
@@ -145,13 +154,16 @@ end
         Dataframe containing the forced outage data.
 """
 function get_forced_outage_data(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "forced_outage_$(string(data.year)).csv")
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "forced_outage_$(string(data.year)).csv",
+    )
     isfile(filepath) || error("No augur-based forced outage data is found.")
-    df = DataFrames.DataFrame(CSV.File(filepath,header=true))
-    return DataFrames.rename!(df,["ResourceType","FOR"])
+    df = DataFrames.DataFrame(CSV.File(filepath, header = true))
+    return DataFrames.rename!(df, ["ResourceType", "FOR"])
 end
-
 
 """
     Get the valid resources from a ReEDS case.
@@ -172,7 +184,6 @@ function get_valid_resources(data::ReEDSdatapaths)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
-
 """
     This function gets the technology types from a csv file.
 
@@ -187,12 +198,10 @@ end
         The technology type table in the form of a DataFrames object.
 """
 function get_technology_types(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "inputs_case",
-                        "tech-subset-table.csv")
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "tech-subset-table.csv")
     isfile(filepath) || error("no table of technology types!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
-
 
 """
     Gets line capacity data for the given ReEDS database.
@@ -210,15 +219,18 @@ end
 """
 function get_line_capacity_data(data::ReEDSdatapaths)
     #assumes this file has been formatted by ReEDS to be PRM line capacity data
-    filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "tran_cap_$(string(data.year)).csv")
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "tran_cap_$(string(data.year)).csv",
+    )
     msg = "The year $(data.year) does not have transmission capacity data.
            Are you sure ReEDS was run and Augur results saved for
            $(data.year)?"
     isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
-
 
 """
     Get the converter capacity data associated with the given ReEDSdatapaths
@@ -235,14 +247,17 @@ end
         The DataFrame of the converter capacity data for the given year.
 """
 function get_converter_capacity_data(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "cap_converter_$(string(data.year)).csv")
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "cap_converter_$(string(data.year)).csv",
+    )
     msg = "The year $(data.year) does not have capacity converter data. Are
            you sure ReEDS was run and Augur results saved for $(data.year)?"
     isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
-
 
 """
     Returns a DataFrame containing the r-s region mapping from the
@@ -265,11 +280,10 @@ end
 
 """
 function get_region_mapping(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath,"inputs_case","rsmap.csv")
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "rsmap.csv")
     isfile(filepath) || error("no table of r-s region mapping!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
-
 
 """
     Returns a DataFrame containing the installed capacity of generators for a
@@ -291,15 +305,18 @@ end
         If the year does not have generator installed capacity data.
 """
 function get_ICAP_data(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "max_cap_$(string(data.year)).csv")
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "max_cap_$(string(data.year)).csv",
+    )
     msg = "The year $(data.year) does not have generator installed capacity
            data. Are you sure REEDS was run and Augur results saved for year
            $(data.year)"
     isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
-
 
 """
     Returns a DataFrame containing the installed storage energy capacity data
@@ -321,8 +338,12 @@ end
         If the filepath for the specified year does not exist.
 """
 function get_storage_energy_capacity_data(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "ReEDS_Augur", "augur_data",
-                        "energy_cap_$(string(data.year)).csv")
+    filepath = joinpath(
+        data.ReEDSfilepath,
+        "ReEDS_Augur",
+        "augur_data",
+        "energy_cap_$(string(data.year)).csv",
+    )
     msg = "The year $(data.year) does not have generator installed storage
            energy capacity data. Are you sure REEDS was run and Augur
            results saved for year $(data.year)"
