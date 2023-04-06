@@ -1,11 +1,10 @@
 
-NP = joinpath("/projects/ntps/llavin/ReEDS-2.0")
-inpath = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs")
+inpath = "/projects/ntps/llavin/ReEDS-2.0/runs"
 
 ty = 2023
 tp = joinpath(inpath, "ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core")
 WEATHERYEAR = 2008 #2007-2013
-psys_LD = ReEDS2PRAS.reeds_to_pras(tp, ty, NP, 8760, WEATHERYEAR)
+psys_LD = ReEDS2PRAS.reeds_to_pras(tp, ty, 8760, WEATHERYEAR)
 
 compare_generator_capacities(psys_LD, tp, ty)
 compare_line_capacities(psys_LD, tp, ty)

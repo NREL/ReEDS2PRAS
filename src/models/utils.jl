@@ -272,3 +272,106 @@ function process_vsc_lines(lines::Vector{Line}, regions::Vector{Region})
     end
     return non_vsc_dc_lines, regions
 end
+
+"""
+    This function creates interfaces between lines that are contained in
+    different regions. The get_name function then assigns the associated region
+    name to each interface.
+
+    Parameters
+    ----------
+    sorted_lines: Vector{Line}
+        A vector containing sorted line information
+    interface_reg_idxs: Vector{Tuple{Int64, Int64}}
+        A vector containing the index of the region for each interface
+    interface_line_idxs: Vector{UnitRange{Int64}}
+        A vector containing indices of the lines involved in the interface
+    regions: Vector{Region}
+        A vector containing the region information
+"""
+function make_pras_interfaces(
+    sorted_lines::Vector{Line},
+    interface_reg_idxs::Vector{Tuple{Int64, Int64}},
+    interface_line_idxs::Vector{UnitRange{Int64}},
+    regions::Vector{Region},
+)
+    make_pras_interfaces(
+        sorted_lines,
+        interface_reg_idxs,
+        interface_line_idxs,
+        get_name.(regions),
+    )
+end
+
+"""
+    This function creates a Lines and Interfaces object from the given input
+    arguments.
+
+    Parameters
+    ----------
+    sorted_lines : Vector{Line}
+        A vector of sorted Line objects
+    interface_reg_idxs : Vector{Tuple{Int64, Int64}}
+        A vector of tuples, each tuple containing an interface region index
+        pair
+    interface_line_idxs : Vector{UnitRange{Int64}}
+        A vector of unit ranges indexing into the sorted_lines
+    region_names : Vector{String}
+        A vector of strings each denoting a region name
+
+    Returns
+    -------
+    new_lines : PRAS.Lines{timesteps, 1, PRAS.Hour, PRAS.MW}
+        A new Lines object created from the sorted_lines vector
+    new_interfaces : PRAS.Interfaces{, PRAS.MW}
+        A new interfaces object created from interface_reg_idxs and
+        interface_line_idxs
+"""
+function make_pras_interfaces(
+    sorted_lines::Vector{Line},
+    interface_reg_idxs::Vector{Tuple{Int64, Int64}},
+    interface_line_idxs::Vector{UnitRange{Int64}},
+    region_names::Vector{String},
+)
+    num_interfaces = length(interface_reg_idxs)
+    interface_regions_from = first.(interface_reg_idxs)
+    interface_regions_to = last.(interface_reg_idxs)
+
+    timesteps = first(sorted_lines).timesteps
+
+    # Lines
+    line_names = get_name.(sorted_lines)
+    line_cats = get_category.(sorted_lines)
+    line_forward_cap = reduce(vcat, get_forward_capacity.(sorted_lines))
+    line_backward_cap = reduce(vcat, get_backward_capacity.(sorted_lines))
+    line_λ = reduce(vcat, get_λ.(sorted_lines))
+    line_μ = reduce(vcat, get_μ.(sorted_lines))
+
+    new_lines = PRAS.Lines{timesteps, 1, PRAS.Hour, PRAS.MW}(
+        line_names,
+        line_cats,
+        line_forward_cap,
+        line_backward_cap,
+        line_λ,
+        line_μ,
+    )
+
+    interface_forward_capacity_array = Matrix{Int64}(undef, num_interfaces, timesteps)
+    interface_backward_capacity_array = Matrix{Int64}(undef, num_interfaces, timesteps)
+
+    for i in 1:num_interfaces
+        fwd_sum = sum(line_forward_cap[interface_line_idxs[i], :], dims = 1)
+        interface_forward_capacity_array[i, :] = fwd_sum
+        back_sum = sum(line_backward_cap[interface_line_idxs[i], :], dims = 1)
+        interface_backward_capacity_array[i, :] = back_sum
+    end
+
+    new_interfaces = PRAS.Interfaces{timesteps, PRAS.MW}(
+        interface_regions_from,
+        interface_regions_to,
+        interface_forward_capacity_array,
+        interface_backward_capacity_array,
+    )
+
+    return new_lines, new_interfaces
+end

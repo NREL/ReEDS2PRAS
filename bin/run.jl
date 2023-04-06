@@ -15,10 +15,6 @@ function run_checks(parsed_args::Dict{String,Any})
         error("ReEDS case path passed is not a directory.")
     end
 
-    if !(isdir(parsed_args["reedspath"]))
-        error("ReEDS path passed is not a directory.")
-    end
-
     if ~isnothing(parsed_args["output_filepath"])
         if !(is_pras_file(parsed_args["output_filepath"]))
             error("output_filepath passed is not a valid pras file.")
@@ -39,9 +35,6 @@ function parse_commandline()
             required = true
         "solve_year"
             help = "Year for the case being generated"
-            required = true
-        "reedspath"
-            help = "Path to NEMS public resource database"
             required = true
         "timesteps"
             help = "Number of timesteps to use"
@@ -69,8 +62,7 @@ function main()
     
     pras_system = ReEDS2PRAS.reeds_to_pras(
         parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
-        parsed_args["reedspath"], parse(Int64, parsed_args["timesteps"]),
-        parse(Int64, parsed_args["weather_year"]))
+        parse(Int64, parsed_args["timesteps"]),parse(Int64, parsed_args["weather_year"]))
 
     if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])

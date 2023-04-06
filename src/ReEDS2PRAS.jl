@@ -31,10 +31,14 @@ include("models/Line.jl")
 include("models/utils.jl") 
 
 # Utils
-include("utils/load_reeds.jl") 
-include("utils/create_pras.jl")
+include("utils/reeds_input_parsing.jl") 
+include("utils/reeds_data_parsing.jl")
 
-# Main
+#Main
+include("main/parse_reeds_data.jl")
+include("main/create_pras_system.jl") 
+
+# Module
 include("reeds_to_pras.jl") 
 
 end
