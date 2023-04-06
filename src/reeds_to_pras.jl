@@ -33,12 +33,16 @@ function reeds_to_pras(
     if weather_year ∉ range(2007,length=7)
         error(
             "The weather year $weather_year is not a valid year for available VG & Load data " *
-            "year. Currrently, it should be an Int in range [2007,2013].",
+            "year. Currrently, it should be an Int in [2007-2013].",
         )
     end
+    
     ReEDS_data_filepaths = ReEDSdatapaths(reedscase, solve_year)
 
-    @info "creating PRAS system objects..."
+    @info "Running checks on input data..."
+    run_checks(ReEDS_data_filepaths)
+
+    @info "Parsing ReEDS data and creating ReEDS2PRAS objects..."
     out = parse_reeds_data(
         ReEDS_data_filepaths,
         weather_year,
@@ -47,7 +51,8 @@ function reeds_to_pras(
         2007,
     )
     lines, regions, gens, storages, genstors = out
-    @info "...objects are created, writing to PRAS system"
+    
+    @info "ReEDS data successfully parsed, creating a PRAS system"
     return create_pras_system(
         regions,
         lines,

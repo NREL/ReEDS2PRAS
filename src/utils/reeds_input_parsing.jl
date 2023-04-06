@@ -19,7 +19,7 @@ struct ReEDSdatapaths
     year::Int              # year 2020-2050
 
     function ReEDSdatapaths(x, y)
-        msg = "Currently, build year should be in the range [2020,2050] for a ReEDS case."
+        msg = "Currently, build year should be in [2020-2050] for a ReEDS case."
         (2020 <= y <= 2050) || error(msg)
         return new(x, y)
     end

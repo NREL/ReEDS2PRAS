@@ -31,8 +31,9 @@ include("models/Line.jl")
 include("models/utils.jl") 
 
 # Utils
-include("utils/reeds_input_parsing.jl") 
-include("utils/reeds_data_parsing.jl")
+include("utils/reeds_input_parsing.jl")
+include("utils/runchecks.jl")
+include("utils/reeds_data_parsing.jl") 
 
 #Main
 include("main/parse_reeds_data.jl")
