@@ -22,8 +22,21 @@ import Statistics
 import TimeZones
 
 # Includes
-include("load_reeds.jl")
-include("process_reeds.jl")
+# Models
+include("models/Region.jl") 
+include("models/Storage.jl") 
+include("models/Battery.jl") 
+include("models/Gen_Storage.jl") 
+include("models/Generator.jl") 
+include("models/Thermal_Gen.jl")
+include("models/VG_Gen.jl") 
+include("models/Line.jl") 
+include("models/utils.jl") 
+
+# Utils
+include("utils/load_reeds.jl") 
+
+# Main
 include("create_pras.jl")
 
 #runs ReEDS2PRAS

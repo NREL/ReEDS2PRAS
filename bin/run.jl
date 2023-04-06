@@ -10,7 +10,7 @@ import ArgParse
 # Check if output_filepath is a pras file
 is_pras_file = endswith(".pras");
 
-function run_checks(parsed_args)
+function run_checks(parsed_args::Dict{String,Any})
     if !(isdir(parsed_args["reedscase"]))
         error("ReEDS case path passed is not a directory.")
     end
@@ -66,7 +66,7 @@ function main()
     end
 
     run_checks(parsed_args)
-
+    
     pras_system = ReEDS2PRAS.reeds_to_pras(
         parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
         parsed_args["reedspath"], parse(Int64, parsed_args["timesteps"]),
@@ -75,7 +75,8 @@ function main()
     if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])
     end
-
+    
+    return parsed_args
 end
 
 # Run ReEDS2PRAS from command line arguments
