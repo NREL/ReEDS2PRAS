@@ -63,11 +63,8 @@ end
 """
 function Load_EIA_NEMS_DB()
     #there is also a _prm file, not sure which is right?
-    EIA_NEMS_loc = joinpath(
-        @__DIR__,
-        "Descriptors",
-        "ReEDS_generator_database_final_EIA-NEMS.csv", 
-    )
+    EIA_NEMS_loc =
+        joinpath(@__DIR__, "Descriptors", "ReEDS_generator_database_final_EIA-NEMS.csv")
     EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc))
     return EIA_NEMS_data
 end

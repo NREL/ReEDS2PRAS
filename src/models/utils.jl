@@ -101,7 +101,6 @@ get_sorted_components(
 ) where {COMPONENTS <: Union{Vector{<:Generator}, Vector{<:Storage}}} =
     get_sorted_components(comps, get_name.(regions))
 
-
 # Functions for  processing ReEDS2PRAS lines (preparing PRAS lines)
 
 """
@@ -185,7 +184,7 @@ end
 get_sorted_lines(lines::Vector{Line}, regions::Vector{Region}) =
     get_sorted_lines(lines, get_name.(regions))
 
-    """
+"""
     This code takes in a vector of Lines and a vector of Regions as input
     parameters. It filters the Lines to find VSC (voltage source converter)
     lines and non-VSC lines. Then, for each VSC line, it creates two new Line

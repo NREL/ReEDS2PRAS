@@ -67,7 +67,7 @@ function parse_reeds_data(
         thermal,
         forced_outage_dict,
         timesteps,
-        year
+        year,
     )
     @info "Processing variable generation..."
     gens_array = process_vg(

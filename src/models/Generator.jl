@@ -37,4 +37,3 @@ function get_legacy_generators(gens::Vector{<:Generator}, leg::String)
         return leg_gens
     end
 end
-

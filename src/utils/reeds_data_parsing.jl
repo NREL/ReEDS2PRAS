@@ -270,7 +270,7 @@ function process_thermals_with_disaggregation(
     thermal_builds::DataFrames.DataFrame,
     FOR_dict::Dict,
     timesteps::Int,
-    year::Int
+    year::Int,
 ) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]

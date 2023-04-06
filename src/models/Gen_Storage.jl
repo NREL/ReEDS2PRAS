@@ -149,7 +149,7 @@ get_charge_capacity(stor::Gen_Storage) =
     fill(round(Int, stor.charge_cap), 1, stor.timesteps)
 
 get_discharge_capacity(stor::Gen_Storage) =
-fill(round(Int, stor.discharge_cap), 1, stor.timesteps)
+    fill(round(Int, stor.discharge_cap), 1, stor.timesteps)
 
 get_energy_capacity(stor::Gen_Storage) =
     fill(round(Int, stor.energy_cap), 1, stor.timesteps)

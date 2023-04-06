@@ -88,4 +88,3 @@ function get_legacy_storages(stors::Vector{<:Storage}, leg::String)
         return leg_stors
     end
 end
-
