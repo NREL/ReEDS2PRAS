@@ -76,12 +76,15 @@ struct Battery <: Storage
     )
         @debug "cap_P = $(discharge_cap) MW and cap_E = $(energy_cap) MWh"
 
-        charge_cap > 0.0 || error("Charge capacity passed is not allowed : $(name) - $(charge_cap) MW")
+        charge_cap > 0.0 ||
+            error("Charge capacity passed is not allowed : $(name) - $(charge_cap) MW")
 
-        discharge_cap > 0.0 || error("Discharge capacity passed is not allowed :  $(name) - $(discharge_cap) MW")
+        discharge_cap > 0.0 || error(
+            "Discharge capacity passed is not allowed :  $(name) - $(discharge_cap) MW",
+        )
 
-        energy_cap > 0.0 || error(
-            "Energy capacity passed is not allowed : $(name) - $(energy_cap) MWh")
+        energy_cap > 0.0 ||
+            error("Energy capacity passed is not allowed : $(name) - $(energy_cap) MWh")
 
         legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 

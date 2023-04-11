@@ -26,7 +26,7 @@ include("models/Battery.jl")
 include("models/Gen_Storage.jl")
 include("models/Generator.jl")
 include("models/Thermal_Gen.jl")
-include("models/Variable_Gen.jl") 
+include("models/Variable_Gen.jl")
 include("models/Line.jl")
 include("models/utils.jl")
 

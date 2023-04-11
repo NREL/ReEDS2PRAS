@@ -30,7 +30,8 @@ struct Region
             error("The length of the region $(name) load time series data should be
                    equal to PRAS timesteps")
 
-        all(load .>= 0.0) || error("Check for negative values in region $(name) load time series data.")
+        all(load .>= 0.0) ||
+            error("Check for negative values in region $(name) load time series data.")
 
         return new(name, timesteps, load)
     end

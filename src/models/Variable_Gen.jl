@@ -1,10 +1,10 @@
-const ReEDS_VRE_TYPES = ["wind-ons","wind-ofs","dupv","upv","distpv","csp-ns"]
+const ReEDS_VRE_TYPES = ["wind-ons", "wind-ofs", "dupv", "upv", "distpv", "csp-ns"]
 
 function check_reeds_vre_type(type::String)
     flag = 0
     for vre_type in ReEDS_VRE_TYPES
         if (occursin(vre_type, type))
-            flag+=1
+            flag += 1
         end
     end
 
@@ -77,8 +77,7 @@ struct Variable_Gen <: Generator
             error("The length of the $(name) time series data should be equal
                    to PRAS timesteps")
 
-        check_reeds_vre_type(type) ||
-             error("Check the type of $(name) being passed")
+        check_reeds_vre_type(type) || error("Check the type of $(name) being passed")
 
         legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 
