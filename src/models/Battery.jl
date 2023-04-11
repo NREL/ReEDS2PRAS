@@ -4,9 +4,8 @@
     charge_cap, discharge_cap, energy_cap, legacy, charge_eff,
     discharge_eff, carryover_eff, FOR and MTTR. The code also includes an
     inner constructor and checks to ensure that the values passed are
-    valid. The constructor checks that timesteps is between 0 and 8784
-    (inclusive), charge_cap and discharge_cap are greater than 0.0, energy_cap
-    is greater than 0.0, legacy is either "Existing" or "New", all of the
+    valid. The constructor checks that charge_cap and discharge_cap are greater than 0.0, 
+    energy_cap is greater than 0.0, legacy is either "Existing" or "New", all of the
     efficiency values are between 0.0 and 1.0 (inclusive), FOR is between 0.0
     and 1.0 (inclusive) and MTTR is greater than 0. If any of these checks fail
     an error will be thrown.
@@ -77,23 +76,21 @@ struct Battery <: Storage
     )
         @debug "cap_P = $(discharge_cap) MW and cap_E = $(energy_cap) MWh"
 
-        charge_cap > 0.0 || error("Charge capacity passed is not allowed")
+        charge_cap > 0.0 || error("Charge capacity passed is not allowed : $(name) - $(charge_cap) MW")
 
-        discharge_cap > 0.0 || error("Discharge capacity passed is not allowed")
+        discharge_cap > 0.0 || error("Discharge capacity passed is not allowed :  $(name) - $(discharge_cap) MW")
 
         energy_cap > 0.0 || error(
-            "Energy capacity passed is not allowed: " *
-            "$(name) $(charge_cap)MW $(energy_cap)MWh",
-        )
+            "Energy capacity passed is not allowed : $(name) - $(energy_cap) MWh")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed")
+        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 
         all(0.0 .<= [charge_eff, discharge_eff, carryover_eff] .<= 1.0) ||
-            error("Invalid charge/discharge/carryover efficiency passed")
+            error("Invalid charge/discharge/carryover efficiency passed for $(name)")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed")
+        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed for $(name)")
 
-        MTTR > 0 || error("MTTR value passed is not allowed")
+        MTTR > 0 || error("MTTR value passed is not allowed for $(name)")
 
         return new(
             name,

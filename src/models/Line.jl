@@ -67,24 +67,24 @@ struct Line
         converter_capacity = Dict(region_from => 0.0, region_to => 0.0),
     )
         category in ["AC", "B2B", "LCC", "VSC", "VSC DC-AC converter"] ||
-            error("Check the category of Line passed")
+            error("Check the category of $(name) passed")
 
         ~(region_from == region_to) ||
-            error("Region_From and Region_To cannot be the same. PRAS only
-                   considers inter-regional lines in Zonal analysis")
+            error("Region_From and Region_To cannot be the same for $(name). PRAS only
+                   considers inter-regional lines in zonal analysis")
 
         all([forward_cap, backward_cap] .>= 0.0) ||
-            error("Check the forward/backward capacity of Line passed")
+            error("Check the forward/backward capacity of $(name) passed")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed")
+        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed")
+        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed for $(name)")
 
-        MTTR > 0 || error("MTTR value passed is not allowed")
+        MTTR > 0 || error("MTTR value passed is not allowed for $(name)")
 
         all([region_from, region_to] .∈ Ref(keys(converter_capacity))) ||
             error("Check the keys of converter capacity dictionary for VSC DC
-                   line")
+                   line: $(name)")
 
         return new(
             name,

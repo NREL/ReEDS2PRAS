@@ -47,13 +47,13 @@ struct Thermal_Gen <: Generator
         FOR = 0.0,
         MTTR = 24,
     )
-        capacity >= 0.0 || error("Generator capacity passed is not allowed")
+        capacity >= 0.0 || error("Capacity for $(name) passed is not allowed")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed")
+        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed")
+        0.0 <= FOR <= 1.0 || error("FOR value passed for $(name) is not allowed")
 
-        MTTR > 0 || error("MTTR value passed is not allowed")
+        MTTR > 0 || error("MTTR value passed for $(name) is not allowed")
 
         return new(name, timesteps, region_name, capacity, fuel, legacy, FOR, MTTR)
     end

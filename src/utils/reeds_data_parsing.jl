@@ -377,7 +377,7 @@ function process_vg(
 
         push!(
             generators_array,
-            VG_Gen(
+            Variable_Gen(
                 name,
                 timesteps,
                 region,

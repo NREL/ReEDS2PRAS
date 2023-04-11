@@ -4,11 +4,10 @@
     charge_cap, discharge_cap, energy_cap, inflow, grid_withdrawl_cap,
     grid_inj_cap, legacy, charge_eff, discharge_eff and carryover_eff. The
     code also contains an inner constructor and checks to ensure that the
-    values passed are valid. Specifically, timesteps must be between 0 and 8784
-    (inclusive), all capacity values must be greater than or equal to 0.0,
-    the legacy value must either be “Existing” or “New”, all of the
-    efficiency values must be between 0.0 and 1.0 (inclusive), FOR must be
-    between 0.0 and 1.0 (inclusive) and MTTR must be greater than 0.
+    values passed are valid. Specifically, all capacity values must be 
+    greater than or equal to 0.0,the legacy value must either be “Existing” 
+    or “New”, all of the efficiency values must be between 0.0 and 1.0 (inclusive),
+    FOR must be between 0.0 and 1.0 (inclusive) and MTTR must be greater than 0.
     Additionally, there is a commented out check that verifies that all of
     the time series data is of the same size. Finally, if any of these
     checks fail, an error will be thrown.
@@ -89,38 +88,32 @@ struct Gen_Storage <: Storage
         FOR = 0.0,
         MTTR = 24,
     )
-        all(charge_cap .>= 0.0) ||
-            error("Check for inconsistencies in Gen_Storage charge capacity
-                   time series data")
+        charge_cap > 0.0 ||
+            error("Charge capacity passed is not allowed : $(name) - $(charge_cap) MW")
 
-        all(discharge_cap .>= 0.0) ||
-            error("Check for inconsistencies in Gen_Storage discharge capacity
-                   time series data")
+        discharge_cap > 0.0 ||
+            error("Discharge capacity passed is not allowed : $(name) - $(discharge_cap) MW")
 
-        all(energy_cap .>= 0.0) ||
-            error("Check for inconsistencies in Gen_Storage energy capacity
-                   time series data")
+        energy_cap > 0.0 ||
+            error("Energy capacity passed is not allowed : $(name) - $(energy_cap) MWh")
 
-        all(inflow .>= 0.0) ||
-            error("Check for inconsistencies in Gen_Storage inflow time series
-                   data")
+        inflow > 0.0 ||
+            error("Inflow passed is not allowed : $(name) - $(inflow) MW")
 
-        all(grid_withdrawl_cap .>= 0.0) ||
-            error("Check for inconsistencies in Gen_Storage grid withdrawl
-                   capacity time series data")
+        grid_withdrawl_cap > 0.0 ||
+            error("Grid withdrawl capacity passed is not allowed : $(name) - $(grid_withdrawl_cap) MW")
 
-        all(grid_inj_cap .>= 0.0) ||
-            error("Check for inconsistencies in Gen_Storage grid injection
-                   capacity time series data")
+        grid_inj_cap > 0.0 ||
+            error("Grid injection capacity passed is not allowed : $(name) - $(grid_inj_cap) MW")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed")
+        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 
         all(0.0 .<= [charge_eff, discharge_eff, carryover_eff] .<= 1.0) ||
-            error("Invalid charge/discharge/carryover efficiency passed")
+            error("Invalid charge/discharge/carryover efficiency passed for $(name)")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed")
+        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed for $(name)")
 
-        MTTR > 0 || error("MTTR value passed is not allowed")
+        MTTR > 0 || error("MTTR value passed is not allowed for $(name)")
 
         return new(
             name,

@@ -1,5 +1,22 @@
+const ReEDS_VRE_TYPES = ["wind-ons","wind-ofs","dupv","upv","distpv","csp-ns"]
+
+function check_reeds_vre_type(type::String)
+    flag = 0
+    for vre_type in ReEDS_VRE_TYPES
+        if (occursin(vre_type, type))
+            flag+=1
+        end
+    end
+
+    if (flag > 0)
+        return true
+    else
+        return false
+    end
+end
+
 """
-    This function takes in the attributes of a variable generator (VG_Gen)
+    This function takes in the attributes of a variable generator (Variable_Gen)
     and returns an object containing all its information. The input
     parameters are:
 
@@ -27,10 +44,10 @@
 
     Returns
     -------
-    VG_Gen : Struct
+    Variable_Gen : Struct
         Returns a struct with all the given attributes.
 """
-struct VG_Gen <: Generator
+struct Variable_Gen <: Generator
     name::String
     timesteps::Int64
     region_name::String
@@ -42,7 +59,7 @@ struct VG_Gen <: Generator
     MTTR::Int64
 
     # Inner Constructors & Checks
-    function VG_Gen(
+    function Variable_Gen(
         name,
         timesteps,
         region_name,
@@ -54,20 +71,20 @@ struct VG_Gen <: Generator
         MTTR = 24,
     )
         all(0.0 .<= capacity .<= installed_capacity) ||
-            error("Check for inconsistencies in VG_Gen time series data")
+            error("Check for inconsistencies in $(name) time series data")
 
         length(capacity) == timesteps ||
-            error("The length of the VG_Gen time series data should be equal
-                   to PRAS timesteps (timesteps) ")
+            error("The length of the $(name) time series data should be equal
+                   to PRAS timesteps")
 
-        # type in ["wind-ons","wind-ofs","dupv","upv","csp","distpv"] ||
-        #     error("Check the type of VG_Gen being passed")
+        check_reeds_vre_type(type) ||
+             error("Check the type of $(name) being passed")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed")
+        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed")
+        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed for $(name)")
 
-        MTTR > 0 || error("MTTR value passed is not allowed")
+        MTTR > 0 || error("MTTR value passed is not allowed for $(name)")
 
         return new(
             name,
@@ -85,8 +102,8 @@ end
 
 # Getter Functions
 
-get_capacity(gen::VG_Gen) = permutedims(round.(Int, gen.capacity))
+get_capacity(gen::Variable_Gen) = permutedims(round.(Int, gen.capacity))
 
-get_category(gen::VG_Gen) = "$(gen.legacy)_$(gen.type)"
+get_category(gen::Variable_Gen) = "$(gen.legacy)_$(gen.type)"
 
-get_type(gen::VG_Gen) = gen.type
+get_type(gen::Variable_Gen) = gen.type
