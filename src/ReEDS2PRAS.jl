@@ -5,12 +5,9 @@ Author: Luke Lavin, Surya Chandan Dhulipala, Brandon Norton Benton
 Email: luke.lavin@nrel.gov, suryachandan.dhulipala@nrel.gov, brandon.benton@nrel.gov
 """
 module ReEDS2PRAS
+
 # Exports
-export Generators
-export Thermal_Gen
-export VG_Gen
-export Region
-export Line
+export reeds_to_pras
 
 # Imports
 import CSV
@@ -22,73 +19,27 @@ import Statistics
 import TimeZones
 
 # Includes
-include("load_reeds.jl")
-include("process_reeds.jl")
-include("create_pras.jl")
+# Models
+include("models/Region.jl")
+include("models/Storage.jl")
+include("models/Battery.jl")
+include("models/Gen_Storage.jl")
+include("models/Generator.jl")
+include("models/Thermal_Gen.jl")
+include("models/Variable_Gen.jl")
+include("models/Line.jl")
+include("models/utils.jl")
 
-#runs ReEDS2PRAS
-"""
-    Generates a PRAS system from data in ReEDSfilepath
+# Utils
+include("utils/reeds_input_parsing.jl")
+include("utils/runchecks.jl")
+include("utils/reeds_data_parsing.jl")
 
-    Parameters
-    ----------
-    ReEDSfilepath : String
-        Location of ReEDS filepath where inputs, results, and outputs are
-        stored
-    year : Int64
-        ReEDS solve year
-    reedspath : String
-        Path to EIA NEMS database
-    timesteps : Int
-        Number of timesteps
-    WEATHERYEAR : Int
-        The weather year for variable gen profiles and load
+#Main
+include("main/parse_reeds_data.jl")
+include("main/create_pras_system.jl")
 
-    Returns
-    -------
-    PRAS.SystemModel
-        PRAS SystemModel struct with regions, interfaces, generators,
-        region_gen_idxs, storages, region_stor_idxs, generatorstorages,
-        region_genstor_idxs, lines, interface_line_idxs, timestamps
-
-"""
-function reeds_to_pras(
-    reedscase::String,
-    solve_year::Int64,
-    reedspath::String,
-    timesteps::Int,
-    weather_year::Int,
-)
-    # assume valid weather years as hardcode for now. These should eventually
-    # be read in from ReEDS
-    if weather_year ∉ [2007, 2008, 2009, 2010, 2011, 2012, 2013]
-        error(
-            "The weather year $weather_year is not a valid VG profile " *
-            "year. Should be an Int in 2007-2013 currently",
-        )
-    end
-    ReEDS_data_filepaths = ReEDSdatapaths(reedscase, solve_year)
-
-    @info "creating PRAS system objects..."
-    out = load_objects(
-        ReEDS_data_filepaths,
-        weather_year,
-        timesteps,
-        solve_year,
-        reedspath,
-        2007,
-    )
-    all_lines, regions, all_gens, storages_array, genstor_array = out
-    @info "...objects are created, writing to PRAS system"
-    return create_pras_system(
-        regions,
-        all_lines,
-        all_gens,
-        storages_array,
-        genstor_array,
-        timesteps,
-        weather_year,
-    )
-end
+# Module
+include("reeds_to_pras.jl")
 
 end

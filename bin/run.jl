@@ -2,10 +2,25 @@
 Run script for reeds_to_pras routine
 """
 
-include("../src/ReEDS2PRAS.jl")
+include(joinpath(dirname(@__DIR__),"src","ReEDS2PRAS.jl"))
 
 import PRAS
 import ArgParse
+
+# Check if output_filepath is a pras file
+is_pras_file = endswith(".pras");
+
+function run_checks(parsed_args::Dict{String,Any})
+    if !(isdir(parsed_args["reedscase"]))
+        error("ReEDS case path passed is not a directory.")
+    end
+
+    if ~isnothing(parsed_args["output_filepath"])
+        if !(is_pras_file(parsed_args["output_filepath"]))
+            error("output_filepath passed is not a valid pras file.")
+        end
+    end
+end
 
 function parse_commandline()
     """
@@ -21,9 +36,6 @@ function parse_commandline()
         "solve_year"
             help = "Year for the case being generated"
             required = true
-        "reedspath"
-            help = "Path to NEMS public resource database"
-            required = true
         "timesteps"
             help = "Number of timesteps to use"
             required = true
@@ -34,6 +46,7 @@ function parse_commandline()
             help = "The path for saving the final model. e.g. ./model.pras"
             required = false
     end
+
     return ArgParse.parse_args(s)
 end
 
@@ -44,13 +57,18 @@ function main()
     for (arg, val) in parsed_args
         @info "$arg  =>  $val"
     end
+
+    run_checks(parsed_args)
+    
     pras_system = ReEDS2PRAS.reeds_to_pras(
         parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
-        parsed_args["reedspath"], parse(Int64, parsed_args["timesteps"]),
-        parse(Int64, parsed_args["weather_year"]))
+        parse(Int64, parsed_args["timesteps"]),parse(Int64, parsed_args["weather_year"]))
+
     if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])
     end
+    
+    return parsed_args
 end
 
 # Run ReEDS2PRAS from command line arguments
