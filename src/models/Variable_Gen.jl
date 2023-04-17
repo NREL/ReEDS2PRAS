@@ -77,7 +77,7 @@ struct Variable_Gen <: Generator
             error("The length of the $(name) time series data should be equal
                    to PRAS timesteps")
 
-        check_reeds_vre_type(string(type)) || error("Check the type of $(name) being passed")
+        check_reeds_vre_type(type) || error("Check the type of $(name) being passed")
 
         legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
 
