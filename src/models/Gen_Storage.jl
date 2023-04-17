@@ -88,23 +88,23 @@ struct Gen_Storage <: Storage
         FOR = 0.0,
         MTTR = 24,
     )
-        charge_cap > 0.0 ||
+        charge_cap >= 0.0 ||
             error("Charge capacity passed is not allowed : $(name) - $(charge_cap) MW")
 
-        discharge_cap > 0.0 || error(
+        discharge_cap >= 0.0 || error(
             "Discharge capacity passed is not allowed : $(name) - $(discharge_cap) MW",
         )
 
-        energy_cap > 0.0 ||
+        energy_cap >= 0.0 ||
             error("Energy capacity passed is not allowed : $(name) - $(energy_cap) MWh")
 
-        inflow > 0.0 || error("Inflow passed is not allowed : $(name) - $(inflow) MW")
+        inflow >= 0.0 || error("Inflow passed is not allowed : $(name) - $(inflow) MW")
 
-        grid_withdrawl_cap > 0.0 || error(
+        grid_withdrawl_cap >= 0.0 || error(
             "Grid withdrawl capacity passed is not allowed : $(name) - $(grid_withdrawl_cap) MW",
         )
 
-        grid_inj_cap > 0.0 || error(
+        grid_inj_cap >= 0.0 || error(
             "Grid injection capacity passed is not allowed : $(name) - $(grid_inj_cap) MW",
         )
 
