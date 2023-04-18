@@ -1,4 +1,7 @@
-const ReEDS_VRE_TYPES = ["wind-ons", "wind-ofs", "dupv", "upv", "distpv", "csp-ns"]
+const ReEDS_VRE_TYPES = [
+    "wind-ons", "wind-ofs", "dupv", "upv", "distpv",
+    "csp-ns", "csp1", "csp2", "csp3", "csp4",
+]
 
 function check_reeds_vre_type(type::Union{STRING, String}) where {STRING <: InlineStrings.InlineString}
     flag = 0
@@ -71,19 +74,22 @@ struct Variable_Gen <: Generator
         MTTR = 24,
     )
         all(0.0 .<= capacity .<= installed_capacity) ||
-            error("Check for inconsistencies in $(name) time series data")
+            error("$(name) time series has values < 0 or > installed capacity
+                   ($(installed_capacity))")
 
         length(capacity) == timesteps ||
-            error("The length of the $(name) time series data should be equal
-                   to PRAS timesteps")
+            error("The length of the $(name) time series data is $(length(capacity))
+                   but it should be should be equal to PRAS timesteps ($(timesteps))")
 
-        check_reeds_vre_type(type) || error("Check the type of $(name) being passed")
+        check_reeds_vre_type(type) ||
+            error("$(name) has type $(type) which is not in $(ReEDS_VRE_TYPES)")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
+        legacy in ["Existing", "New"] ||
+            error("$(name) has legacy $(legacy) which is not in [Existing, New]")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed for $(name)")
+        0.0 <= FOR <= 1.0 || error("$(name) FOR value is < 0 or > 1")
 
-        MTTR > 0 || error("MTTR value passed is not allowed for $(name)")
+        MTTR > 0 || error("$(name) MTTR value is <= 0")
 
         return new(
             name,
