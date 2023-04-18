@@ -1,6 +1,4 @@
-const ReEDS_LINE_TYPES = [
-    "AC", "B2B", "LCC", "VSC", "VSC DC-AC converter"
-]
+const ReEDS_LINE_TYPES = ["AC", "B2B", "LCC", "VSC", "VSC DC-AC converter"]
 
 """
     Constructs a model of LINE.
@@ -80,7 +78,8 @@ struct Line
         all([forward_cap, backward_cap] .>= 0.0) ||
             error("$(name) forward/backward capacity value < 0")
 
-        legacy in ["Existing", "New"] || error("$(name) has legacy $(legacy) which is not in [Existing, New]")
+        legacy in ["Existing", "New"] ||
+            error("$(name) has legacy $(legacy) which is not in [Existing, New]")
 
         0.0 <= FOR <= 1.0 || error("$(name) FOR value is < 0 or > 1")
 

@@ -88,17 +88,21 @@ struct Gen_Storage <: Storage
         FOR = 0.0,
         MTTR = 24,
     )
-        charge_cap >= 0.0 ||
-            error("Charge capacity passed is not allowed (should be >= 0.0) : $(name) - $(charge_cap) MW")
+        charge_cap >= 0.0 || error(
+            "Charge capacity passed is not allowed (should be >= 0.0) : $(name) - $(charge_cap) MW",
+        )
 
         discharge_cap >= 0.0 || error(
             "Discharge capacity passed is not allowed (should be >= 0.0) : $(name) - $(discharge_cap) MW",
         )
 
-        energy_cap >= 0.0 ||
-            error("Energy capacity passed is not allowed (should be >= 0.0) : $(name) - $(energy_cap) MWh")
+        energy_cap >= 0.0 || error(
+            "Energy capacity passed is not allowed (should be >= 0.0) : $(name) - $(energy_cap) MWh",
+        )
 
-        inflow >= 0.0 || error("Inflow passed is not allowed (should be >= 0.0) : $(name) - $(inflow) MW")
+        inflow >= 0.0 || error(
+            "Inflow passed is not allowed (should be >= 0.0) : $(name) - $(inflow) MW",
+        )
 
         grid_withdrawl_cap >= 0.0 || error(
             "Grid withdrawl capacity passed is not allowed (should be >= 0.0) : $(name) - $(grid_withdrawl_cap) MW",
@@ -108,7 +112,8 @@ struct Gen_Storage <: Storage
             "Grid injection capacity passed is not allowed (should be >= 0.0) : $(name) - $(grid_inj_cap) MW",
         )
 
-        legacy in ["Existing", "New"] || error("$(name) has legacy $(legacy) which is not in [Existing, New]")
+        legacy in ["Existing", "New"] ||
+            error("$(name) has legacy $(legacy) which is not in [Existing, New]")
 
         all(0.0 .<= [charge_eff, discharge_eff, carryover_eff] .<= 1.0) ||
             error("$(name) charge/discharge/carryover efficiency value is < 0.0 or > 1.0")

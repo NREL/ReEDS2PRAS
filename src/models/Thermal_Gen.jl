@@ -49,7 +49,8 @@ struct Thermal_Gen <: Generator
     )
         capacity >= 0.0 || error("$(name) capacity value passed is < 0")
 
-        legacy in ["Existing", "New"] || error("$(name) has legacy $(legacy) which is not in [Existing, New]")
+        legacy in ["Existing", "New"] ||
+            error("$(name) has legacy $(legacy) which is not in [Existing, New]")
 
         0.0 <= FOR <= 1.0 || error("$(name) FOR value is < 0 or > 1")
 

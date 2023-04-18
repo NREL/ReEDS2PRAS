@@ -26,9 +26,10 @@ struct Region
 
     # Inner Constructors & Checks
     function Region(name, timesteps, load = zeros(Float64, timesteps))
-        length(load) == timesteps ||
-            error("The length of the region $(name) load time series data is $(length(load)) but it should be
-                   equal to PRAS timesteps ($(timesteps))")
+        length(load) == timesteps || error(
+            "The length of the region $(name) load time series data is $(length(load)) but it should be
+             equal to PRAS timesteps ($(timesteps))",
+        )
 
         all(load .>= 0.0) ||
             error("Check for negative values in region $(name) load time series data.")

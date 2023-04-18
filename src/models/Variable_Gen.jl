@@ -1,8 +1,8 @@
-const ReEDS_VRE_TYPES = [
-    "wind-ons", "wind-ofs", "dupv", "upv", "distpv","csp"
-]
+const ReEDS_VRE_TYPES = ["wind-ons", "wind-ofs", "dupv", "upv", "distpv", "csp"]
 
-function check_reeds_vre_type(type::Union{STRING, String}) where {STRING <: InlineStrings.InlineString}
+function check_reeds_vre_type(
+    type::Union{STRING, String},
+) where {STRING <: InlineStrings.InlineString}
     flag = 0
     for vre_type in ReEDS_VRE_TYPES
         if (occursin(vre_type, type))
