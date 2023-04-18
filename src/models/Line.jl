@@ -1,3 +1,7 @@
+const ReEDS_LINE_TYPES = [
+    "AC", "B2B", "LCC", "VSC", "VSC DC-AC converter"
+]
+
 """
     Constructs a model of LINE.
 
@@ -66,21 +70,21 @@ struct Line
         VSC = false,
         converter_capacity = Dict(region_from => 0.0, region_to => 0.0),
     )
-        category in ["AC", "B2B", "LCC", "VSC", "VSC DC-AC converter"] ||
-            error("Check the category of $(name) passed")
+        category in ReEDS_LINE_TYPES ||
+            error("$(name) has category $(category) which is not in $(ReEDS_LINE_TYPES)")
 
         ~(region_from == region_to) ||
             error("Region_From and Region_To cannot be the same for $(name). PRAS only
                    considers inter-regional lines in zonal analysis")
 
         all([forward_cap, backward_cap] .>= 0.0) ||
-            error("Check the forward/backward capacity of $(name) passed")
+            error("$(name) forward/backward capacity value < 0")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
+        legacy in ["Existing", "New"] || error("$(name) has legacy $(legacy) which is not in [Existing, New]")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed for $(name)")
+        0.0 <= FOR <= 1.0 || error("$(name) FOR value is < 0 or > 1")
 
-        MTTR > 0 || error("MTTR value passed is not allowed for $(name)")
+        MTTR > 0 || error("$(name) MTTR value is <= 0")
 
         all([region_from, region_to] .∈ Ref(keys(converter_capacity))) ||
             error("Check the keys of converter capacity dictionary for VSC DC

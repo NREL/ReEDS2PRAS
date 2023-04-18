@@ -77,23 +77,23 @@ struct Battery <: Storage
         @debug "cap_P = $(discharge_cap) MW and cap_E = $(energy_cap) MWh"
 
         charge_cap > 0.0 ||
-            error("Charge capacity passed is not allowed : $(name) - $(charge_cap) MW")
+            error("Charge capacity passed is not allowed (should be > 0.0) : $(name) - $(charge_cap) MW")
 
         discharge_cap > 0.0 || error(
-            "Discharge capacity passed is not allowed :  $(name) - $(discharge_cap) MW",
+            "Discharge capacity passed is not allowed (should be > 0.0) :  $(name) - $(discharge_cap) MW",
         )
 
         energy_cap > 0.0 ||
-            error("Energy capacity passed is not allowed : $(name) - $(energy_cap) MWh")
+            error("Energy capacity passed is not allowed (should be > 0.0) : $(name) - $(energy_cap) MWh")
 
-        legacy in ["Existing", "New"] || error("Unidentified legacy passed for $(name)")
+        legacy in ["Existing", "New"] || error("$(name) has legacy $(legacy) which is not in [Existing, New]")
 
         all(0.0 .<= [charge_eff, discharge_eff, carryover_eff] .<= 1.0) ||
-            error("Invalid charge/discharge/carryover efficiency passed for $(name)")
+            error("$(name) charge/discharge/carryover efficiency value is < 0.0 or > 1.0")
 
-        0.0 <= FOR <= 1.0 || error("FOR value passed is not allowed for $(name)")
+        0.0 <= FOR <= 1.0 || error("$(name) FOR value is < 0 or > 1")
 
-        MTTR > 0 || error("MTTR value passed is not allowed for $(name)")
+        MTTR > 0 || error("$(name) MTTR value is <= 0")
 
         return new(
             name,

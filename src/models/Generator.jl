@@ -17,7 +17,7 @@ get_μ(gen::GEN) where {GEN <: Generator} =
 function get_generators_in_region(gens::Vector{<:Generator}, reg_name::String)
     reg_gens = filter(gen -> gen.region_name == reg_name, gens)
     if isempty(reg_gens)
-        # @warn "No generators in region: $(reg_name)"
+        @warn "No generators in region: $(reg_name)"
         return Generator[]
     else
         return reg_gens
@@ -32,7 +32,8 @@ function get_legacy_generators(gens::Vector{<:Generator}, leg::String)
 
     leg_gens = filter(gen -> gen.legacy == leg, gens)
     if isempty(leg_gens)
-        # @warn "No generators with legacy: $(leg)"
+        @warn "No generators with legacy: $(leg)"
+        return Generator[]
     else
         return leg_gens
     end
