@@ -269,6 +269,7 @@ function process_thermals_with_disaggregation(
     ReEDS_data,
     thermal_builds::DataFrames.DataFrame,
     FOR_dict::Dict,
+    unitsize_dict::Dict,
     timesteps::Int,
     year::Int,
 ) # FOR_data::DataFrames.DataFrame,
@@ -295,6 +296,7 @@ function process_thermals_with_disaggregation(
 
         generator_array = disagg_existing_capacity(
             EIA_db,
+            unitsize_dict,
             floor(Int, row.MW_sum),
             String(row.i),
             String(row.r),
@@ -531,6 +533,7 @@ end
 """
 function disagg_existing_capacity(
     eia_df::DataFrames.DataFrame,
+    unitsize_dict::Dict,
     built_capacity::Int,
     tech::String,
     pca::String,
@@ -547,7 +550,24 @@ function disagg_existing_capacity(
         :StartYear => DataFrames.ByRow(<=(year)),
     )
 
-    if DataFrames.nrow(tech_ba_year_existing) == 0
+    generators_array = []
+    if DataFrames.nrow(tech_ba_year_existing) == 0 && gen_for != 0.0
+        add_new_capacity!(
+            generators_array,
+            built_capacity,
+            0,
+            0,
+            unitsize_dict,
+            tech,
+            pca,
+            gen_for,
+            timesteps,
+            year,
+            MTTR,
+        )
+        return generators_array
+    elseif DataFrames.nrow(tech_ba_year_existing) == 0 && gen_for == 0.0
+        #not necessary to disagg if generator never fails
         return [
             Thermal_Gen(
                 "$(tech)_$(pca)_1",
@@ -569,7 +589,7 @@ function disagg_existing_capacity(
     max_cap = maximum(existing_capacity)
     avg_cap = Statistics.mean(existing_capacity)
 
-    generators_array = []
+
     for (idx, built_cap) in enumerate(existing_capacity)
         int_built_cap = floor(Int, built_cap)
         if int_built_cap < remaining_capacity
@@ -599,6 +619,7 @@ function disagg_existing_capacity(
             remaining_capacity,
             floor.(Int, avg_cap),
             floor.(Int, max_cap),
+            unitsize_dict,
             tech,
             pca,
             gen_for,
@@ -655,6 +676,7 @@ function add_new_capacity!(
     new_capacity::Int,
     existing_avg_unit_cap::Int,
     max::Int,
+    unitsize_dict::Dict,
     tech::String,
     pca::String,
     gen_for::Float64,
@@ -662,22 +684,22 @@ function add_new_capacity!(
     year::Int,
     MTTR::Int,
 )
-    # if there are no existing units to determine size of new unit(s), build
-    # all new capacity as a single generator
+    # if there are no existing units to determine size of new unit(s),
+    # use ATB
     if existing_avg_unit_cap == 0
-        return push!(
-            generators_array,
-            Thermal_Gen(
-                "$(tech)_$(pca)_new_1",
-                timesteps,
-                pca,
-                new_capacity,
-                tech,
-                "New",
-                gen_for,
-                MTTR,
-            ),
-        )
+        try
+            #use conventional name first 
+            existing_avg_unit_cap = unitsize_dict[tech]
+        catch
+            #if no match, split on "_" then try b/c likely upgrade
+            try
+                existing_avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+            catch
+                #if still no match, try dropping trailing digits
+                existing_avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
+                #will fail if this last thing doesn't work!
+            end
+        end
     end
 
     n_gens = floor(Int, new_capacity / existing_avg_unit_cap)

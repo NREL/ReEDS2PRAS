@@ -279,6 +279,32 @@ function get_region_mapping(data::ReEDSdatapaths)
 end
 
 """
+    Returns a DataFrame containing the Annual Technology Baseline
+    default unit size for the ReEDSdatapaths object.
+
+    Parameters
+    ----------
+    data : ReEDSdatapaths
+        An object containing the filepaths to the ReEDS input files.
+
+    Returns
+    -------
+    DataFrame
+        A DataFrame containing the default unit size mapping.
+
+    Raises
+    ------
+    Error
+        If no table of unit size mapping is found.
+
+"""
+function get_unitsize_mapping(data::ReEDSdatapaths)
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitsize.csv")
+    isfile(filepath) || error("no table of unit size mapping!")
+    return DataFrames.DataFrame(CSV.File(filepath))
+end
+
+"""
     Returns a DataFrame containing the installed capacity of generators for a
     given year.
 

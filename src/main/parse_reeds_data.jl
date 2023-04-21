@@ -61,11 +61,16 @@ function parse_reeds_data(
     forced_outage_dict =
         Dict(forced_outage_data[!, "ResourceType"] .=> forced_outage_data[!, "FOR"])
 
+    @info "reading in ATB unit size data for use with disaggregation..."
+    unitsize_data = get_unitsize_mapping(ReEDS_data)
+    unitsize_dict = Dict(unitsize_data[!, "tech"] .=> unitsize_data[!, "atb_capacity_MW"]) 
+    @info "unique units are $(unitsize_data[!, "tech"]), while thermals are $(unique(thermal[!,"i"]))"
     @info "Processing conventional/thermal generators..."
     thermal_gens = process_thermals_with_disaggregation(
         ReEDS_data,
         thermal,
         forced_outage_dict,
+        unitsize_dict,
         timesteps,
         year,
     )
