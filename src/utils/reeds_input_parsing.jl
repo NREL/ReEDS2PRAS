@@ -61,12 +61,10 @@ end
     EIA_NEMS_data : DataFrame
         A DataFrame containing the EIA-NEMS Generator Database data.
 """
-function Load_EIA_NEMS_DB()
-    #there is also a _prm file, not sure which is right?
-    EIA_NEMS_loc =
-        joinpath(@__DIR__, "Descriptors", "ReEDS_generator_database_final_EIA-NEMS.csv")
-    EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc))
-    return EIA_NEMS_data
+function get_EIA_NEMS_DB(data::ReEDSdatapaths)
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitdata.csv")
+    isfile(filepath) || error("no EIA NEMS database!")
+    return DataFrames.DataFrame(CSV.File(filepath))
 end
 
 """

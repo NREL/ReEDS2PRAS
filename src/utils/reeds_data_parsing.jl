@@ -278,7 +278,7 @@ function process_thermals_with_disaggregation(
     # split-apply-combine to handle differently vintaged entries
     thermal_builds =
         DataFrames.combine(DataFrames.groupby(thermal_builds, ["i", "r"]), :MW => sum)
-    EIA_db = Load_EIA_NEMS_DB()
+    EIA_db = get_EIA_NEMS_DB(ReEDS_data)
 
     all_generators = Generator[]
     # this loop gets the FOR for each build/tech
