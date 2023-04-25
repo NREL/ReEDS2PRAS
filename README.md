@@ -16,17 +16,14 @@ If you have a completed ReEDS run and a REPL with ReEDS2PRAS (`using ReEDS2PRAS`
 ```
 using ReEDS2PRAS
 
-# directory where user has ReEDS. This is used to find the input EIA database for disaggregating generators.
-reedspath = joinpath("/projects/ntps/llavin/ReEDS-2.0")
-# path to completed ReEDS runs
+# path to completed ReEDS run
 reedscase = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs/ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core")
-solve_year = 2035
+solve_year = 2035 #need ReEDS Augur data for the input solve year
 weather_year = 2012 # must be 2007-2013
 timesteps = 8760
 
 # returns a parameterized PRAS system
-pras_system = ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, reedspath,
-                                       timesteps, weather_year)
+pras_system = ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, timesteps, weather_year)
 ```
 
 This will save out a pras system to the variable `pras_system` from the ReEDS2PRAS run. The user can also save a PRAS system to a specific location using `PRAS.savemodel(pras_system, joinpath("MYPATH"*".pras")`. The saved PRAS system may then be read in by other tools like PRAS Analytics (`https://github.nrel.gov/PRAS/PRAS-Analytics`) for further analysis, post-processing, and plotting.

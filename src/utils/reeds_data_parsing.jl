@@ -663,10 +663,10 @@ end
 
 """
     This function adds new capacity to an existing list of generators. The
-    existing_avg_unit_cap parameter is used to determine how many generators
+    avg_unit_cap parameter is used to determine how many generators
     must be constructed to create the total new_capacity. If there are no
     existing units, a single generator is built with all of the new_capacity.
-    For fixed existing_avg_unit_cap values, the remaining capacity is divided
+    For fixed avg_unit_cap values, the remaining capacity is divided
     evenly among the new generators, adding additional capacity to each one,
     then a small remainder may be created and added as a separate generator to
     get the desired total new_capacity. The output of this function is the
@@ -678,7 +678,7 @@ end
         a vector or list of existing generators
     new_capacity : int
         specified new capacity to be added
-    existing_avg_unit_cap : int
+    avg_unit_cap : int
         average capacity for the existing units
     max : int
         maximum capacity for the existing units
@@ -703,7 +703,7 @@ end
 function add_new_capacity!(
     generators_array::Vector{<:Any},
     new_capacity::Int,
-    existing_avg_unit_cap::Int,
+    avg_unit_cap::Int,
     max::Int,
     unitsize_dict::Dict,
     tech::AbstractString,
@@ -715,23 +715,23 @@ function add_new_capacity!(
 )
     # if there are no existing units to determine size of new unit(s),
     # use ATB
-    if existing_avg_unit_cap == 0
+    if avg_unit_cap == 0
         try
             #use conventional name first 
-            existing_avg_unit_cap = unitsize_dict[tech]
+            avg_unit_cap = unitsize_dict[tech]
         catch
             #if no match, split on "_" then try b/c likely upgrade
             try
-                existing_avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
             catch
                 #if still no match, try dropping trailing digits
-                existing_avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
+                avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
                 #will fail if this last thing doesn't work!
             end
         end
     end
 
-    n_gens = floor(Int, new_capacity / existing_avg_unit_cap)
+    n_gens = floor(Int, new_capacity / avg_unit_cap)
     if n_gens == 0
         return push!(
             generators_array,
@@ -748,9 +748,6 @@ function add_new_capacity!(
         )
     end
 
-    remainder = new_capacity - (n_gens * existing_avg_unit_cap)
-    addtl_cap_per_gen = floor(Int, remainder / n_gens)
-    per_gen_cap = existing_avg_unit_cap + addtl_cap_per_gen
     for i in range(1, n_gens)
         push!(
             generators_array,
@@ -758,7 +755,7 @@ function add_new_capacity!(
                 "$(tech)_$(pca)_new_$(i)",
                 timesteps,
                 pca,
-                per_gen_cap,
+                avg_unit_cap,
                 tech,
                 "New",
                 gen_for,
@@ -767,8 +764,8 @@ function add_new_capacity!(
         )
     end
 
-    small_remainder = new_capacity - (n_gens * per_gen_cap)
-    if small_remainder > 0
+    remainder = new_capacity - (n_gens * avg_unit_cap)
+    if remainder > 0
         # integer remainder is made into a tiny gen
         push!(
             generators_array,
@@ -776,7 +773,7 @@ function add_new_capacity!(
                 "$(tech)_$(pca)_new_$(n_gens+1)",
                 timesteps,
                 pca,
-                small_remainder,
+                remainder,
                 tech,
                 "New",
                 gen_for,
@@ -798,7 +795,7 @@ function add_new_capacity!(
     generators_array::Vector{<:Any},
     new_capacity::Int,
     new_duration::Int,
-    existing_avg_unit_cap::Int,
+    avg_unit_cap::Int,
     max::Int,
     unitsize_dict::Dict,
     tech::AbstractString,
@@ -810,23 +807,23 @@ function add_new_capacity!(
 )
     # if there are no existing units to determine size of new unit(s),
     # use ATB
-    if existing_avg_unit_cap == 0
+    if avg_unit_cap == 0
         try
             #use conventional name first 
-            existing_avg_unit_cap = unitsize_dict[tech]
+            avg_unit_cap = unitsize_dict[tech]
         catch
             #if no match, split on "_" then try b/c likely upgrade
             try
-                existing_avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
             catch
                 #if still no match, try dropping trailing digits
-                existing_avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
+                avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
                 #will fail if this last thing doesn't work!
             end
         end
     end
 
-    n_gens = floor(Int, new_capacity / existing_avg_unit_cap)
+    n_gens = floor(Int, new_capacity / avg_unit_cap)
     if n_gens == 0
         return push!(
             generators_array,
@@ -847,10 +844,7 @@ function add_new_capacity!(
             ),
         )
     end
-
-    remainder = new_capacity - (n_gens * existing_avg_unit_cap)
-    addtl_cap_per_gen = floor(Int, remainder / n_gens)
-    per_gen_cap = existing_avg_unit_cap + addtl_cap_per_gen
+    
     for i in range(1, n_gens)
         push!(
             generators_array,
@@ -859,9 +853,9 @@ function add_new_capacity!(
                 timesteps,
                 pca,
                 tech,
-                per_gen_cap,
-                per_gen_cap,
-                round(Int,per_gen_cap) * new_duration,
+                avg_unit_cap,
+                avg_unit_cap,
+                round(Int,avg_unit_cap) * new_duration,
                 "New",
                 1,
                 1,
@@ -872,8 +866,8 @@ function add_new_capacity!(
         )
     end
 
-    small_remainder = new_capacity - (n_gens * per_gen_cap)
-    if small_remainder > 0
+    remainder = new_capacity - (n_gens * avg_unit_cap)
+    if remainder > 0
         # integer remainder is made into a tiny gen
         push!(
             generators_array,
@@ -882,9 +876,9 @@ function add_new_capacity!(
                 timesteps,
                 pca,
                 tech,
-                small_remainder,
-                small_remainder,
-                round(Int,small_remainder) * new_duration,
+                remainder,
+                remainder,
+                round(Int,remainder) * new_duration,
                 "New",
                 1,
                 1,
