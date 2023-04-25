@@ -77,6 +77,7 @@ function process_lines(
     regions::Vector{<:AbstractString},
     year::Int,
     timesteps::Int,
+    user_inputs::Dict{Any, Any}
 )
     #it is assumed this has prm line capacity data
     line_base_cap_data = get_line_capacity_data(ReEDS_data)
@@ -141,7 +142,7 @@ function process_lines(
                     backward_cap,
                     "Existing",
                     0.0,
-                    24,
+                    user_inputs["MTTR"],
                 ),
             )
         else
@@ -157,7 +158,7 @@ function process_lines(
                     backward_cap,
                     "Existing",
                     0.0,
-                    24,
+                    user_inputs["MTTR"],
                     true,
                     Dict(
                         row.r => converter_capacity_dict[string(row.r)],
@@ -272,6 +273,7 @@ function process_thermals_with_disaggregation(
     unitsize_dict::Dict,
     timesteps::Int,
     year::Int,
+    user_inputs::Dict{Any, Any}
 ) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]
@@ -303,6 +305,7 @@ function process_thermals_with_disaggregation(
             gen_for,
             timesteps,
             year,
+            user_inputs
         )
         append!(all_generators, generator_array)
     end
@@ -346,6 +349,7 @@ function process_vg(
     weather_year::Int,
     timesteps::Int,
     min_year::Int,
+    user_inputs::Dict{Any, Any}
 )
     region_mapper_df = get_region_mapping(ReEDS_data)
     region_mapper_dict = Dict(region_mapper_df[!, "rs"] .=> region_mapper_df[!, "*r"])
@@ -388,7 +392,7 @@ function process_vg(
                 category,
                 "New",
                 gen_for,
-                24,
+                user_inputs["MTTR"]
             ),
         )
     end
@@ -427,6 +431,7 @@ function process_storages(
     timesteps::Int,
     regions::Vector{<:AbstractString},
     year::Int64,
+    user_inputs::Dict{Any, Any}
 )
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
     @debug "storage_energy_capacity_data is $(storage_energy_capacity_data)"
@@ -438,7 +443,6 @@ function process_storages(
 
     tech_types_data = get_technology_types(ReEDS_data)
     battery_types = DataFrames.dropmissing(tech_types_data, :BATTERY)[:, "Column1"]
-    MTTR = 24
 
     storages_array = Storage[]
     for (idx, row) in enumerate(eachrow(storage_builds))
@@ -474,7 +478,7 @@ function process_storages(
                     1,
                     1,
                     0.0,
-                    MTTR,
+                    user_inputs["MTTR"],
                 ),
             )
         else
@@ -490,7 +494,7 @@ function process_storages(
                 gen_for,
                 timesteps,
                 year,
-                MTTR,
+                user_inputs["MTTR"],
             )
         end
     end
@@ -565,8 +569,8 @@ function disagg_existing_capacity(
     gen_for::Float64,
     timesteps::Int,
     year::Int,
+    user_inputs::Dict{Any, Any}
 )
-    MTTR = 24
     tech_ba_year_existing = DataFrames.subset(
         eia_df,
         :tech => DataFrames.ByRow(==(tech)),
@@ -588,7 +592,7 @@ function disagg_existing_capacity(
             gen_for,
             timesteps,
             year,
-            MTTR,
+            user_inputs["MTTR"],
         )
         return generators_array
     elseif DataFrames.nrow(tech_ba_year_existing) == 0 && gen_for == 0.0
@@ -602,7 +606,7 @@ function disagg_existing_capacity(
                 tech,
                 "New",
                 gen_for,
-                MTTR,
+                user_inputs["MTTR"],
             ),
         ]
     end
@@ -632,7 +636,7 @@ function disagg_existing_capacity(
             tech,
             "Existing",
             gen_for,
-            MTTR,
+            user_inputs["MTTR"],
         )
         push!(generators_array, gen)
     end
@@ -650,7 +654,7 @@ function disagg_existing_capacity(
             gen_for,
             timesteps,
             year,
-            MTTR,
+            user_inputs["MTTR"],
         )
     end
 
