@@ -77,7 +77,7 @@ function process_lines(
     regions::Vector{<:AbstractString},
     year::Int,
     timesteps::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     #it is assumed this has prm line capacity data
     line_base_cap_data = get_line_capacity_data(ReEDS_data)
@@ -273,7 +273,7 @@ function process_thermals_with_disaggregation(
     unitsize_dict::Dict,
     timesteps::Int,
     year::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 ) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]
@@ -305,7 +305,7 @@ function process_thermals_with_disaggregation(
             gen_for,
             timesteps,
             year,
-            user_inputs
+            user_inputs,
         )
         append!(all_generators, generator_array)
     end
@@ -349,7 +349,7 @@ function process_vg(
     weather_year::Int,
     timesteps::Int,
     min_year::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     region_mapper_df = get_region_mapping(ReEDS_data)
     region_mapper_dict = Dict(region_mapper_df[!, "rs"] .=> region_mapper_df[!, "*r"])
@@ -392,7 +392,7 @@ function process_vg(
                 type = category,
                 legacy = "New",
                 FOR = gen_for,
-                MTTR = user_inputs["MTTR"]
+                MTTR = user_inputs["MTTR"],
             ),
         )
     end
@@ -431,7 +431,7 @@ function process_storages(
     timesteps::Int,
     regions::Vector{<:AbstractString},
     year::Int64,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
     @debug "storage_energy_capacity_data is $(storage_energy_capacity_data)"
@@ -471,8 +471,8 @@ function process_storages(
                     region_name = string(row.r),
                     type = string(row.i),
                     charge_cap = row.MW,
-                    discharge_cap =row.MW,
-                    energy_cap = round(Int, row.MW) * int_duration * (1-gen_for),
+                    discharge_cap = row.MW,
+                    energy_cap = round(Int, row.MW) * int_duration * (1 - gen_for),
                     legacy = "New",
                     charge_eff = 1.0,
                     discharge_eff = 1.0,
@@ -516,12 +516,14 @@ end
         technologies for each region.
 """
 function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
-    gen_stors = [Gen_Storage(
-        name = "GenStor_1",
-        timesteps = timesteps,
-        region_name = regions[1],
-        type = "blank_genstor"
-    )] # empty for now
+    gen_stors = [
+        Gen_Storage(
+            name = "GenStor_1",
+            timesteps = timesteps,
+            region_name = regions[1],
+            type = "blank_genstor",
+        ),
+    ] # empty for now
 
     return gen_stors
 end
@@ -563,7 +565,7 @@ function disagg_existing_capacity(
     gen_for::Float64,
     timesteps::Int,
     year::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     tech_ba_year_existing = DataFrames.subset(
         eia_df,
@@ -611,7 +613,6 @@ function disagg_existing_capacity(
     tech_len = length(existing_capacity)
     max_cap = maximum(existing_capacity)
     avg_cap = Statistics.mean(existing_capacity)
-
 
     for (idx, built_cap) in enumerate(existing_capacity)
         int_built_cap = floor(Int, built_cap)
@@ -716,7 +717,7 @@ function add_new_capacity!(
         catch
             #if no match, split on "_" then try b/c likely upgrade
             try
-                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+                avg_unit_cap = unitsize_dict[split(tech, "_")[2]]
             catch
                 #if still no match, try dropping trailing digits
                 avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
@@ -808,7 +809,7 @@ function add_new_capacity!(
         catch
             #if no match, split on "_" then try b/c likely upgrade
             try
-                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+                avg_unit_cap = unitsize_dict[split(tech, "_")[2]]
             catch
                 #if still no match, try dropping trailing digits
                 avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
@@ -838,7 +839,7 @@ function add_new_capacity!(
             ),
         )
     end
-    
+
     for i in range(1, n_gens)
         push!(
             generators_array,
@@ -849,7 +850,7 @@ function add_new_capacity!(
                 type = tech,
                 charge_cap = avg_unit_cap,
                 discharge_cap = avg_unit_cap,
-                energy_cap = round(Int,avg_unit_cap) * new_duration,
+                energy_cap = round(Int, avg_unit_cap) * new_duration,
                 legacy = "New",
                 charge_eff = 1.0,
                 discharge_eff = 1.0,
@@ -872,7 +873,7 @@ function add_new_capacity!(
                 type = tech,
                 charge_cap = remainder,
                 discharge_cap = remainder,
-                energy_cap = round(Int,remainder) * new_duration,
+                energy_cap = round(Int, remainder) * new_duration,
                 legacy = "New",
                 charge_eff = 1.0,
                 discharge_eff = 1.0,

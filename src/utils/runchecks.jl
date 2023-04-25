@@ -17,7 +17,7 @@ function check_file(loc::String)
 end
 
 function run_checks(data::ReEDSdatapaths)
-    
+
     # EIA NEMS Database
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitdata.csv")
 

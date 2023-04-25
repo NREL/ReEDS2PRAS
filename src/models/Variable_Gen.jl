@@ -66,7 +66,7 @@ struct Variable_Gen <: Generator
         timesteps = 8760,
         region_name = "init_name",
         installed_capacity = 10.0,
-        capacity = zeros(Float64,timesteps),
+        capacity = zeros(Float64, timesteps),
         type = "wind-ons_init_name",
         legacy = "New",
         FOR = 0.0,

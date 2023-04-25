@@ -27,11 +27,11 @@ function reeds_to_pras(
     solve_year::Int64,
     timesteps::Int,
     weather_year::Int;
-    user_descriptors::Union{Nothing, String} = nothing
+    user_descriptors::Union{Nothing, String} = nothing,
 )
-
     if (user_descriptors === nothing)
-        user_descriptors = joinpath(@__DIR__,"utils", "Descriptors","user_descriptors.json")
+        user_descriptors =
+            joinpath(@__DIR__, "utils", "Descriptors", "user_descriptors.json")
     end
     user_inputs = parse_user_descriptors(user_descriptors)
     # assume valid weather years as hardcode for now. These should eventually
@@ -49,7 +49,14 @@ function reeds_to_pras(
     run_checks(ReEDS_data_filepaths)
 
     @info "Parsing ReEDS data and creating ReEDS2PRAS objects..."
-    out = parse_reeds_data(ReEDS_data_filepaths, weather_year, timesteps, solve_year, 2007, user_inputs)
+    out = parse_reeds_data(
+        ReEDS_data_filepaths,
+        weather_year,
+        timesteps,
+        solve_year,
+        2007,
+        user_inputs,
+    )
     lines, regions, gens, storages, genstors = out
 
     @info "ReEDS data successfully parsed, creating a PRAS system"
