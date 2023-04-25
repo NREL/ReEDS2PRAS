@@ -63,7 +63,6 @@ end
 """
 function get_EIA_NEMS_DB(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitdata.csv")
-    isfile(filepath) || error("no EIA NEMS database!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -151,7 +150,6 @@ function get_forced_outage_data(data::ReEDSdatapaths)
         "augur_data",
         "forced_outage_$(string(data.year)).csv",
     )
-    isfile(filepath) || error("No augur-based forced outage data is found.")
     df = DataFrames.DataFrame(CSV.File(filepath, header = true))
     return DataFrames.rename!(df, ["ResourceType", "FOR"])
 end
@@ -171,7 +169,6 @@ end
 """
 function get_valid_resources(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "resources.csv")
-    isfile(filepath) || error("No resource table is found.")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -190,7 +187,6 @@ end
 """
 function get_technology_types(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "tech-subset-table.csv")
-    isfile(filepath) || error("no table of technology types!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -216,10 +212,6 @@ function get_line_capacity_data(data::ReEDSdatapaths)
         "augur_data",
         "tran_cap_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have transmission capacity data.
-           Are you sure ReEDS was run and Augur results saved for
-           $(data.year)?"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -244,9 +236,6 @@ function get_converter_capacity_data(data::ReEDSdatapaths)
         "augur_data",
         "cap_converter_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have capacity converter data. Are
-           you sure ReEDS was run and Augur results saved for $(data.year)?"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -272,7 +261,6 @@ end
 """
 function get_region_mapping(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "rsmap.csv")
-    isfile(filepath) || error("no table of r-s region mapping!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -298,7 +286,6 @@ end
 """
 function get_unitsize_mapping(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitsize.csv")
-    isfile(filepath) || error("no table of unit size mapping!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -328,10 +315,6 @@ function get_ICAP_data(data::ReEDSdatapaths)
         "augur_data",
         "max_cap_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have generator installed capacity
-           data. Are you sure REEDS was run and Augur results saved for year
-           $(data.year)"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -361,9 +344,5 @@ function get_storage_energy_capacity_data(data::ReEDSdatapaths)
         "augur_data",
         "energy_cap_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have generator installed storage
-           energy capacity data. Are you sure REEDS was run and Augur
-           results saved for year $(data.year)"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
