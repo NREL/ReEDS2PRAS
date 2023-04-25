@@ -61,12 +61,9 @@ end
     EIA_NEMS_data : DataFrame
         A DataFrame containing the EIA-NEMS Generator Database data.
 """
-function Load_EIA_NEMS_DB()
-    #there is also a _prm file, not sure which is right?
-    EIA_NEMS_loc =
-        joinpath(@__DIR__, "Descriptors", "ReEDS_generator_database_final_EIA-NEMS.csv")
-    EIA_NEMS_data = DataFrames.DataFrame(CSV.File(EIA_NEMS_loc))
-    return EIA_NEMS_data
+function get_EIA_NEMS_DB(data::ReEDSdatapaths)
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitdata.csv")
+    return DataFrames.DataFrame(CSV.File(filepath))
 end
 
 """
@@ -153,7 +150,6 @@ function get_forced_outage_data(data::ReEDSdatapaths)
         "augur_data",
         "forced_outage_$(string(data.year)).csv",
     )
-    isfile(filepath) || error("No augur-based forced outage data is found.")
     df = DataFrames.DataFrame(CSV.File(filepath, header = true))
     return DataFrames.rename!(df, ["ResourceType", "FOR"])
 end
@@ -173,7 +169,6 @@ end
 """
 function get_valid_resources(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "resources.csv")
-    isfile(filepath) || error("No resource table is found.")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -192,7 +187,6 @@ end
 """
 function get_technology_types(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "tech-subset-table.csv")
-    isfile(filepath) || error("no table of technology types!")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -218,10 +212,6 @@ function get_line_capacity_data(data::ReEDSdatapaths)
         "augur_data",
         "tran_cap_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have transmission capacity data.
-           Are you sure ReEDS was run and Augur results saved for
-           $(data.year)?"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -246,9 +236,6 @@ function get_converter_capacity_data(data::ReEDSdatapaths)
         "augur_data",
         "cap_converter_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have capacity converter data. Are
-           you sure ReEDS was run and Augur results saved for $(data.year)?"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -274,7 +261,31 @@ end
 """
 function get_region_mapping(data::ReEDSdatapaths)
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "rsmap.csv")
-    isfile(filepath) || error("no table of r-s region mapping!")
+    return DataFrames.DataFrame(CSV.File(filepath))
+end
+
+"""
+    Returns a DataFrame containing the Annual Technology Baseline
+    default unit size for the ReEDSdatapaths object.
+
+    Parameters
+    ----------
+    data : ReEDSdatapaths
+        An object containing the filepaths to the ReEDS input files.
+
+    Returns
+    -------
+    DataFrame
+        A DataFrame containing the default unit size mapping.
+
+    Raises
+    ------
+    Error
+        If no table of unit size mapping is found.
+
+"""
+function get_unitsize_mapping(data::ReEDSdatapaths)
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitsize.csv")
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -304,10 +315,6 @@ function get_ICAP_data(data::ReEDSdatapaths)
         "augur_data",
         "max_cap_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have generator installed capacity
-           data. Are you sure REEDS was run and Augur results saved for year
-           $(data.year)"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
@@ -337,9 +344,5 @@ function get_storage_energy_capacity_data(data::ReEDSdatapaths)
         "augur_data",
         "energy_cap_$(string(data.year)).csv",
     )
-    msg = "The year $(data.year) does not have generator installed storage
-           energy capacity data. Are you sure REEDS was run and Augur
-           results saved for year $(data.year)"
-    isfile(filepath) || error(msg)
     return DataFrames.DataFrame(CSV.File(filepath))
 end

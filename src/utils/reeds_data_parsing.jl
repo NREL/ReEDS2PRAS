@@ -77,6 +77,7 @@ function process_lines(
     regions::Vector{<:AbstractString},
     year::Int,
     timesteps::Int,
+    user_inputs::Dict{Any, Any}
 )
     #it is assumed this has prm line capacity data
     line_base_cap_data = get_line_capacity_data(ReEDS_data)
@@ -141,7 +142,7 @@ function process_lines(
                     backward_cap,
                     "Existing",
                     0.0,
-                    24,
+                    user_inputs["MTTR"],
                 ),
             )
         else
@@ -157,7 +158,7 @@ function process_lines(
                     backward_cap,
                     "Existing",
                     0.0,
-                    24,
+                    user_inputs["MTTR"],
                     true,
                     Dict(
                         row.r => converter_capacity_dict[string(row.r)],
@@ -269,15 +270,17 @@ function process_thermals_with_disaggregation(
     ReEDS_data,
     thermal_builds::DataFrames.DataFrame,
     FOR_dict::Dict,
+    unitsize_dict::Dict,
     timesteps::Int,
     year::Int,
+    user_inputs::Dict{Any, Any}
 ) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]
     # split-apply-combine to handle differently vintaged entries
     thermal_builds =
         DataFrames.combine(DataFrames.groupby(thermal_builds, ["i", "r"]), :MW => sum)
-    EIA_db = Load_EIA_NEMS_DB()
+    EIA_db = get_EIA_NEMS_DB(ReEDS_data)
 
     all_generators = Generator[]
     # this loop gets the FOR for each build/tech
@@ -295,12 +298,14 @@ function process_thermals_with_disaggregation(
 
         generator_array = disagg_existing_capacity(
             EIA_db,
+            unitsize_dict,
             floor(Int, row.MW_sum),
             String(row.i),
             String(row.r),
             gen_for,
             timesteps,
             year,
+            user_inputs
         )
         append!(all_generators, generator_array)
     end
@@ -344,6 +349,7 @@ function process_vg(
     weather_year::Int,
     timesteps::Int,
     min_year::Int,
+    user_inputs::Dict{Any, Any}
 )
     region_mapper_df = get_region_mapping(ReEDS_data)
     region_mapper_dict = Dict(region_mapper_df[!, "rs"] .=> region_mapper_df[!, "*r"])
@@ -386,7 +392,7 @@ function process_vg(
                 category,
                 "New",
                 gen_for,
-                24,
+                user_inputs["MTTR"]
             ),
         )
     end
@@ -420,10 +426,12 @@ end
 function process_storages(
     storage_builds::DataFrames.DataFrame,
     FOR_dict::Dict,
+    unitsize_dict::Dict,
     ReEDS_data,
     timesteps::Int,
     regions::Vector{<:AbstractString},
     year::Int64,
+    user_inputs::Dict{Any, Any}
 )
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
     @debug "storage_energy_capacity_data is $(storage_energy_capacity_data)"
@@ -432,6 +440,9 @@ function process_storages(
         DataFrames.groupby(storage_energy_capacity_data, ["i", "r"]),
         :MWh => sum,
     )
+
+    tech_types_data = get_technology_types(ReEDS_data)
+    battery_types = DataFrames.dropmissing(tech_types_data, :BATTERY)[:, "Column1"]
 
     storages_array = Storage[]
     for (idx, row) in enumerate(eachrow(storage_builds))
@@ -445,27 +456,47 @@ function process_storages(
         end
         name = "$(name)_"#append for later matching
 
+        #we need to know if the storage is battery or not
+        #batteries will be deflated...
+
         # as per discussion w/ patrick, find duration of storage, then make
         # energy capacity on that duration?
         int_duration = round(energy_capacity_df[idx, "MWh_sum"] / row.MW)
-        push!(
-            storages_array,
-            Battery(
-                name,
-                timesteps,
-                string(row.r),
-                string(row.i),
-                row.MW,
-                row.MW,
-                round(Int, row.MW) * int_duration,
-                "New",
-                1,
-                1,
-                1,
+        if string(row.i) in battery_types
+            push!(
+                storages_array,
+                Battery(
+                    name,
+                    timesteps,
+                    string(row.r),
+                    string(row.i),
+                    row.MW,
+                    row.MW,
+                    round(Int, row.MW) * int_duration * (1-gen_for),
+                    "New",
+                    1,
+                    1,
+                    1,
+                    0.0,
+                    user_inputs["MTTR"],
+                ),
+            )
+        else
+            add_new_capacity!(
+                storages_array,
+                round(Int, row.MW),
+                round(Int, int_duration),
+                0,
+                0,
+                unitsize_dict,
+                row.i,
+                row.r,
                 gen_for,
-                24,
-            ),
-        )
+                timesteps,
+                year,
+                user_inputs["MTTR"],
+            )
+        end
     end
     return storages_array
 end
@@ -531,14 +562,15 @@ end
 """
 function disagg_existing_capacity(
     eia_df::DataFrames.DataFrame,
+    unitsize_dict::Dict,
     built_capacity::Int,
     tech::String,
     pca::String,
     gen_for::Float64,
     timesteps::Int,
     year::Int,
+    user_inputs::Dict{Any, Any}
 )
-    MTTR = 24
     tech_ba_year_existing = DataFrames.subset(
         eia_df,
         :tech => DataFrames.ByRow(==(tech)),
@@ -547,7 +579,24 @@ function disagg_existing_capacity(
         :StartYear => DataFrames.ByRow(<=(year)),
     )
 
-    if DataFrames.nrow(tech_ba_year_existing) == 0
+    generators_array = []
+    if DataFrames.nrow(tech_ba_year_existing) == 0 && gen_for != 0.0
+        add_new_capacity!(
+            generators_array,
+            built_capacity,
+            0,
+            0,
+            unitsize_dict,
+            tech,
+            pca,
+            gen_for,
+            timesteps,
+            year,
+            user_inputs["MTTR"],
+        )
+        return generators_array
+    elseif DataFrames.nrow(tech_ba_year_existing) == 0 && gen_for == 0.0
+        #not necessary to disagg if generator never fails
         return [
             Thermal_Gen(
                 "$(tech)_$(pca)_1",
@@ -557,7 +606,7 @@ function disagg_existing_capacity(
                 tech,
                 "New",
                 gen_for,
-                MTTR,
+                user_inputs["MTTR"],
             ),
         ]
     end
@@ -569,7 +618,7 @@ function disagg_existing_capacity(
     max_cap = maximum(existing_capacity)
     avg_cap = Statistics.mean(existing_capacity)
 
-    generators_array = []
+
     for (idx, built_cap) in enumerate(existing_capacity)
         int_built_cap = floor(Int, built_cap)
         if int_built_cap < remaining_capacity
@@ -587,7 +636,7 @@ function disagg_existing_capacity(
             tech,
             "Existing",
             gen_for,
-            MTTR,
+            user_inputs["MTTR"],
         )
         push!(generators_array, gen)
     end
@@ -599,12 +648,13 @@ function disagg_existing_capacity(
             remaining_capacity,
             floor.(Int, avg_cap),
             floor.(Int, max_cap),
+            unitsize_dict,
             tech,
             pca,
             gen_for,
             timesteps,
             year,
-            MTTR,
+            user_inputs["MTTR"],
         )
     end
 
@@ -613,10 +663,10 @@ end
 
 """
     This function adds new capacity to an existing list of generators. The
-    existing_avg_unit_cap parameter is used to determine how many generators
+    avg_unit_cap parameter is used to determine how many generators
     must be constructed to create the total new_capacity. If there are no
     existing units, a single generator is built with all of the new_capacity.
-    For fixed existing_avg_unit_cap values, the remaining capacity is divided
+    For fixed avg_unit_cap values, the remaining capacity is divided
     evenly among the new generators, adding additional capacity to each one,
     then a small remainder may be created and added as a separate generator to
     get the desired total new_capacity. The output of this function is the
@@ -628,7 +678,7 @@ end
         a vector or list of existing generators
     new_capacity : int
         specified new capacity to be added
-    existing_avg_unit_cap : int
+    avg_unit_cap : int
         average capacity for the existing units
     max : int
         maximum capacity for the existing units
@@ -653,34 +703,35 @@ end
 function add_new_capacity!(
     generators_array::Vector{<:Any},
     new_capacity::Int,
-    existing_avg_unit_cap::Int,
+    avg_unit_cap::Int,
     max::Int,
-    tech::String,
-    pca::String,
+    unitsize_dict::Dict,
+    tech::AbstractString,
+    pca::AbstractString,
     gen_for::Float64,
     timesteps::Int,
     year::Int,
     MTTR::Int,
 )
-    # if there are no existing units to determine size of new unit(s), build
-    # all new capacity as a single generator
-    if existing_avg_unit_cap == 0
-        return push!(
-            generators_array,
-            Thermal_Gen(
-                "$(tech)_$(pca)_new_1",
-                timesteps,
-                pca,
-                new_capacity,
-                tech,
-                "New",
-                gen_for,
-                MTTR,
-            ),
-        )
+    # if there are no existing units to determine size of new unit(s),
+    # use ATB
+    if avg_unit_cap == 0
+        try
+            #use conventional name first 
+            avg_unit_cap = unitsize_dict[tech]
+        catch
+            #if no match, split on "_" then try b/c likely upgrade
+            try
+                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+            catch
+                #if still no match, try dropping trailing digits
+                avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
+                #will fail if this last thing doesn't work!
+            end
+        end
     end
 
-    n_gens = floor(Int, new_capacity / existing_avg_unit_cap)
+    n_gens = floor(Int, new_capacity / avg_unit_cap)
     if n_gens == 0
         return push!(
             generators_array,
@@ -697,9 +748,6 @@ function add_new_capacity!(
         )
     end
 
-    remainder = new_capacity - (n_gens * existing_avg_unit_cap)
-    addtl_cap_per_gen = floor(Int, remainder / n_gens)
-    per_gen_cap = existing_avg_unit_cap + addtl_cap_per_gen
     for i in range(1, n_gens)
         push!(
             generators_array,
@@ -707,7 +755,7 @@ function add_new_capacity!(
                 "$(tech)_$(pca)_new_$(i)",
                 timesteps,
                 pca,
-                per_gen_cap,
+                avg_unit_cap,
                 tech,
                 "New",
                 gen_for,
@@ -716,8 +764,8 @@ function add_new_capacity!(
         )
     end
 
-    small_remainder = new_capacity - (n_gens * per_gen_cap)
-    if small_remainder > 0
+    remainder = new_capacity - (n_gens * avg_unit_cap)
+    if remainder > 0
         # integer remainder is made into a tiny gen
         push!(
             generators_array,
@@ -725,9 +773,116 @@ function add_new_capacity!(
                 "$(tech)_$(pca)_new_$(n_gens+1)",
                 timesteps,
                 pca,
-                small_remainder,
+                remainder,
                 tech,
                 "New",
+                gen_for,
+                MTTR,
+            ),
+        )
+    end
+
+    return generators_array
+end
+
+"""
+    This function is the same as above but takes an additional arg
+    new_duration, which will be picked up by multiple dispatch
+    and leading to Battery{} model handling
+"""
+
+function add_new_capacity!(
+    generators_array::Vector{<:Any},
+    new_capacity::Int,
+    new_duration::Int,
+    avg_unit_cap::Int,
+    max::Int,
+    unitsize_dict::Dict,
+    tech::AbstractString,
+    pca::AbstractString,
+    gen_for::Float64,
+    timesteps::Int,
+    year::Int,
+    MTTR::Int,
+)
+    # if there are no existing units to determine size of new unit(s),
+    # use ATB
+    if avg_unit_cap == 0
+        try
+            #use conventional name first 
+            avg_unit_cap = unitsize_dict[tech]
+        catch
+            #if no match, split on "_" then try b/c likely upgrade
+            try
+                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+            catch
+                #if still no match, try dropping trailing digits
+                avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
+                #will fail if this last thing doesn't work!
+            end
+        end
+    end
+
+    n_gens = floor(Int, new_capacity / avg_unit_cap)
+    if n_gens == 0
+        return push!(
+            generators_array,
+            Battery(
+                "$(tech)_$(pca)_new_1",
+                timesteps,
+                pca,
+                tech,
+                new_capacity,
+                new_capacity,
+                round(Int, new_capacity) * new_duration,
+                "New",
+                1,
+                1,
+                1,
+                gen_for,
+                MTTR,
+            ),
+        )
+    end
+    
+    for i in range(1, n_gens)
+        push!(
+            generators_array,
+            Battery(
+                "$(tech)_$(pca)_new_$(i)",
+                timesteps,
+                pca,
+                tech,
+                avg_unit_cap,
+                avg_unit_cap,
+                round(Int,avg_unit_cap) * new_duration,
+                "New",
+                1,
+                1,
+                1,
+                gen_for,
+                MTTR,
+            ),
+        )
+    end
+
+    remainder = new_capacity - (n_gens * avg_unit_cap)
+    if remainder > 0
+        # integer remainder is made into a tiny gen
+        push!(
+            generators_array,
+            Battery(
+                "$(tech)_$(pca)_new_$(n_gens+1)",
+                timesteps,
+                pca,
+                tech,
+                remainder,
+                remainder,
+                round(Int,remainder) * new_duration,
+                "New",
+                1,
+                1,
+                1,
                 gen_for,
                 MTTR,
             ),
