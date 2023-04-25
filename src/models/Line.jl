@@ -54,14 +54,14 @@ struct Line
     converter_capacity::Dict{String, Float64}
 
     # Inner Constructors & Checks
-    function Line(
-        name,
-        timesteps,
-        category,
-        region_from,
-        region_to,
-        forward_cap,
-        backward_cap,
+    function Line(;
+        name = "init_name",
+        timesteps = 8760,
+        category = "AC",
+        region_from = "init_reg_from",
+        region_to = "init_reg_to",
+        forward_cap = 0.0,
+        backward_cap = 0.0,
         legacy = "New",
         FOR = 0.0,
         MTTR = 24,

@@ -37,11 +37,11 @@ struct Thermal_Gen <: Generator
     MTTR::Int64
 
     # Inner Constructors & Checks
-    function Thermal_Gen(
-        name,
-        timesteps,
-        region_name,
-        capacity,
+    function Thermal_Gen(;
+        name = "init_name",
+        timesteps = 8760,
+        region_name = "init_name",
+        capacity = 10.0,
         fuel = "OT",
         legacy = "New",
         FOR = 0.0,

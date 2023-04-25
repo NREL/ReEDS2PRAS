@@ -17,6 +17,20 @@ function check_file(loc::String)
 end
 
 function run_checks(data::ReEDSdatapaths)
+    
+    # EIA NEMS Database
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitdata.csv")
+
+    io, bool = check_file(filepath)
+
+    if (bool)
+        close(io)
+    else
+        error(
+            "EIA NEMS database is not available in ReEDS results. You are either using a ReEDS version not compatible with ReEDS2PRAS (or) the ReEDS case results location passed is erroneous (or) you don't have access to the unitdata .csv file/ deleted it.",
+        )
+    end
+
     # ReEDS Load Path
     filepath = joinpath(
         data.ReEDSfilepath,
@@ -145,6 +159,19 @@ function run_checks(data::ReEDSdatapaths)
     else
         error(
             "r-s region mapping data is not available in ReEDS results. You are either using a ReEDS version not compatible with ReEDS2PRAS (or) the ReEDS case results location passed is erroneous (or) you don't have access to the rsmap .csv file/ deleted it.",
+        )
+    end
+
+    # ATB unit size data
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitsize.csv")
+
+    io, bool = check_file(filepath)
+
+    if (bool)
+        close(io)
+    else
+        error(
+            "ATB unit size data is not available in ReEDS results. You are either using a ReEDS version not compatible with ReEDS2PRAS (or) the ReEDS case results location passed is erroneous (or) you don't have access to the unitsize .csv file/ deleted it.",
         )
     end
 
