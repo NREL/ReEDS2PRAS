@@ -61,13 +61,13 @@ struct Variable_Gen <: Generator
     MTTR::Int64
 
     # Inner Constructors & Checks
-    function Variable_Gen(
-        name,
-        timesteps,
-        region_name,
-        installed_capacity,
-        capacity,
-        type,
+    function Variable_Gen(;
+        name = "init_name",
+        timesteps = 8760,
+        region_name = "init_name",
+        installed_capacity = 10.0,
+        capacity = zeros(Float64, timesteps),
+        type = "wind-ons_init_name",
         legacy = "New",
         FOR = 0.0,
         MTTR = 24,

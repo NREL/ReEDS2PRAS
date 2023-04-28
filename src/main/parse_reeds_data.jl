@@ -37,7 +37,7 @@ function parse_reeds_data(
     timesteps::Int,
     year::Int,
     min_year::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
@@ -64,7 +64,7 @@ function parse_reeds_data(
 
     @info "reading in ATB unit size data for use with disaggregation..."
     unitsize_data = get_unitsize_mapping(ReEDS_data)
-    unitsize_dict = Dict(unitsize_data[!, "tech"] .=> unitsize_data[!, "atb_capacity_MW"]) 
+    unitsize_dict = Dict(unitsize_data[!, "tech"] .=> unitsize_data[!, "atb_capacity_MW"])
 
     @info "Processing conventional/thermal generators..."
     thermal_gens = process_thermals_with_disaggregation(
@@ -74,7 +74,7 @@ function parse_reeds_data(
         unitsize_dict,
         timesteps,
         year,
-        user_inputs
+        user_inputs,
     )
     @info "Processing variable generation..."
     gens_array = process_vg(
@@ -86,7 +86,7 @@ function parse_reeds_data(
         WEATHERYEAR,
         timesteps,
         min_year,
-        user_inputs
+        user_inputs,
     )
 
     @info "Processing Storages..."
@@ -99,7 +99,7 @@ function parse_reeds_data(
         timesteps,
         get_name.(regions),
         year,
-        user_inputs
+        user_inputs,
     )
 
     @info "Processing GeneratorStorages [EMPTY FOR NOW].."

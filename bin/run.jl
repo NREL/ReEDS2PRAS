@@ -11,13 +11,19 @@ import ArgParse
 is_pras_file = endswith(".pras");
 
 function run_checks(parsed_args::Dict{String,Any})
-    if !(isdir(parsed_args["reedscase"]))
+    if ~(isdir(parsed_args["reedscase"]))
         error("ReEDS case path passed is not a directory.")
     end
 
-    if ~isnothing(parsed_args["output_filepath"])
-        if !(is_pras_file(parsed_args["output_filepath"]))
+    if ~(isnothing(parsed_args["output_filepath"]))
+        if ~(is_pras_file(parsed_args["output_filepath"]))
             error("output_filepath passed is not a valid pras file.")
+        end
+    end
+
+    if ~(isnothing(parsed_args["user_descriptors_filepath"]))
+        if ~(ReEDS2PRAS.isjson(parsed_args["user_descriptors_filepath"]))
+            error("user descriptors file path passeed is not a valid format.")
         end
     end
 end
@@ -45,6 +51,9 @@ function parse_commandline()
         "output_filepath"
             help = "The path for saving the final model. e.g. ./model.pras"
             required = false
+        "user_descriptors_filepath"
+            help = "The path of the JSON with user_descriptors"
+            required = false
     end
 
     return ArgParse.parse_args(s)
@@ -59,11 +68,19 @@ function main()
     end
 
     run_checks(parsed_args)
-    
-    pras_system = ReEDS2PRAS.reeds_to_pras(
+
+    pras_system = 
+    if isnothing(parsed_args["user_descriptors_filepath"])
+        ReEDS2PRAS.reeds_to_pras(
         parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
         parse(Int64, parsed_args["timesteps"]),parse(Int64, parsed_args["weather_year"]))
-
+    else
+        ReEDS2PRAS.reeds_to_pras(
+        parsed_args["reedscase"], parse(Int64, parsed_args["solve_year"]),
+        parse(Int64, parsed_args["timesteps"]),parse(Int64, parsed_args["weather_year"]),
+        user_descriptors = parsed_args["user_descriptors_filepath"])
+    end
+    
     if ~isnothing(parsed_args["output_filepath"])
         PRAS.savemodel(pras_system, parsed_args["output_filepath"])
     end

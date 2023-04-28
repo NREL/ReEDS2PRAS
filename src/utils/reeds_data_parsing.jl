@@ -77,7 +77,7 @@ function process_lines(
     regions::Vector{<:AbstractString},
     year::Int,
     timesteps::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     #it is assumed this has prm line capacity data
     line_base_cap_data = get_line_capacity_data(ReEDS_data)
@@ -133,34 +133,34 @@ function process_lines(
             push!(
                 lines_array,
                 Line(
-                    name,
-                    timesteps,
-                    row.trtype,
-                    row.r,
-                    row.rr,
-                    forward_cap,
-                    backward_cap,
-                    "Existing",
-                    0.0,
-                    user_inputs["MTTR"],
+                    name = name,
+                    timesteps = timesteps,
+                    category = row.trtype,
+                    region_from = row.r,
+                    region_to = row.rr,
+                    forward_cap = forward_cap,
+                    backward_cap = backward_cap,
+                    legacy = "Existing",
+                    FOR = 0.0,
+                    MTTR = user_inputs["MTTR"],
                 ),
             )
         else
             push!(
                 lines_array,
                 Line(
-                    name,
-                    timesteps,
-                    row.trtype,
-                    row.r,
-                    row.rr,
-                    forward_cap,
-                    backward_cap,
-                    "Existing",
-                    0.0,
-                    user_inputs["MTTR"],
-                    true,
-                    Dict(
+                    name = name,
+                    timesteps = timesteps,
+                    category = row.trtype,
+                    region_from = row.r,
+                    region_to = row.rr,
+                    forward_cap = forward_cap,
+                    backward_cap = backward_cap,
+                    legacy = "Existing",
+                    FOR = 0.0,
+                    MTTR = user_inputs["MTTR"],
+                    VSC = true,
+                    converter_capacity = Dict(
                         row.r => converter_capacity_dict[string(row.r)],
                         row.rr => converter_capacity_dict[string(row.rr)],
                     ),
@@ -273,7 +273,7 @@ function process_thermals_with_disaggregation(
     unitsize_dict::Dict,
     timesteps::Int,
     year::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 ) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]
@@ -305,7 +305,7 @@ function process_thermals_with_disaggregation(
             gen_for,
             timesteps,
             year,
-            user_inputs
+            user_inputs,
         )
         append!(all_generators, generator_array)
     end
@@ -349,7 +349,7 @@ function process_vg(
     weather_year::Int,
     timesteps::Int,
     min_year::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     region_mapper_df = get_region_mapping(ReEDS_data)
     region_mapper_dict = Dict(region_mapper_df[!, "rs"] .=> region_mapper_df[!, "*r"])
@@ -384,15 +384,15 @@ function process_vg(
         push!(
             generators_array,
             Variable_Gen(
-                name,
-                timesteps,
-                region,
-                maximum(profile),
-                profile,
-                category,
-                "New",
-                gen_for,
-                user_inputs["MTTR"]
+                name = name,
+                timesteps = timesteps,
+                region_name = region,
+                installed_capacity = maximum(profile),
+                capacity = profile,
+                type = category,
+                legacy = "New",
+                FOR = gen_for,
+                MTTR = user_inputs["MTTR"],
             ),
         )
     end
@@ -431,7 +431,7 @@ function process_storages(
     timesteps::Int,
     regions::Vector{<:AbstractString},
     year::Int64,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     storage_energy_capacity_data = get_storage_energy_capacity_data(ReEDS_data)
     @debug "storage_energy_capacity_data is $(storage_energy_capacity_data)"
@@ -466,19 +466,19 @@ function process_storages(
             push!(
                 storages_array,
                 Battery(
-                    name,
-                    timesteps,
-                    string(row.r),
-                    string(row.i),
-                    row.MW,
-                    row.MW,
-                    round(Int, row.MW) * int_duration * (1-gen_for),
-                    "New",
-                    1,
-                    1,
-                    1,
-                    0.0,
-                    user_inputs["MTTR"],
+                    name = name,
+                    timesteps = timesteps,
+                    region_name = string(row.r),
+                    type = string(row.i),
+                    charge_cap = row.MW,
+                    discharge_cap = row.MW,
+                    energy_cap = round(Int, row.MW) * int_duration * (1 - gen_for),
+                    legacy = "New",
+                    charge_eff = 1.0,
+                    discharge_eff = 1.0,
+                    carryover_eff = 1.0,
+                    FOR = 0.0,
+                    MTTR = user_inputs["MTTR"],
                 ),
             )
         else
@@ -516,18 +516,14 @@ end
         technologies for each region.
 """
 function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
-    gen_stors = Gen_Storage[Gen_Storage(
-        "GenStor_1",
-        timesteps,
-        regions[1],
-        "blank_genstor",
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    )] # empty for now
+    gen_stors = [
+        Gen_Storage(
+            name = "GenStor_1",
+            timesteps = timesteps,
+            region_name = regions[1],
+            type = "blank_genstor",
+        ),
+    ] # empty for now
 
     return gen_stors
 end
@@ -569,7 +565,7 @@ function disagg_existing_capacity(
     gen_for::Float64,
     timesteps::Int,
     year::Int,
-    user_inputs::Dict{Any, Any}
+    user_inputs::Dict{Any, Any},
 )
     tech_ba_year_existing = DataFrames.subset(
         eia_df,
@@ -599,14 +595,14 @@ function disagg_existing_capacity(
         #not necessary to disagg if generator never fails
         return [
             Thermal_Gen(
-                "$(tech)_$(pca)_1",
-                timesteps,
-                pca,
-                built_capacity,
-                tech,
-                "New",
-                gen_for,
-                user_inputs["MTTR"],
+                name = "$(tech)_$(pca)_1",
+                timesteps = timesteps,
+                region_name = pca,
+                capacity = built_capacity,
+                fuel = tech,
+                legacy = "New",
+                FOR = gen_for,
+                MTTR = user_inputs["MTTR"],
             ),
         ]
     end
@@ -618,7 +614,6 @@ function disagg_existing_capacity(
     max_cap = maximum(existing_capacity)
     avg_cap = Statistics.mean(existing_capacity)
 
-
     for (idx, built_cap) in enumerate(existing_capacity)
         int_built_cap = floor(Int, built_cap)
         if int_built_cap < remaining_capacity
@@ -629,14 +624,14 @@ function disagg_existing_capacity(
             remaining_capacity = 0
         end
         gen = Thermal_Gen(
-            "$(tech)_$(pca)_$(idx)",
-            timesteps,
-            pca,
-            gen_cap,
-            tech,
-            "Existing",
-            gen_for,
-            user_inputs["MTTR"],
+            name = "$(tech)_$(pca)_$(idx)",
+            timesteps = timesteps,
+            region_name = pca,
+            capacity = gen_cap,
+            fuel = tech,
+            legacy = "Existing",
+            FOR = gen_for,
+            MTTR = user_inputs["MTTR"],
         )
         push!(generators_array, gen)
     end
@@ -722,7 +717,7 @@ function add_new_capacity!(
         catch
             #if no match, split on "_" then try b/c likely upgrade
             try
-                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+                avg_unit_cap = unitsize_dict[split(tech, "_")[2]]
             catch
                 #if still no match, try dropping trailing digits
                 avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
@@ -736,14 +731,14 @@ function add_new_capacity!(
         return push!(
             generators_array,
             Thermal_Gen(
-                "$(tech)_$(pca)_new_1",
-                timesteps,
-                pca,
-                new_capacity,
-                tech,
-                "New",
-                gen_for,
-                MTTR,
+                name = "$(tech)_$(pca)_new_1",
+                timesteps = timesteps,
+                region_name = pca,
+                capacity = new_capacity,
+                fuel = tech,
+                legacy = "New",
+                FOR = gen_for,
+                MTTR = MTTR,
             ),
         )
     end
@@ -752,14 +747,14 @@ function add_new_capacity!(
         push!(
             generators_array,
             Thermal_Gen(
-                "$(tech)_$(pca)_new_$(i)",
-                timesteps,
-                pca,
-                avg_unit_cap,
-                tech,
-                "New",
-                gen_for,
-                MTTR,
+                name = "$(tech)_$(pca)_new_$(i)",
+                timesteps = timesteps,
+                region_name = pca,
+                capacity = avg_unit_cap,
+                fuel = tech,
+                legacy = "New",
+                FOR = gen_for,
+                MTTR = MTTR,
             ),
         )
     end
@@ -770,14 +765,14 @@ function add_new_capacity!(
         push!(
             generators_array,
             Thermal_Gen(
-                "$(tech)_$(pca)_new_$(n_gens+1)",
-                timesteps,
-                pca,
-                remainder,
-                tech,
-                "New",
-                gen_for,
-                MTTR,
+                name = "$(tech)_$(pca)_new_$(n_gens+1)",
+                timesteps = timesteps,
+                region_name = pca,
+                capacity = remainder,
+                fuel = tech,
+                legacy = "New",
+                FOR = gen_for,
+                MTTR = MTTR,
             ),
         )
     end
@@ -814,7 +809,7 @@ function add_new_capacity!(
         catch
             #if no match, split on "_" then try b/c likely upgrade
             try
-                avg_unit_cap = unitsize_dict[split(tech,"_")[2]]
+                avg_unit_cap = unitsize_dict[split(tech, "_")[2]]
             catch
                 #if still no match, try dropping trailing digits
                 avg_unit_cap = unitsize_dict[match(r"(.+)_\d+", tech)[1]]
@@ -828,40 +823,40 @@ function add_new_capacity!(
         return push!(
             generators_array,
             Battery(
-                "$(tech)_$(pca)_new_1",
-                timesteps,
-                pca,
-                tech,
-                new_capacity,
-                new_capacity,
-                round(Int, new_capacity) * new_duration,
-                "New",
-                1,
-                1,
-                1,
-                gen_for,
-                MTTR,
+                name = "$(tech)_$(pca)_new_1",
+                timesteps = timesteps,
+                region_name = pca,
+                type = tech,
+                charge_cap = new_capacity,
+                discharge_cap = new_capacity,
+                energy_cap = round(Int, new_capacity) * new_duration,
+                legacy = "New",
+                charge_eff = 1.0,
+                discharge_eff = 1.0,
+                carryover_eff = 1.0,
+                FOR = gen_for,
+                MTTR = MTTR,
             ),
         )
     end
-    
+
     for i in range(1, n_gens)
         push!(
             generators_array,
             Battery(
-                "$(tech)_$(pca)_new_$(i)",
-                timesteps,
-                pca,
-                tech,
-                avg_unit_cap,
-                avg_unit_cap,
-                round(Int,avg_unit_cap) * new_duration,
-                "New",
-                1,
-                1,
-                1,
-                gen_for,
-                MTTR,
+                name = "$(tech)_$(pca)_new_$(i)",
+                timesteps = timesteps,
+                region_name = pca,
+                type = tech,
+                charge_cap = avg_unit_cap,
+                discharge_cap = avg_unit_cap,
+                energy_cap = round(Int, avg_unit_cap) * new_duration,
+                legacy = "New",
+                charge_eff = 1.0,
+                discharge_eff = 1.0,
+                carryover_eff = 1.0,
+                FOR = gen_for,
+                MTTR = MTTR,
             ),
         )
     end
@@ -872,19 +867,19 @@ function add_new_capacity!(
         push!(
             generators_array,
             Battery(
-                "$(tech)_$(pca)_new_$(n_gens+1)",
-                timesteps,
-                pca,
-                tech,
-                remainder,
-                remainder,
-                round(Int,remainder) * new_duration,
-                "New",
-                1,
-                1,
-                1,
-                gen_for,
-                MTTR,
+                name = "$(tech)_$(pca)_new_$(n_gens+1)",
+                timesteps = timesteps,
+                region_name = pca,
+                type = tech,
+                charge_cap = remainder,
+                discharge_cap = remainder,
+                energy_cap = round(Int, remainder) * new_duration,
+                legacy = "New",
+                charge_eff = 1.0,
+                discharge_eff = 1.0,
+                carryover_eff = 1.0,
+                FOR = gen_for,
+                MTTR = MTTR,
             ),
         )
     end

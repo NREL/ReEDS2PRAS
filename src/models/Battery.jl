@@ -59,14 +59,14 @@ struct Battery <: Storage
     MTTR::Int64
 
     # Inner Constructors & Checks
-    function Battery(
-        name,
-        timesteps,
-        region_name,
-        type,
-        charge_cap,
-        discharge_cap,
-        energy_cap,
+    function Battery(;
+        name = "init_name",
+        timesteps = 8760,
+        region_name = "init_name",
+        type = "init_type",
+        charge_cap = 1.0,
+        discharge_cap = 1.0,
+        energy_cap = 4.0,
         legacy = "New",
         charge_eff = 1.0,
         discharge_eff = 1.0,

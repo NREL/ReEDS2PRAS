@@ -70,17 +70,17 @@ struct Gen_Storage <: Storage
     MTTR::Int64
 
     # Inner Constructors & Checks
-    function Gen_Storage(
-        name,
-        timesteps,
-        region_name,
-        type,
-        charge_cap,
-        discharge_cap,
-        energy_cap,
-        inflow,
-        grid_withdrawl_cap,
-        grid_inj_cap,
+    function Gen_Storage(;
+        name = "init_name",
+        timesteps = 8760,
+        region_name = "init_name",
+        type = "init_type",
+        charge_cap = 0.0,
+        discharge_cap = 0.0,
+        energy_cap = 0.0,
+        inflow = 0.0,
+        grid_withdrawl_cap = 0.0,
+        grid_inj_cap = 0.0,
         legacy = "New",
         charge_eff = 1.0,
         discharge_eff = 1.0,
