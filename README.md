@@ -89,7 +89,7 @@ Importantly, the timesteps count from the first hour of the first `weather_year`
 ### This can also be run through the command line:
 
 ```
-julia --project=. bin/run.jl <reedscase> <solve_year> <reedspath> <timesteps> <weather_year> <output_filepath>
+julia --project=. bin/run.jl <reedscase> <solve_year> <timesteps> <weather_year> <output_filepath>
 ```
 
 The `output_filepath` specifies the location to save the pras model.
