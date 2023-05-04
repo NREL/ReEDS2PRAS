@@ -10,6 +10,18 @@ ReEDS2PRAS can be added in the Julia REPL from its git URL
 
 Assuming  the user can access the julia REPL and clone ReEDS2PRAS, the other necessary component for running standalone ReEDS2PRAS is a completed ReEDS run. More information about running ReEDS is available at `https://github.nrel.gov/ReEDS/ReEDS-2.0`.
 
+### Compatibility Table
+
+This won't cover every possible version combination, but should at least
+provide a starting point for determining which version of the package to use:
+
+ For this version of ReEDS... | ...use this version of ReEDS2PRAS
+------------------------------|----------------------------------
+2023.0.0 | 0.2.5
+
+Unless indicated otherwise, ReEDS2PRAS should be expected to produce
+a PRAS v0.6 system.
+
 ## Basic Usage
 If you have a completed ReEDS run and a REPL with ReEDS2PRAS (`using ReEDS2PRAS`), an example of running ReEDS2PRAS is provided below
 
