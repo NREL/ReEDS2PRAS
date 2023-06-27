@@ -1,6 +1,5 @@
 function capacity_checker(
     capacity_data::DataFrames.DataFrame,
-    region_map::DataFrames.DataFrame,
     gentype::String,
     region::String,
 )
@@ -83,8 +82,6 @@ function compare_generator_capacities(
     ReEDS_data = ReEDS2PRAS.ReEDSdatapaths(ReEDSfilepath, year)
 
     capacity_data = ReEDS2PRAS.get_ICAP_data(ReEDS_data)
-    region_mapper_df = ReEDS2PRAS.get_region_mapping(ReEDS_data)
-    region_mapper_dict = Dict(region_mapper_df[!, "rs"] .=> region_mapper_df[!, "*r"])
     vg_resource_types = ReEDS2PRAS.get_valid_resources(ReEDS_data)
     cf_info = ReEDS2PRAS.get_vg_cf_data(ReEDS_data)
 
@@ -94,17 +91,13 @@ function compare_generator_capacities(
             if occursin(gentype, join(unique(vg_resource_types.i)))#vg only
                 v1 = 0
                 for row in eachrow(vg_resource_types)
-                    if row.i == gentype && haskey(region_mapper_dict, String(row.r))
-                        if region_mapper_dict[String(row.r)] == region
-                            v1 += vg_capacity_checker(cf_info, gentype, String(row.r))
-                        end
-                    elseif row.i == gentype && String(row.r) == region
+                    if row.i == gentype && String(row.r) == region
                         v1 += vg_capacity_checker(cf_info, gentype, String(row.r))
                     end
                 end
                 delta = 0.95
             else
-                v1 = capacity_checker(capacity_data, region_mapper_df, gentype, region) #need to split out numbering for vg...
+                v1 = capacity_checker(capacity_data, gentype, region) #need to split out numbering for vg...
                 delta = 1.0
             end
             v2a = PRAS_generator_capacity_checker(pras_system, gentype, region)

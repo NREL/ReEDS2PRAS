@@ -351,8 +351,6 @@ function process_vg(
     min_year::Int,
     user_inputs::Dict{Any, Any},
 )
-    region_mapper_df = get_region_mapping(ReEDS_data)
-    region_mapper_dict = Dict(region_mapper_df[!, "rs"] .=> region_mapper_df[!, "*r"])
     cf_info = get_vg_cf_data(ReEDS_data)
 
     vg_profiles = cf_info["block0_values"]
@@ -363,12 +361,7 @@ function process_vg(
     for row in eachrow(vg_builds)
         category = string(row.i)
         name = "$(category)_$(string(row.r))"
-
-        if string(row.r) in keys(region_mapper_dict)
-            region = region_mapper_dict[string(row.r)]
-        else
-            region = string(row.r)
-        end
+        region = string(row.r)
 
         profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
         size_comp = size(vg_profiles)[1]
