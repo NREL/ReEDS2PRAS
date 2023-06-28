@@ -3,13 +3,6 @@ function capacity_checker(
     gentype::String,
     region::String,
 )
-    for row in DataFrames.eachrow(capacity_data)
-        slicer = findfirst(isequal(String(row.r)), region_map[:, "rs"])
-        if !isnothing(slicer)
-            row.r = region_map[slicer, "*r"]
-        end
-    end
-
     capacity_data_subset =
         capacity_data[(capacity_data.i .== gentype) .& (capacity_data.r .== region), :]
     return sum(capacity_data_subset[!, "MW"])
