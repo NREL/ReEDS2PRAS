@@ -240,31 +240,6 @@ function get_converter_capacity_data(data::ReEDSdatapaths)
 end
 
 """
-    Returns a DataFrame containing the r-s region mapping from the
-    ReEDSdatapaths object.
-
-    Parameters
-    ----------
-    data : ReEDSdatapaths
-        An object containing the filepaths to the ReEDS input files.
-
-    Returns
-    -------
-    DataFrame
-        A DataFrame containing the r-s region mapping.
-
-    Raises
-    ------
-    Error
-        If no table of r-s region mapping is found.
-
-"""
-function get_region_mapping(data::ReEDSdatapaths)
-    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "rsmap.csv")
-    return DataFrames.DataFrame(CSV.File(filepath))
-end
-
-"""
     Returns a DataFrame containing the Annual Technology Baseline
     default unit size for the ReEDSdatapaths object.
 

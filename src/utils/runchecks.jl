@@ -149,19 +149,6 @@ function run_checks(data::ReEDSdatapaths)
         )
     end
 
-    # r-s mapping
-    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "rsmap.csv")
-
-    io, bool = check_file(filepath)
-
-    if (bool)
-        close(io)
-    else
-        error(
-            "r-s region mapping data is not available in ReEDS results. You are either using a ReEDS version not compatible with ReEDS2PRAS (or) the ReEDS case results location passed is erroneous (or) you don't have access to the rsmap .csv file/ deleted it.",
-        )
-    end
-
     # ATB unit size data
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "unitsize.csv")
 
