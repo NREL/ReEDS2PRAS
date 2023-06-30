@@ -91,7 +91,7 @@ function process_lines(
         for reg in regions
             if !(reg in keys(converter_capacity_dict))
                 @info("$reg does not have VSC converter capacity, so adding" * " a 0")
-                converter_capacity_dict[String(reg)] = 0
+                converter_capacity_dict[String(reg)] = 0.
             end
         end
     end
