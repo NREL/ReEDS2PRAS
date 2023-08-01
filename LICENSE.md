@@ -1,6 +1,6 @@
 The ReEDS2PRAS.jl package is licensed under a modified MIT "Expat" License:
 
-> Copyright (c) 2022: Luke Lavin
+> Copyright (c) 2022: Luke Lavin, Surya Chandan Dhulipala
 >
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal
