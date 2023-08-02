@@ -83,15 +83,17 @@ function process_lines(
     line_base_cap_data = get_line_capacity_data(ReEDS_data)
 
     converter_capacity_data = get_converter_capacity_data(ReEDS_data)
-    converter_capacity_dict =
-        Dict(convert.(String,converter_capacity_data[!, "r"]) .=> converter_capacity_data[!, "MW"])
+    converter_capacity_dict = Dict(
+        convert.(String, converter_capacity_data[!, "r"]) .=>
+            converter_capacity_data[!, "MW"],
+    )
 
     #add 0 converter capacity for regions that lack a converter
     if length(keys(converter_capacity_dict)) > 0
         for reg in regions
             if !(reg in keys(converter_capacity_dict))
                 @info("$reg does not have VSC converter capacity, so adding" * " a 0")
-                converter_capacity_dict[reg] = 0.
+                converter_capacity_dict[reg] = 0.0
             end
         end
     end
