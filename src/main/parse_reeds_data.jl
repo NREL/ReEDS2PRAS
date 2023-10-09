@@ -54,7 +54,7 @@ function parse_reeds_data(
         "splitting thermal, storage, vg generator types from installed " *
         "ReEDS capacities..."
     )
-    thermal, storage, variable_gens = split_generator_types(ReEDS_data, year)
+    thermal, storage, variable_gens, hydro_gens = split_generator_types(ReEDS_data, year)
     @debug "variable_gens: $(variable_gens)"
 
     @info "reading in ReEDS generator-type forced outage data..."
@@ -99,6 +99,19 @@ function parse_reeds_data(
         timesteps,
         get_name.(regions),
         year,
+        user_inputs,
+    )
+
+    @info "Processing hydroelectric generation..."
+    gens_array = process_hd(
+        thermal_gens,
+        variable_gens,
+        forced_outage_dict,
+        ReEDS_data,
+        year,
+        WEATHERYEAR,
+        timesteps,
+        min_year,
         user_inputs,
     )
 

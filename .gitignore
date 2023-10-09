@@ -24,3 +24,7 @@ docs/site/
 Manifest.toml
 
 output/*
+log.txt
+
+#vs-code files
+.vscode/*

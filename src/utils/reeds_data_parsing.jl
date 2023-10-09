@@ -229,6 +229,13 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
 
     vg_types = DataFrames.dropmissing(tech_types_data, :VRE)[:, "Column1"]
     @debug "vg_types is $(vg_types)"
+    # Need union only if HYDRO does not encompass both ND and D
+    # TODO: Verify if need all the separate types
+    hd_types = union(DataFrames.dropmissing(tech_types_data, :HYDRO)[:, "Column1"],
+                     #DataFrames.dropmissing(types, :HYDRO_ND)[:, "Column1"],
+                     #DataFrames.dropmissing(types, :HYDRO_D)[:, "Column1"]
+                    )
+    @debug "hd_types is $(hd_types)"
     # csp-ns causes problems, so delete for now
     vg_types = vg_types[vg_types .!= "csp-ns"]
     storage_types = DataFrames.dropmissing(tech_types_data, :STORAGE)[:, "Column1"]
@@ -236,14 +243,19 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     #clean vg/storage capacity on a regex, though there might be a better
     # way...
     clean_names!(vg_types)
+    @debug "vg_types is $(vg_types)"
     clean_names!(storage_types)
     vg_types = expand_vg_types!(vg_types, unique(vg_resource_types.i))
+    @debug "vg_types is $(vg_types)"
 
     vg_capacity = capacity_data[(findall(in(vg_types), capacity_data.i)), :]
     storage_capacity = capacity_data[(findall(in(storage_types), capacity_data.i)), :]
+    hd_capacity = capacity_data[(findall(in(lowercase.(hd_types)), capacity_data.i)), :]
+    @debug "hd_capacity is $(hd_capacity)"
     thermal_capacity =
-        capacity_data[(findall(!in(vcat(vg_types, storage_types)), capacity_data.i)), :]
-    return thermal_capacity, storage_capacity, vg_capacity
+        capacity_data[(findall(!in(vcat(vg_types, storage_types, lowercase.(hd_types))), capacity_data.i)), :]
+    @debug "thermal_capacity is $(thermal_capacity)"
+    return thermal_capacity, storage_capacity, vg_capacity, hd_capacity
 end
 
 """
@@ -494,6 +506,41 @@ function process_storages(
         end
     end
     return storages_array
+end
+
+"""
+    Parameters
+    ----------
+    regions : Vector{<:AbstractString}
+        a vector of strings of distinct regions in the model
+    timesteps : Int
+        integer representing the number of time steps
+
+    Returns
+    -------
+    gen_stors : Gen_Storage
+        a Gen_Storage struct containing information about generators/storage
+        technologies for each region.
+"""
+function process_hd(hydro_capacities::DataFrames.DataFrame,
+                    FOR_dict::Dict,
+                    unitsize_dict::Dict,
+                    ReEDS_data,
+                    timesteps::Int,
+                    regions::Vector{<:AbstractString},
+                    year::Int64,
+                    user_inputs::Dict{Any, Any},
+                    )
+    gen_stors = [
+        Gen_Storage(
+            name = "GenStor_1",
+            timesteps = timesteps,
+            region_name = regions[1],
+            type = "blank_genstor",
+        ),
+    ] # empty for now
+
+    return gen_stors
 end
 
 """

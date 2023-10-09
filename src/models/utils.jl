@@ -1,3 +1,40 @@
+# get dataframe of hours in each month
+"""
+    This function is used to get info on the number of hours in each month
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    monhours: DataFrame
+"""
+function monhours()
+    
+    monhours = DataFrame(
+     [
+         ["JAN" 744 "winter"];
+         ["FEB" 672 "winter"];
+         ["MAR" 744 "spring"];
+         ["APR" 720 "spring"];
+         ["MAY" 744 "spring"];
+         ["JUN" 720 "summer"];
+         ["JUL" 744 "summer"];
+         ["AUG" 744 "summer"];
+         ["SEP" 720 "fall"];
+         ["OCT" 744 "fall"];
+         ["NOV" 720 "winter"];
+         ["DEC" 744 "winter"];
+     ],
+     Vector(["month", "numhrs", "season"])
+    )
+    
+    monhours.cumhrs = cumsum(monhours.numhrs)
+
+    return monhours
+end
+
 # Converting FOR and MTTR to λ and μ
 """
     This function calculates the outage rate of a generator based on the
@@ -44,6 +81,7 @@ emptyvec(::Vector{<:Generator}) = Generator[]
 
 get_components(comps::Vector{<:Generator}, region_name::String) =
     get_generators_in_region(comps, region_name)
+    
 # Functions for processing ReEDS2PRAS generators and storages to prepare
 # them for PRAS System generation
 """

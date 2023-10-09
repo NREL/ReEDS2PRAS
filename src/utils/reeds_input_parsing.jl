@@ -294,6 +294,56 @@ function get_ICAP_data(data::ReEDSdatapaths)
 end
 
 """
+    Returns a DataFrame containing the installed capacity of generators for a
+    given year.
+
+    Parameters
+    ----------
+    data : ReEDSdatapaths
+        A ReEDSdatapaths object containing the year and filepath.
+
+    Returns
+    -------
+    DataFrame
+        A DataFrame containing the installed capacity data.
+
+    Raises
+    ------
+    Error
+        If the year does not have generator installed capacity data.
+"""
+function get_hydro_data(data::ReEDSdatapaths)
+    
+    filepath_cf = joinpath(data.ReEDSfilepath,
+                        "inputs_case", 
+                        "hydcf.csv"
+                       )
+    hydcf = DataFrames.DataFrame(CSV.File(filepath_cf))
+    rename!(hydcf, [:"*i"].=>[:i])
+    hydcf.i = lowercase.(hydcf.i);
+
+    filepath_capadj = joinpath(data.ReEDSfilepath,
+                        "inputs_case", 
+                        "hydcapadj.csv"
+                       )
+
+    # TODO: Remove after PR1098 merged on ReEDS-2.0
+    #       and future ReEDS runs use that version
+    if !(isfile(filepath_capadj))
+        filepath_capadj = joinpath(data.ReEDSfilepath,
+                            "inputs_case", 
+                            "hydcfadj.csv"
+                           )
+    end
+    
+    hydcfadj = DataFrames.DataFrame(CSV.File(filepath_capadj));
+    rename!(hydcfadj, [:"*i"].=>[:i])
+    hydcfadj.i = lowercase.(hydcfadj.i);
+
+    return hydcf,hydcfadj
+end
+
+"""
     Returns a DataFrame containing the installed storage energy capacity data
     for the year specified in the ReEDSdatapaths object.
 
