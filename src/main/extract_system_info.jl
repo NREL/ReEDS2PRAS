@@ -31,7 +31,7 @@
     genstor_array : Array{GeneratorStorage}
         contains GeneratorStorage objects
 """
-function parse_reeds_data(
+function extract_system_info(
     ReEDS_data::ReEDSdatapaths,
     WEATHERYEAR::Int,
     timesteps::Int,
@@ -51,7 +51,7 @@ function parse_reeds_data(
     # **TODO: Should hydro be split out as a generator-storage?
     # **TODO: is it important to also handle planned outages?
     @info(
-        "splitting thermal, storage, vg generator types from installed " *
+        "splitting thermal, storage, vg generator, hdyro types from installed " *
         "ReEDS capacities..."
     )
     thermal, storage, variable_gens, hydro_gens = split_generator_types(ReEDS_data, year)
@@ -76,6 +76,7 @@ function parse_reeds_data(
         year,
         user_inputs,
     )
+
     @info "Processing variable generation..."
     gens_array = process_vg(
         thermal_gens,
@@ -102,21 +103,22 @@ function parse_reeds_data(
         user_inputs,
     )
 
+#    @info "Processing GeneratorStorages [EMPTY FOR NOW].."
+#    genstor_array = process_genstors(get_name.(regions), timesteps)
+
     @info "Processing hydroelectric generation..."
-    gens_array = process_hd(
-        thermal_gens,
-        variable_gens,
+    gens_array,genstor_array = process_hd(
+        gens_array,
+        hydro_gens,
         forced_outage_dict,
         ReEDS_data,
         year,
         WEATHERYEAR,
         timesteps,
-        min_year,
+#        min_year,
         user_inputs,
     )
 
-    @info "Processing GeneratorStorages [EMPTY FOR NOW].."
-    genstor_array = process_genstors(get_name.(regions), timesteps)
 
     return lines, regions, gens_array, storage_array, genstor_array
 end

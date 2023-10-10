@@ -235,6 +235,7 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
                      #DataFrames.dropmissing(types, :HYDRO_ND)[:, "Column1"],
                      #DataFrames.dropmissing(types, :HYDRO_D)[:, "Column1"]
                     )
+    hd_types = lowercase.(hd_types);
     @debug "hd_types is $(hd_types)"
     # csp-ns causes problems, so delete for now
     vg_types = vg_types[vg_types .!= "csp-ns"]
@@ -407,6 +408,170 @@ function process_vg(
 end
 
 """
+    Parameters
+    ----------
+    regions : Vector{<:AbstractString}
+        a vector of strings of distinct regions in the model
+    timesteps : Int
+        integer representing the number of time steps
+
+    Returns
+    -------
+    gen_stors : Gen_Storage
+        a Gen_Storage struct containing information about generators/storage
+        technologies for each region.
+"""
+# TODO: Incorporate multiple years (for ex. 2007 - 2013) of hydro data.
+function process_hd(
+    generators_array::Vector{<:ReEDS2PRAS.Generator},
+    hydro_capacities::DataFrames.DataFrame,
+    FOR_dict::Dict,
+    ReEDS_data,
+    year::Int64,
+    weather_year::Int,
+    timesteps::Int,
+    user_inputs::Dict{Any, Any},
+)
+    hydcf, hydcapadj = get_hydro_data(ReEDS_data)
+    monthhours = monhours()
+
+    combined_caps = combine(groupby(hydro_capacities, [:i,:r]),:MW=>sum)
+
+    # Dispatchable hydro plants - generator storages
+    dispatchable_hd = combined_caps[findall(x->!endswith(x,"nd"),combined_caps.i),:]
+
+    monthly_energies = Matrix(zeros(nrow(dispatchable_hd),timesteps))
+    dispatch_limits = Matrix(zeros(nrow(dispatchable_hd),timesteps))
+
+    genstor_array = Gen_Storage[]
+
+    for (idx,row) in enumerate(eachrow(dispatchable_hd[1:5,:]))
+        reg_plant_subset = hydcf[(hydcf.r .== row.r) .&& 
+                                    (hydcf.i .== row.i),
+                                    [:szn,:value]
+                                    ]
+        
+        for (idx_mon,mon_row) in  enumerate(eachrow(monthhours))
+            #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
+            try
+                reqd_slice = (mon_row.cumhrs-mon_row.numhrs+1):mon_row.cumhrs
+                monthly_energies[idx,first(reqd_slice)] = (mon_row.numhrs
+                                                           *reg_plant_subset[findall(x->startswith(mon_row.season,x),
+                                                                                   reg_plant_subset.szn),
+                                                                           :value]
+                                                           *row.MW_sum
+                                                           )[1]
+
+                capacity_adjust = hydcapadj[(hydcapadj.i .== row.i) .&&
+                                        (hydcapadj.r .== row.r),
+                                        [:szn,:value]]
+                dispatch_limits[idx,reqd_slice] .= (capacity_adjust[findall(x->startswith(mon_row.season,x),
+                                                                            capacity_adjust.szn),
+                                                                    :value]
+                                                                    *row.MW_sum
+                                                )[1];
+            catch e
+                @error "$(row.r),$(row.i),$(e)"        
+            end
+        end
+
+        category = string(row.i)
+        name = "$(category)_$(string(row.r))"
+        region = string(row.r)
+
+        if category in keys(FOR_dict)
+            gen_for = FOR_dict[category]
+        else
+            gen_for = 0.00 # make this 0 for vg if no match
+        end
+        name = "$(name)_"
+
+        # TODO: Incorporate edge case:
+        #  At the timestep where inflow occurs, need to set grid injection to 
+        #  be the output max, and discharge capacity 0, as the unit may not be 
+        #  able to get inflow as well as discharge in the same time step. 
+        #  So, if the unit was exhausted in the previous season/month, it may not 
+        #  have stored energy to dispatch and hence the discharge capacity won't 
+        #  discharge the current period's input on the first time step of the period. 
+        #  But, if we have both discharge_capacity AND grid injection at that time 
+        #  step, and there is existing energy stored in the generator, then we will 
+        #  be allowing twice the max output if we have both discharge_capacity and 
+        #  injection capacity for that time step.
+
+        push!(
+            genstor_array,
+            Gen_Storage(
+                name = name,
+                timesteps = timesteps,
+                region_name = region,
+                charge_cap = zeros(timesteps),
+                discharge_cap = dispatch_limits[idx,:],
+                energy_cap = ones(timesteps)*1e10,
+                inflow = monthly_energies[idx,:],
+                grid_withdrawl_cap = zeros(timesteps),
+                grid_inj_cap = zeros(timesteps),
+                type = category,
+                legacy = "New",
+                FOR = gen_for,
+                MTTR = user_inputs["MTTR"],
+            ),
+        )
+    end
+
+    # Non-dispatchable hydro power plants
+    nondispatchable_hd = combined_caps[findall(x->endswith(x,"nd"),combined_caps.i),:]
+
+    hourly_capacities = Matrix(zeros(nrow(nondispatchable_hd),timesteps))
+
+    # TODO: When capacity factors are available at the plant level from stream flows, 
+    #       need to disaggregate and change to use those values rather than monthly values
+    for (idx,row) in enumerate(eachrow(nondispatchable_hd))
+        reg_type = hydcf[findall(x->(x.r==row.r && x.i == row.i), eachrow(hydcf)),[:szn,:value]]
+        for (idx_mon,mon_row) in  enumerate(eachrow(monthhours))
+            try
+                reqd_slice = (mon_row.cumhrs-mon_row.numhrs+1):mon_row.cumhrs
+                hourly_capacities[idx,reqd_slice] .= (reg_type[findall(x->startswith(mon_row.season,x),reg_type.szn),:value]
+                                                      *row.MW_sum)[1]                
+            catch e
+                @error "$(row.r),$(row.i),$(e)"
+            end
+        end
+
+        category = string(row.i)
+        name = "$(category)_$(string(row.r))"
+        region = string(row.r)
+
+        #profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
+        #size_comp = size(vg_profiles)[1]
+        #profile = vg_profiles[profile_index, (start_idx + 1):(start_idx + timesteps)]
+
+        if category in keys(FOR_dict)
+            gen_for = FOR_dict[category]
+        else
+            gen_for = 0.00 # make this 0 for vg if no match
+        end
+        name = "$(name)_"
+
+        push!(
+            generators_array,
+            Variable_Gen(
+                name = name,
+                timesteps = timesteps,
+                region_name = region,
+                installed_capacity = row.MW_sum,
+                capacity = hourly_capacities[idx,:],
+                type = category,
+                legacy = "New",
+                FOR = gen_for,
+                MTTR = user_inputs["MTTR"],
+            ),
+        )
+    end
+
+    return generators_array, genstor_array
+end
+
+"""
     Process data associated with the regional storage build for modeled time
     period
 
@@ -506,41 +671,6 @@ function process_storages(
         end
     end
     return storages_array
-end
-
-"""
-    Parameters
-    ----------
-    regions : Vector{<:AbstractString}
-        a vector of strings of distinct regions in the model
-    timesteps : Int
-        integer representing the number of time steps
-
-    Returns
-    -------
-    gen_stors : Gen_Storage
-        a Gen_Storage struct containing information about generators/storage
-        technologies for each region.
-"""
-function process_hd(hydro_capacities::DataFrames.DataFrame,
-                    FOR_dict::Dict,
-                    unitsize_dict::Dict,
-                    ReEDS_data,
-                    timesteps::Int,
-                    regions::Vector{<:AbstractString},
-                    year::Int64,
-                    user_inputs::Dict{Any, Any},
-                    )
-    gen_stors = [
-        Gen_Storage(
-            name = "GenStor_1",
-            timesteps = timesteps,
-            region_name = regions[1],
-            type = "blank_genstor",
-        ),
-    ] # empty for now
-
-    return gen_stors
 end
 
 """

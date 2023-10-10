@@ -1,5 +1,6 @@
-# Revert changes here before merging
-#using Revise
+# TODO: Revert changes here like logger and Revise before merging
+# TODO: Include sample test system instead of using actual ReEDS outputs
+using Revise
 
 using ReEDS2PRAS
 using PRAS

@@ -1,4 +1,5 @@
-const ReEDS_VRE_TYPES = ["wind-ons", "wind-ofs", "dupv", "upv", "distpv", "csp"]
+const ReEDS_VRE_TYPES = ["wind-ons", "wind-ofs", "dupv", "upv", "distpv", "csp", 
+                         "hydnd", "hydsnd", "hydund", "hydnpnd", "hydend"]
 
 function check_reeds_vre_type(
     type::Union{STRING, String},

@@ -1,8 +1,9 @@
 """
 Copyright 2022 Alliance for Sustainable Energy and other
 NTP Project Developers. See the top-level COPYRIGHT file for details.
-Author: Luke Lavin, Surya Chandan Dhulipala, Brandon Norton Benton
-Email: luke.lavin@nrel.gov, suryachandan.dhulipala@nrel.gov, brandon.benton@nrel.gov
+Author: Luke Lavin, Surya Chandan Dhulipala, Brandon Norton Benton, Hari Sundar
+Email: luke.lavin@nrel.gov, suryachandan.dhulipala@nrel.gov, 
+       brandon.benton@nrel.gov, hari.sundar@nrel.gov
 """
 module ReEDS2PRAS
 
@@ -38,7 +39,7 @@ include("utils/runchecks.jl")
 include("utils/reeds_data_parsing.jl")
 include("utils/user_descriptors_parsing.jl")
 #Main
-include("main/parse_reeds_data.jl")
+include("main/extract_system_info.jl")
 include("main/create_pras_system.jl")
 
 # Module

@@ -49,7 +49,7 @@ function reeds_to_pras(
     run_checks(ReEDS_data_filepaths)
 
     @info "Parsing ReEDS data and creating ReEDS2PRAS objects..."
-    out = parse_reeds_data(
+    out = extract_system_info(
         ReEDS_data_filepaths,
         weather_year,
         timesteps,

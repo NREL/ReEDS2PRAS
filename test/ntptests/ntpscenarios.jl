@@ -1,8 +1,8 @@
+# TODO: Revert changes or include local system
+inpath = "/Users/ssundar/Library/CloudStorage/OneDrive-NREL/projects/dmdu_FY24"
 
-inpath = "/projects/ntps/llavin/ReEDS-2.0/runs"
-
-ty = 2023
-tp = joinpath(inpath, "ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core")
+ty = 2050
+tp = joinpath(inpath, "v20231003_ntp500kM0_XXlimI_DemMd_90by2035EP__H20CCS0")
 WEATHERYEAR = 2008 #2007-2013
 psys_LD = ReEDS2PRAS.reeds_to_pras(tp, ty, 8760, WEATHERYEAR)
 

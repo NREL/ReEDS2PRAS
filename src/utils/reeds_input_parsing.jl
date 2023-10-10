@@ -1,3 +1,6 @@
+# Needed to run rename! in get_hydro_data function
+# TODO: Figure out why this is the case and remove this import
+using DataFrames 
 """
     Creates a datapath for a given year within the valid date period: 2020
     < y <= 2050.  Used as a parameter for other functions in order to
@@ -294,8 +297,7 @@ function get_ICAP_data(data::ReEDSdatapaths)
 end
 
 """
-    Returns a DataFrame containing the installed capacity of generators for a
-    given year.
+    Returns DataFrames containing hydroelectric plants capacity factors
 
     Parameters
     ----------
@@ -304,13 +306,20 @@ end
 
     Returns
     -------
-    DataFrame
-        A DataFrame containing the installed capacity data.
+    hydcf: DataFrame
+        A DataFrame containing the seasonal capacity factors for both 
+        dispatchable and non-dispatchable hydroelectric plants, subsetted
+        to the required output year. 
+    
+    hydcapadj: DataFrame
+        A DataFrame containing seasonal capacity adjustment factors for
+        dispatchable hydroelectric plants which limits the maximum hourly 
+        dispatch (MW) in each season.
 
     Raises
     ------
     Error
-        If the year does not have generator installed capacity data.
+        If the filepath for the for the two files do not exist.
 """
 function get_hydro_data(data::ReEDSdatapaths)
     
@@ -319,8 +328,13 @@ function get_hydro_data(data::ReEDSdatapaths)
                         "hydcf.csv"
                        )
     hydcf = DataFrames.DataFrame(CSV.File(filepath_cf))
+
+    # Rename plant types as techtypes and capacity are lowercase
     rename!(hydcf, [:"*i"].=>[:i])
     hydcf.i = lowercase.(hydcf.i);
+    # Subset to required run year, unclear if subset has to be 
+    # the ReEDS target year or the weather data years
+    hydcf = hydcf[hydcf.t .== data.year,:]
 
     filepath_capadj = joinpath(data.ReEDSfilepath,
                         "inputs_case", 
@@ -335,12 +349,14 @@ function get_hydro_data(data::ReEDSdatapaths)
                             "hydcfadj.csv"
                            )
     end
-    
-    hydcfadj = DataFrames.DataFrame(CSV.File(filepath_capadj));
-    rename!(hydcfadj, [:"*i"].=>[:i])
-    hydcfadj.i = lowercase.(hydcfadj.i);
 
-    return hydcf,hydcfadj
+    hydcapadj = DataFrames.DataFrame(CSV.File(filepath_capadj));
+
+    # Rename plant types as techtypes and capacity are lowercase
+    rename!(hydcapadj, [:"*i"].=>[:i])
+    hydcapadj.i = lowercase.(hydcapadj.i);
+
+    return hydcf,hydcapadj
 end
 
 """
