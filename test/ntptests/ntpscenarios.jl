@@ -1,8 +1,7 @@
-# TODO: Revert changes or include local system
-inpath = "/Users/ssundar/Library/CloudStorage/OneDrive-NREL/projects/dmdu_FY24"
+inpath = "/projects/ntps/llavin/ReEDS-2.0/runs"
 
-ty = 2050
-tp = joinpath(inpath, "v20231003_ntp500kM0_XXlimI_DemMd_90by2035EP__H20CCS0")
+ty = 2023
+tp = joinpath(inpath, "ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core")
 WEATHERYEAR = 2008 #2007-2013
 psys_LD = ReEDS2PRAS.reeds_to_pras(tp, ty, 8760, WEATHERYEAR)
 
@@ -15,4 +14,4 @@ compare_line_capacities(psys_LD, tp, ty)
 
 # pras_sys_location = joinpath(tp,"outputs","v20221201_NTPh0_VSC_DemHi_90by2035EarlyPhaseout__core_"*string(ty)*".pras")
 
-# PRAS_Analytics.run_pras_analysis(pras_sys_location, "v20221201_NTPh0_VSC_DemHi_90by2035EarlyPhaseout__core", 20232008, 10, plots = true, results_location = tp) 
+# PRAS_Analytics.run_pras_analysis(pras_sys_location, "v20221201_NTPh0_VSC_DemHi_90by2035EarlyPhaseout__core", 20232008, 10, plots = true, results_location = tp)

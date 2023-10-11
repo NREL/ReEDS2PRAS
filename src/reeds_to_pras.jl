@@ -49,6 +49,7 @@ function reeds_to_pras(
     run_checks(ReEDS_data_filepaths)
 
     @info "Parsing ReEDS data and creating ReEDS2PRAS objects..."
+    # TODO: Update min year variable
     out = extract_system_info(
         ReEDS_data_filepaths,
         weather_year,

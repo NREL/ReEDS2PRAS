@@ -376,6 +376,8 @@ function process_vg(
     cf_info = get_vg_cf_data(ReEDS_data)
 
     vg_profiles = cf_info["block0_values"]
+    # TODO: (SSH) This logic will fail if timesteps != 8760
+    # and min_year != weather_year
     start_idx = (weather_year - min_year) * timesteps
 
     # split-apply-combine to handle differently vintaged entries
@@ -429,6 +431,7 @@ end
         technologies for each region.
 """
 # TODO: Incorporate multiple years (for ex. 2007 - 2013) of hydro data.
+# For now use the ReEDS year based CF data to repeat the same 8760 time series multiple times
 function process_hd(
     generators_array::Vector{<:ReEDS2PRAS.Generator},
     hydro_capacities::DataFrames.DataFrame,
@@ -441,6 +444,9 @@ function process_hd(
 )
     hydcf, hydcapadj = get_hydro_data(ReEDS_data)
     monthhours = monhours()
+
+    timesteps_year = 8760
+    num_years = Int(timesteps // timesteps_year)
 
     # Combine all plant vintages for each region and plant type
     combined_caps =
@@ -459,8 +465,8 @@ function process_hd(
     for (idx, row) in enumerate(DataFrames.eachrow(dispatchable_hd[1:5, :]))
         reg_plant_subset =
             hydcf[(hydcf.r .== row.r) .&& (hydcf.i .== row.i), [:szn, :value]]
-        monthly_energy = zeros(timesteps)
-        dispatch_limit = zeros(timesteps)
+        monthly_energy = zeros(timesteps_year)
+        dispatch_limit = zeros(timesteps_year)
         for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
             #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
             try
@@ -507,12 +513,12 @@ function process_hd(
                 name = name,
                 timesteps = timesteps,
                 region_name = region,
-                charge_cap = monthly_energy,
-                discharge_cap = dispatch_limit,
+                charge_cap = repeat(monthly_energy, num_years),
+                discharge_cap = repeat(dispatch_limit, num_years),
                 energy_cap = ones(timesteps) * 1e10,
-                inflow = monthly_energy,
+                inflow = repeat(monthly_energy, num_years),
                 grid_withdrawl_cap = zeros(timesteps),
-                grid_inj_cap = dispatch_limit,
+                grid_inj_cap = repeat(dispatch_limit, num_years),
                 type = category,
                 legacy = "New",
                 FOR = gen_for,
@@ -533,7 +539,7 @@ function process_hd(
             findall(x -> (x.r == row.r && x.i == row.i), eachrow(hydcf)),
             [:szn, :value],
         ]
-        hourly_capacity = zeros(timesteps)
+        hourly_capacity = zeros(timesteps_year)
         for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
             try
                 reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
@@ -564,7 +570,7 @@ function process_hd(
                 timesteps = timesteps,
                 region_name = region,
                 installed_capacity = row.MW_sum,
-                capacity = hourly_capacity,
+                capacity = repeat(hourly_capacity, num_years),
                 type = category,
                 legacy = "New",
                 FOR = gen_for,
