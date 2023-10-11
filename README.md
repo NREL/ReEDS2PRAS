@@ -96,4 +96,4 @@ The `output_filepath` specifies the location to save the pras model.
 
 
 ## Acknowledgements
-The developers are Luke Lavin, Surya Dhulipala, and Brandon Benton. They acknowlege Gord Stephen for many helpful comments for improving this package.
+The developers are Luke Lavin, Surya Dhulipala, Brandon Benton, and Hari Sundar. They acknowlege Gord Stephen for many helpful comments for improving this package.
