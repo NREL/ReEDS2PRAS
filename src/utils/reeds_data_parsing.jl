@@ -221,6 +221,7 @@ end
         Thermal capacity, Storage capacity, Variable Generation capacity
 """
 function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
+    # TODO: Separate generator storages
     tech_types_data = get_technology_types(ReEDS_data)
     @debug "tech_types_data is $(tech_types_data)"
     capacity_data = get_ICAP_data(ReEDS_data)
@@ -231,11 +232,12 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     @debug "vg_types is $(vg_types)"
     # Need union only if HYDRO does not encompass both ND and D
     # TODO: Verify if need all the separate types
-    hd_types = union(DataFrames.dropmissing(tech_types_data, :HYDRO)[:, "Column1"],
-                     #DataFrames.dropmissing(types, :HYDRO_ND)[:, "Column1"],
-                     #DataFrames.dropmissing(types, :HYDRO_D)[:, "Column1"]
-                    )
-    hd_types = lowercase.(hd_types);
+    hd_types = union(
+        DataFrames.dropmissing(tech_types_data, :HYDRO)[:, "Column1"],
+        #DataFrames.dropmissing(types, :HYDRO_ND)[:, "Column1"],
+        #DataFrames.dropmissing(types, :HYDRO_D)[:, "Column1"]
+    )
+    hd_types = lowercase.(hd_types)
     @debug "hd_types is $(hd_types)"
     # csp-ns causes problems, so delete for now
     vg_types = vg_types[vg_types .!= "csp-ns"]
@@ -253,8 +255,13 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     storage_capacity = capacity_data[(findall(in(storage_types), capacity_data.i)), :]
     hd_capacity = capacity_data[(findall(in(lowercase.(hd_types)), capacity_data.i)), :]
     @debug "hd_capacity is $(hd_capacity)"
-    thermal_capacity =
-        capacity_data[(findall(!in(vcat(vg_types, storage_types, lowercase.(hd_types))), capacity_data.i)), :]
+    thermal_capacity = capacity_data[
+        (findall(
+            !in(vcat(vg_types, storage_types, lowercase.(hd_types))),
+            capacity_data.i,
+        )),
+        :,
+    ]
     @debug "thermal_capacity is $(thermal_capacity)"
     return thermal_capacity, storage_capacity, vg_capacity, hd_capacity
 end
@@ -435,43 +442,44 @@ function process_hd(
     hydcf, hydcapadj = get_hydro_data(ReEDS_data)
     monthhours = monhours()
 
-    combined_caps = combine(groupby(hydro_capacities, [:i,:r]),:MW=>sum)
+    # Combine all plant vintages for each region and plant type
+    combined_caps =
+        DataFrames.combine(DataFrames.groupby(hydro_capacities, [:i, :r]), :MW => sum)
 
-    # Dispatchable hydro plants - generator storages
-    dispatchable_hd = combined_caps[findall(x->!endswith(x,"nd"),combined_caps.i),:]
-
-    monthly_energies = Matrix(zeros(nrow(dispatchable_hd),timesteps))
-    dispatch_limits = Matrix(zeros(nrow(dispatchable_hd),timesteps))
+    # Dispatchable hydro plants become generator storages
+    dispatchable_hd = combined_caps[findall(x -> !endswith(x, "nd"), combined_caps.i), :]
 
     genstor_array = Gen_Storage[]
 
-    for (idx,row) in enumerate(eachrow(dispatchable_hd[1:5,:]))
-        reg_plant_subset = hydcf[(hydcf.r .== row.r) .&& 
-                                    (hydcf.i .== row.i),
-                                    [:szn,:value]
-                                    ]
-        
-        for (idx_mon,mon_row) in  enumerate(eachrow(monthhours))
+    # We need the dispatch limit for each hour from each asset and each month's energy budget
+    # applied as an exogenous limit using inflow. We have seasonal capacity factors for energy budget
+    # and seasonal capacity adjustment factor on the nameplate capacity for dispatch limits. 
+    # For each month, (i) energy budget is calculated based on number of hours in the month, and the 
+    # season the month belongs to; and (ii) dispatch limit is calculated based on the season of the month.
+    for (idx, row) in enumerate(DataFrames.eachrow(dispatchable_hd[1:5, :]))
+        reg_plant_subset =
+            hydcf[(hydcf.r .== row.r) .&& (hydcf.i .== row.i), [:szn, :value]]
+        monthly_energy = zeros(timesteps)
+        dispatch_limit = zeros(timesteps)
+        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
             #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
             try
-                reqd_slice = (mon_row.cumhrs-mon_row.numhrs+1):mon_row.cumhrs
-                monthly_energies[idx,first(reqd_slice)] = (mon_row.numhrs
-                                                           *reg_plant_subset[findall(x->startswith(mon_row.season,x),
-                                                                                   reg_plant_subset.szn),
-                                                                           :value]
-                                                           *row.MW_sum
-                                                           )[1]
+                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
+                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * reg_plant_subset[
+                    findall(x -> startswith(mon_row.season, x), reg_plant_subset.szn),
+                    :value,
+                ] * row.MW_sum)[1]
 
-                capacity_adjust = hydcapadj[(hydcapadj.i .== row.i) .&&
-                                        (hydcapadj.r .== row.r),
-                                        [:szn,:value]]
-                dispatch_limits[idx,reqd_slice] .= (capacity_adjust[findall(x->startswith(mon_row.season,x),
-                                                                            capacity_adjust.szn),
-                                                                    :value]
-                                                                    *row.MW_sum
-                                                )[1];
+                capacity_adjust = hydcapadj[
+                    (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
+                    [:szn, :value],
+                ]
+                dispatch_limit[reqd_slice] .= (capacity_adjust[
+                    findall(x -> startswith(mon_row.season, x), capacity_adjust.szn),
+                    :value,
+                ] * row.MW_sum)[1]
             catch e
-                @error "$(row.r),$(row.i),$(e)"        
+                @error "$(row.r),$(row.i),$(e)"
             end
         end
 
@@ -486,30 +494,25 @@ function process_hd(
         end
         name = "$(name)_"
 
-        # TODO: Incorporate edge case:
-        #  At the timestep where inflow occurs, need to set grid injection to 
-        #  be the output max, and discharge capacity 0, as the unit may not be 
-        #  able to get inflow as well as discharge in the same time step. 
-        #  So, if the unit was exhausted in the previous season/month, it may not 
-        #  have stored energy to dispatch and hence the discharge capacity won't 
-        #  discharge the current period's input on the first time step of the period. 
-        #  But, if we have both discharge_capacity AND grid injection at that time 
-        #  step, and there is existing energy stored in the generator, then we will 
-        #  be allowing twice the max output if we have both discharge_capacity and 
-        #  injection capacity for that time step.
-
+        # - Charging to genstore is limited by charge_capacity whether from grid or from 
+        # inflows. So, that charge_capacity should be equal to the genflow timeseries.
+        # - Powerflow into grid is limited by grid_injection, which can come from discharge
+        # and/or exogenous inflow. So discharge capacity can be the dispatch limit or 
+        # arbitrarily high, while the grid_injection cap has to the dispatch limit.
+        # - Energy capacity can be arbitrarily high in the absense of reservoir limit to 
+        # ensure month to month energy energy carryover.
         push!(
             genstor_array,
             Gen_Storage(
                 name = name,
                 timesteps = timesteps,
                 region_name = region,
-                charge_cap = zeros(timesteps),
-                discharge_cap = dispatch_limits[idx,:],
-                energy_cap = ones(timesteps)*1e10,
-                inflow = monthly_energies[idx,:],
+                charge_cap = monthly_energy,
+                discharge_cap = dispatch_limit,
+                energy_cap = ones(timesteps) * 1e10,
+                inflow = monthly_energy,
                 grid_withdrawl_cap = zeros(timesteps),
-                grid_inj_cap = zeros(timesteps),
+                grid_inj_cap = dispatch_limit,
                 type = category,
                 legacy = "New",
                 FOR = gen_for,
@@ -519,19 +522,25 @@ function process_hd(
     end
 
     # Non-dispatchable hydro power plants
-    nondispatchable_hd = combined_caps[findall(x->endswith(x,"nd"),combined_caps.i),:]
-
-    hourly_capacities = Matrix(zeros(nrow(nondispatchable_hd),timesteps))
+    nondispatchable_hd = combined_caps[findall(x -> endswith(x, "nd"), combined_caps.i), :]
 
     # TODO: When capacity factors are available at the plant level from stream flows, 
     #       need to disaggregate and change to use those values rather than monthly values
-    for (idx,row) in enumerate(eachrow(nondispatchable_hd))
-        reg_type = hydcf[findall(x->(x.r==row.r && x.i == row.i), eachrow(hydcf)),[:szn,:value]]
-        for (idx_mon,mon_row) in  enumerate(eachrow(monthhours))
+    # For non dispatchable hydro plants, the seasonal capacity factor is used to determine
+    # hourly capacity time series in each month by getting the season of the month. 
+    for (idx, row) in enumerate(DataFrames.eachrow(nondispatchable_hd))
+        reg_type = hydcf[
+            findall(x -> (x.r == row.r && x.i == row.i), eachrow(hydcf)),
+            [:szn, :value],
+        ]
+        hourly_capacity = zeros(timesteps)
+        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
             try
-                reqd_slice = (mon_row.cumhrs-mon_row.numhrs+1):mon_row.cumhrs
-                hourly_capacities[idx,reqd_slice] .= (reg_type[findall(x->startswith(mon_row.season,x),reg_type.szn),:value]
-                                                      *row.MW_sum)[1]                
+                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
+                hourly_capacity[reqd_slice] .= (reg_type[
+                    findall(x -> startswith(mon_row.season, x), reg_type.szn),
+                    :value,
+                ] * row.MW_sum)[1]
             catch e
                 @error "$(row.r),$(row.i),$(e)"
             end
@@ -540,10 +549,6 @@ function process_hd(
         category = string(row.i)
         name = "$(category)_$(string(row.r))"
         region = string(row.r)
-
-        #profile_index = findfirst.(isequal.(name), (cf_info["axis0"],))[1]
-        #size_comp = size(vg_profiles)[1]
-        #profile = vg_profiles[profile_index, (start_idx + 1):(start_idx + timesteps)]
 
         if category in keys(FOR_dict)
             gen_for = FOR_dict[category]
@@ -559,7 +564,7 @@ function process_hd(
                 timesteps = timesteps,
                 region_name = region,
                 installed_capacity = row.MW_sum,
-                capacity = hourly_capacities[idx,:],
+                capacity = hourly_capacity,
                 type = category,
                 legacy = "New",
                 FOR = gen_for,
@@ -687,15 +692,15 @@ end
         a Gen_Storage struct containing information about generators/storage
         technologies for each region.
 """
-function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
-    gen_stors = [
-        Gen_Storage(
-            name = "GenStor_1",
-            timesteps = timesteps,
-            region_name = regions[1],
-            type = "blank_genstor",
-        ),
-    ] # empty for now
+function process_genstors(gen_stors, regions::Vector{<:AbstractString}, timesteps::Int)
+    #gen_stors = [
+    #    Gen_Storage(
+    #        name = "GenStor_1",
+    #        timesteps = timesteps,
+    #        region_name = regions[1],
+    #        type = "blank_genstor",
+    #    ),
+    #] # empty for now
 
     return gen_stors
 end

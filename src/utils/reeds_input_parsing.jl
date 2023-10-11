@@ -1,6 +1,3 @@
-# Needed to run rename! in get_hydro_data function
-# TODO: Figure out why this is the case and remove this import
-using DataFrames 
 """
     Creates a datapath for a given year within the valid date period: 2020
     < y <= 2050.  Used as a parameter for other functions in order to
@@ -322,41 +319,31 @@ end
         If the filepath for the for the two files do not exist.
 """
 function get_hydro_data(data::ReEDSdatapaths)
-    
-    filepath_cf = joinpath(data.ReEDSfilepath,
-                        "inputs_case", 
-                        "hydcf.csv"
-                       )
+    filepath_cf = joinpath(data.ReEDSfilepath, "inputs_case", "hydcf.csv")
     hydcf = DataFrames.DataFrame(CSV.File(filepath_cf))
 
     # Rename plant types as techtypes and capacity are lowercase
-    rename!(hydcf, [:"*i"].=>[:i])
-    hydcf.i = lowercase.(hydcf.i);
+    DataFrames.rename!(hydcf, [:"*i"] .=> [:i])
+    hydcf.i = lowercase.(hydcf.i)
     # Subset to required run year, unclear if subset has to be 
     # the ReEDS target year or the weather data years
-    hydcf = hydcf[hydcf.t .== data.year,:]
+    hydcf = hydcf[hydcf.t .== data.year, :]
 
-    filepath_capadj = joinpath(data.ReEDSfilepath,
-                        "inputs_case", 
-                        "hydcapadj.csv"
-                       )
+    filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcapadj.csv")
 
     # TODO: Remove after PR1098 merged on ReEDS-2.0
     #       and future ReEDS runs use that version
     if !(isfile(filepath_capadj))
-        filepath_capadj = joinpath(data.ReEDSfilepath,
-                            "inputs_case", 
-                            "hydcfadj.csv"
-                           )
+        filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcfadj.csv")
     end
 
-    hydcapadj = DataFrames.DataFrame(CSV.File(filepath_capadj));
+    hydcapadj = DataFrames.DataFrame(CSV.File(filepath_capadj))
 
     # Rename plant types as techtypes and capacity are lowercase
-    rename!(hydcapadj, [:"*i"].=>[:i])
-    hydcapadj.i = lowercase.(hydcapadj.i);
+    DataFrames.rename!(hydcapadj, [:"*i"] .=> [:i])
+    hydcapadj.i = lowercase.(hydcapadj.i)
 
-    return hydcf,hydcapadj
+    return hydcf, hydcapadj
 end
 
 """

@@ -145,19 +145,15 @@ end
 
 # Getter Functions
 
-get_charge_capacity(stor::Gen_Storage) =
-    permutedims(round.(Int, stor.charge_cap))
+get_charge_capacity(stor::Gen_Storage) = permutedims(round.(Int, stor.charge_cap))
 
-get_discharge_capacity(stor::Gen_Storage) =
-    permutedims(round.(Int, stor.discharge_cap))
+get_discharge_capacity(stor::Gen_Storage) = permutedims(round.(Int, stor.discharge_cap))
 
-get_energy_capacity(stor::Gen_Storage) =
-    permutedims(round.(Int, stor.energy_cap))
+get_energy_capacity(stor::Gen_Storage) = permutedims(round.(Int, stor.energy_cap))
 
 get_inflow(stor::Gen_Storage) = permutedims(round.(Int, stor.inflow))
 
 get_grid_withdrawl_capacity(stor::Gen_Storage) =
     permutedims(round.(Int, stor.grid_withdrawl_cap))
 
-get_grid_injection_capacity(stor::Gen_Storage) =
-    permutedims(round.(Int, stor.grid_inj_cap))
+get_grid_injection_capacity(stor::Gen_Storage) = permutedims(round.(Int, stor.grid_inj_cap))

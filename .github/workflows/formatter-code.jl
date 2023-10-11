@@ -1,3 +1,5 @@
+# Run following from the repo base directory
+# julia  -e 'using Pkg; Pkg.add("JuliaFormatter"); using JuliaFormatter; include(".github/workflows/formatter-code.jl")'
 main_paths = ["./src", "./test"]
 for main_path in main_paths
     for (root, dir, files) in walkdir(main_path)

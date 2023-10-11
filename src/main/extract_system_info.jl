@@ -54,6 +54,7 @@ function extract_system_info(
         "splitting thermal, storage, vg generator, hdyro types from installed " *
         "ReEDS capacities..."
     )
+    # TODO: Obtain generator storages if exist/get placeholder
     thermal, storage, variable_gens, hydro_gens = split_generator_types(ReEDS_data, year)
     @debug "variable_gens: $(variable_gens)"
 
@@ -103,11 +104,8 @@ function extract_system_info(
         user_inputs,
     )
 
-#    @info "Processing GeneratorStorages [EMPTY FOR NOW].."
-#    genstor_array = process_genstors(get_name.(regions), timesteps)
-
     @info "Processing hydroelectric generation..."
-    gens_array,genstor_array = process_hd(
+    gens_array, genstor_array = process_hd(
         gens_array,
         hydro_gens,
         forced_outage_dict,
@@ -115,10 +113,13 @@ function extract_system_info(
         year,
         WEATHERYEAR,
         timesteps,
-#        min_year,
+        #        min_year,
         user_inputs,
     )
 
+    # TODO: Pass in generator storage capacities if exist
+    @info "Processing GeneratorStorages [EMPTY FOR NOW].."
+    genstor_array = process_genstors(genstor_array, get_name.(regions), timesteps)
 
     return lines, regions, gens_array, storage_array, genstor_array
 end
