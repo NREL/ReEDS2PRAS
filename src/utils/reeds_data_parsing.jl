@@ -174,37 +174,6 @@ function process_lines(
 end
 
 """
-    Expand VG Types.
-
-    This function expands valid lookups in a vector of strings against a
-    second vector, and returns the expanded vector.
-
-    Parameters
-    ----------
-    keys : Vector{<:AbstractString}
-        A vector of lookup keys.
-    values : Vector
-        A vector of values corresponding to the `keys` keys.
-
-    Returns
-    -------
-    vec : Vector
-        An expanded vector based on the lookups provided by `keys`.
-
-    Raises
-    ------
-    AssertionError
-        If `keys` contains keys not found in `values`.
-"""
-function expand_vg_types!(keys::Vector{<:AbstractString}, values::Vector)
-    #TODO: values/keys check
-    for l in keys
-        @assert occursin(l, join(values)) "$(l) is not in $(values)"
-    end
-    return vec(["$(a)" for a in values])
-end
-
-"""
     Split generator types into thermal, storage, and variable generation
     resources
 
