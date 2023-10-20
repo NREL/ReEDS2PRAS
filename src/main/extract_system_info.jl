@@ -51,11 +51,12 @@ function extract_system_info(
     # **TODO: Should hydro be split out as a generator-storage?
     # **TODO: is it important to also handle planned outages?
     @info(
-        "splitting thermal, storage, vg generator, hdyro types from installed " *
+        "splitting thermal, storage, vg generator, hydro types from installed " *
         "ReEDS capacities..."
     )
     # TODO: Obtain generator storages if exist/get placeholder
-    thermal, storage, variable_gens, hydro_gens = split_generator_types(ReEDS_data, year)
+    thermal, storage, variable_gens, hydro_disp_gens, hydro_non_disp_gens =
+        split_generator_types(ReEDS_data, year)
     @debug "variable_gens: $(variable_gens)"
 
     @info "reading in ReEDS generator-type forced outage data..."
@@ -107,7 +108,8 @@ function extract_system_info(
     @info "Processing hydroelectric generation..."
     gens_array, genstor_array = process_hd(
         gens_array,
-        hydro_gens,
+        hydro_disp_gens,
+        hydro_non_disp_gens,
         forced_outage_dict,
         ReEDS_data,
         year,
@@ -118,7 +120,7 @@ function extract_system_info(
     )
 
     # TODO: Pass in generator storage capacities if exist
-    @info "Processing GeneratorStorages [EMPTY FOR NOW].."
+    @info "Processing GeneratorStorages"
     genstor_array = process_genstors(genstor_array, get_name.(regions), timesteps)
 
     return lines, regions, gens_array, storage_array, genstor_array

@@ -232,13 +232,11 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     @debug "vg_types is $(vg_types)"
     # Need union only if HYDRO does not encompass both ND and D
     # TODO: Verify if need all the separate types
-    hd_types = union(
-        DataFrames.dropmissing(tech_types_data, :HYDRO)[:, "Column1"],
-        #DataFrames.dropmissing(types, :HYDRO_ND)[:, "Column1"],
-        #DataFrames.dropmissing(types, :HYDRO_D)[:, "Column1"]
-    )
-    hd_types = lowercase.(hd_types)
-    @debug "hd_types is $(hd_types)"
+    hyd_disp_types = DataFrames.dropmissing(tech_types_data, :HYDRO_D)[:, "Column1"]
+    hyd_disp_types = lowercase.(hyd_disp_types)
+    hyd_non_disp_types = DataFrames.dropmissing(tech_types_data, :HYDRO_ND)[:, "Column1"]
+    hyd_non_disp_types = lowercase.(hyd_non_disp_types)
+    @debug "hd_types is $(union(hyd_disp_types,hyd_non_disp_types))"
     # csp-ns causes problems, so delete for now
     vg_types = vg_types[vg_types .!= "csp-ns"]
     storage_types = DataFrames.dropmissing(tech_types_data, :STORAGE)[:, "Column1"]
@@ -253,17 +251,22 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
 
     vg_capacity = capacity_data[(findall(in(vg_types), capacity_data.i)), :]
     storage_capacity = capacity_data[(findall(in(storage_types), capacity_data.i)), :]
-    hd_capacity = capacity_data[(findall(in(lowercase.(hd_types)), capacity_data.i)), :]
-    @debug "hd_capacity is $(hd_capacity)"
+    hyd_disp_capacity = capacity_data[(findall(in(hyd_disp_types), capacity_data.i)), :]
+    hyd_non_disp_capacity =
+        capacity_data[(findall(in(hyd_non_disp_types), capacity_data.i)), :]
     thermal_capacity = capacity_data[
         (findall(
-            !in(vcat(vg_types, storage_types, lowercase.(hd_types))),
+            !in(vcat(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types)),
             capacity_data.i,
         )),
         :,
     ]
     @debug "thermal_capacity is $(thermal_capacity)"
-    return thermal_capacity, storage_capacity, vg_capacity, hd_capacity
+    return thermal_capacity,
+    storage_capacity,
+    vg_capacity,
+    hyd_disp_capacity,
+    hyd_non_disp_capacity
 end
 
 """
@@ -434,7 +437,8 @@ end
 # For now use the ReEDS year based CF data to repeat the same 8760 time series multiple times
 function process_hd(
     generators_array::Vector{<:ReEDS2PRAS.Generator},
-    hydro_capacities::DataFrames.DataFrame,
+    hydro_disp_capacities::DataFrames.DataFrame,
+    hydro_non_disp_capacities::DataFrames.DataFrame,
     FOR_dict::Dict,
     ReEDS_data,
     year::Int64,
@@ -448,12 +452,9 @@ function process_hd(
     timesteps_year = 8760
     num_years = Int(timesteps // timesteps_year)
 
-    # Combine all plant vintages for each region and plant type
-    combined_caps =
-        DataFrames.combine(DataFrames.groupby(hydro_capacities, [:i, :r]), :MW => sum)
-
-    # Dispatchable hydro plants become generator storages
-    dispatchable_hd = combined_caps[findall(x -> !endswith(x, "nd"), combined_caps.i), :]
+    # Combine all plant vintages for each region and plant type for dispatchable plants
+    disp_combined_caps =
+        DataFrames.combine(DataFrames.groupby(hydro_disp_capacities, [:i, :r]), :MW => sum)
 
     genstor_array = Gen_Storage[]
 
@@ -462,16 +463,22 @@ function process_hd(
     # and seasonal capacity adjustment factor on the nameplate capacity for dispatch limits. 
     # For each month, (i) energy budget is calculated based on number of hours in the month, and the 
     # season the month belongs to; and (ii) dispatch limit is calculated based on the season of the month.
-    for (idx, row) in enumerate(DataFrames.eachrow(dispatchable_hd[1:5, :]))
+    for (idx, row) in enumerate(DataFrames.eachrow(disp_combined_caps))
         reg_plant_subset =
             hydcf[(hydcf.r .== row.r) .&& (hydcf.i .== row.i), [:szn, :value]]
         monthly_energy = zeros(timesteps_year)
         dispatch_limit = zeros(timesteps_year)
+        energy_cap = zeros(timesteps_year)
         for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
             #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
             try
                 reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
                 monthly_energy[first(reqd_slice)] = (mon_row.numhrs * reg_plant_subset[
+                    findall(x -> startswith(mon_row.season, x), reg_plant_subset.szn),
+                    :value,
+                ] * row.MW_sum)[1]
+
+                energy_cap[reqd_slice] .= (mon_row.numhrs * reg_plant_subset[
                     findall(x -> startswith(mon_row.season, x), reg_plant_subset.szn),
                     :value,
                 ] * row.MW_sum)[1]
@@ -515,7 +522,7 @@ function process_hd(
                 region_name = region,
                 charge_cap = repeat(monthly_energy, num_years),
                 discharge_cap = repeat(dispatch_limit, num_years),
-                energy_cap = ones(timesteps) * 1e10,
+                energy_cap = repeat(energy_cap, num_years),
                 inflow = repeat(monthly_energy, num_years),
                 grid_withdrawl_cap = zeros(timesteps),
                 grid_inj_cap = repeat(dispatch_limit, num_years),
@@ -528,13 +535,16 @@ function process_hd(
     end
 
     # Non-dispatchable hydro power plants
-    nondispatchable_hd = combined_caps[findall(x -> endswith(x, "nd"), combined_caps.i), :]
+    non_disp_combined_caps = DataFrames.combine(
+        DataFrames.groupby(hydro_non_disp_capacities, [:i, :r]),
+        :MW => sum,
+    )
 
     # TODO: When capacity factors are available at the plant level from stream flows, 
     #       need to disaggregate and change to use those values rather than monthly values
     # For non dispatchable hydro plants, the seasonal capacity factor is used to determine
     # hourly capacity time series in each month by getting the season of the month. 
-    for (idx, row) in enumerate(DataFrames.eachrow(nondispatchable_hd))
+    for (idx, row) in enumerate(DataFrames.eachrow(non_disp_combined_caps))
         reg_type = hydcf[
             findall(x -> (x.r == row.r && x.i == row.i), eachrow(hydcf)),
             [:szn, :value],
