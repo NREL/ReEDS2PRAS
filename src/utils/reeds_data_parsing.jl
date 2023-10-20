@@ -181,27 +181,27 @@ end
 
     Parameters
     ----------
-    vgl : Vector{<:AbstractString}
+    keys : Vector{<:AbstractString}
         A vector of lookup keys.
-    vgt : Vector
-        A vector of values corresponding to the `vgl` keys.
+    values : Vector
+        A vector of values corresponding to the `keys` keys.
 
     Returns
     -------
     vec : Vector
-        An expanded vector based on the lookups provided by `vgl`.
+        An expanded vector based on the lookups provided by `keys`.
 
     Raises
     ------
     AssertionError
-        If `vgl` contains keys not found in `vgt`.
+        If `keys` contains keys not found in `values`.
 """
-function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
-    #TODO: vgt/vgl check
-    for l in vgl
-        @assert occursin(l, join(vgt)) "$(l) is not in $(vgt)"
+function expand_vg_types!(keys::Vector{<:AbstractString}, values::Vector)
+    #TODO: values/keys check
+    for l in keys
+        @assert occursin(l, join(values)) "$(l) is not in $(values)"
     end
-    return vec(["$(a)" for a in vgt])
+    return vec(["$(a)" for a in values])
 end
 
 """
@@ -221,23 +221,21 @@ end
         Thermal capacity, Storage capacity, Variable Generation capacity
 """
 function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
-    tech_types_data = get_technology_types(ReEDS_data)
-    @debug "tech_types_data is $(tech_types_data)"
+    ## Read {case}/inputs_case/tech-subset-table.csv
+    tech_subset_table = get_technology_types(ReEDS_data)
+    @debug "tech_subset_table is $(tech_subset_table)"
+    ## Read {case}/ReEDS_Augur/augur_data/max_cap_{year}.csv
     capacity_data = get_ICAP_data(ReEDS_data)
-    vg_resource_types = get_valid_resources(ReEDS_data)
-    @debug "vg_resource_types is $(vg_resource_types)"
-
-    vg_types = DataFrames.dropmissing(tech_types_data, :VRE)[:, "Column1"]
+    ## Read {case}/inputs_case/resources.csv
+    resources = get_valid_resources(ReEDS_data)
+    @debug "resources is $(resources)"
+    vg_types = unique(resources.i)
     @debug "vg_types is $(vg_types)"
-    # csp-ns causes problems, so delete for now
-    vg_types = vg_types[vg_types .!= "csp-ns"]
-    storage_types = DataFrames.dropmissing(tech_types_data, :STORAGE)[:, "Column1"]
+    storage_types = DataFrames.dropmissing(tech_subset_table, :STORAGE)[:, "Column1"]
 
-    #clean vg/storage capacity on a regex, though there might be a better
-    # way...
+    # clean vg/storage capacity on a regex, though there might be a better way...
     clean_names!(vg_types)
     clean_names!(storage_types)
-    vg_types = expand_vg_types!(vg_types, unique(vg_resource_types.i))
 
     vg_capacity = capacity_data[(findall(in(vg_types), capacity_data.i)), :]
     storage_capacity = capacity_data[(findall(in(storage_types), capacity_data.i)), :]
@@ -436,8 +434,9 @@ function process_storages(
         :MWh => sum,
     )
 
-    tech_types_data = get_technology_types(ReEDS_data)
-    battery_types = DataFrames.dropmissing(tech_types_data, :BATTERY)[:, "Column1"]
+    ## Read {case}/inputs_case/tech-subset-table.csv
+    tech_subset_table = get_technology_types(ReEDS_data)
+    battery_types = DataFrames.dropmissing(tech_subset_table, :BATTERY)[:, "Column1"]
 
     storages_array = Storage[]
     for (idx, row) in enumerate(eachrow(storage_builds))
