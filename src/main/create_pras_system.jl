@@ -74,14 +74,38 @@ function create_pras_system(
 
     stor_names = isempty(get_name.(storages)) ? String[] : get_name.(storages)
     stor_types = isempty(get_type.(storages)) ? String[] : get_type.(storages)
-    stor_charge_cap_array = reduce(vcat, get_charge_capacity.(storages), init = Matrix{Int64}(undef,0,timesteps))
-    stor_discharge_cap_array = reduce(vcat, get_discharge_capacity.(storages), init = Matrix{Int64}(undef,0,timesteps))
-    stor_energy_cap_array = reduce(vcat, get_energy_capacity.(storages), init = Matrix{Int64}(undef,0,timesteps))
-    stor_chrg_eff_array = reduce(vcat, get_charge_efficiency.(storages), init = Matrix{Float64}(undef,0,timesteps))
-    stor_dischrg_eff_array = reduce(vcat, get_discharge_efficiency.(storages), init = Matrix{Float64}(undef,0,timesteps))
-    stor_cryovr_eff = reduce(vcat, get_carryover_efficiency.(storages), init = Matrix{Float64}(undef,0,timesteps))
-    λ_stor = reduce(vcat, get_λ.(storages), init = Matrix{Float64}(undef,0,timesteps))
-    μ_stor = reduce(vcat, get_μ.(storages), init = Matrix{Float64}(undef,0,timesteps))
+    stor_charge_cap_array = reduce(
+        vcat,
+        get_charge_capacity.(storages),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    stor_discharge_cap_array = reduce(
+        vcat,
+        get_discharge_capacity.(storages),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    stor_energy_cap_array = reduce(
+        vcat,
+        get_energy_capacity.(storages),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    stor_chrg_eff_array = reduce(
+        vcat,
+        get_charge_efficiency.(storages),
+        init = Matrix{Float64}(undef, 0, timesteps),
+    )
+    stor_dischrg_eff_array = reduce(
+        vcat,
+        get_discharge_efficiency.(storages),
+        init = Matrix{Float64}(undef, 0, timesteps),
+    )
+    stor_cryovr_eff = reduce(
+        vcat,
+        get_carryover_efficiency.(storages),
+        init = Matrix{Float64}(undef, 0, timesteps),
+    )
+    λ_stor = reduce(vcat, get_λ.(storages), init = Matrix{Float64}(undef, 0, timesteps))
+    μ_stor = reduce(vcat, get_μ.(storages), init = Matrix{Float64}(undef, 0, timesteps))
     pras_storages = PRAS.Storages{timesteps, 1, PRAS.Hour, PRAS.MW, PRAS.MWh}(
         stor_names,
         stor_types,
@@ -97,20 +121,60 @@ function create_pras_system(
     ##
     sorted_gen_stors, genstor_idxs = get_sorted_components(gen_stors, regions)
 
-    gen_stor_names = isempty(get_name.(sorted_gen_stors)) ? String[] : get_name.(sorted_gen_stors)
-    gen_stor_cats = isempty(get_category.(sorted_gen_stors)) ? String[] : get_category.(sorted_gen_stors)
-    gen_stor_cap_array = reduce(vcat, get_charge_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
-    gen_stor_dis_cap_array = reduce(vcat, get_discharge_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
-    gen_stor_enrgy_cap_array = reduce(vcat, get_energy_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
-    gen_stor_chrg_eff_array = reduce(vcat, get_charge_efficiency.(sorted_gen_stors), init = Matrix{Float64}(undef,0,timesteps))
-    gen_stor_dischrg_eff_array = reduce(vcat, get_discharge_efficiency.(sorted_gen_stors), init = Matrix{Float64}(undef,0,timesteps))
-    gen_stor_carryovr_eff_array = reduce(vcat, get_carryover_efficiency.(sorted_gen_stors), init = Matrix{Float64}(undef,0,timesteps))
-    gen_stor_inflow_array = reduce(vcat, get_inflow.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
-    gen_stor_grid_withdrawl_array =
-        reduce(vcat, get_grid_withdrawl_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
-    gen_stor_grid_inj_array = reduce(vcat, get_grid_injection_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
-    gen_stor_λ = reduce(vcat, get_λ.(sorted_gen_stors), init = Matrix{Float64}(undef,0,timesteps))
-    gen_stor_μ = reduce(vcat, get_μ.(sorted_gen_stors), init = Matrix{Float64}(undef,0,timesteps))
+    gen_stor_names =
+        isempty(get_name.(sorted_gen_stors)) ? String[] : get_name.(sorted_gen_stors)
+    gen_stor_cats =
+        isempty(get_category.(sorted_gen_stors)) ? String[] :
+        get_category.(sorted_gen_stors)
+    gen_stor_cap_array = reduce(
+        vcat,
+        get_charge_capacity.(sorted_gen_stors),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    gen_stor_dis_cap_array = reduce(
+        vcat,
+        get_discharge_capacity.(sorted_gen_stors),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    gen_stor_enrgy_cap_array = reduce(
+        vcat,
+        get_energy_capacity.(sorted_gen_stors),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    gen_stor_chrg_eff_array = reduce(
+        vcat,
+        get_charge_efficiency.(sorted_gen_stors),
+        init = Matrix{Float64}(undef, 0, timesteps),
+    )
+    gen_stor_dischrg_eff_array = reduce(
+        vcat,
+        get_discharge_efficiency.(sorted_gen_stors),
+        init = Matrix{Float64}(undef, 0, timesteps),
+    )
+    gen_stor_carryovr_eff_array = reduce(
+        vcat,
+        get_carryover_efficiency.(sorted_gen_stors),
+        init = Matrix{Float64}(undef, 0, timesteps),
+    )
+    gen_stor_inflow_array = reduce(
+        vcat,
+        get_inflow.(sorted_gen_stors),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    gen_stor_grid_withdrawl_array = reduce(
+        vcat,
+        get_grid_withdrawl_capacity.(sorted_gen_stors),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    gen_stor_grid_inj_array = reduce(
+        vcat,
+        get_grid_injection_capacity.(sorted_gen_stors),
+        init = Matrix{Int64}(undef, 0, timesteps),
+    )
+    gen_stor_λ =
+        reduce(vcat, get_λ.(sorted_gen_stors), init = Matrix{Float64}(undef, 0, timesteps))
+    gen_stor_μ =
+        reduce(vcat, get_μ.(sorted_gen_stors), init = Matrix{Float64}(undef, 0, timesteps))
 
     gen_stors = PRAS.GeneratorStorages{timesteps, 1, PRAS.Hour, PRAS.MW, PRAS.MWh}(
         gen_stor_names,

@@ -200,17 +200,18 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     @debug "resources is $(resources)"
     vg_types = unique(resources.i)
     @debug "vg_types is $(vg_types)"
-    storage_types = unique(DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"])
+    storage_types =
+        unique(DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"])
 
     # clean vg/storage capacity on a regex, though there might be a better way...
     clean_names!(vg_types)
     clean_names!(storage_types)
 
-    vg_capacity =  filter(x -> x.i in vg_types, capacity_data)
+    vg_capacity = filter(x -> x.i in vg_types, capacity_data)
     storage_capacity = filter(x -> x.i in storage_types, capacity_data)
-    
+
     thermal_capacity = filter(x -> ~(x.i in union(vg_types, storage_types)), capacity_data)
-    
+
     return thermal_capacity, storage_capacity, vg_capacity
 end
 
