@@ -155,7 +155,7 @@ function get_forced_outage_data(data::ReEDSdatapaths)
 end
 
 """
-    Get the valid resources from a ReEDS case.
+    Get the valid resources from {case}/inputs_case/resources.csv
 
     Parameters
     ----------
@@ -173,7 +173,7 @@ function get_valid_resources(data::ReEDSdatapaths)
 end
 
 """
-    This function gets the technology types from a csv file.
+    This function gets the technology types from {case}/inputs_case/tech-subset-table.csv
 
     Arguments
     ---------
@@ -266,7 +266,7 @@ end
 
 """
     Returns a DataFrame containing the installed capacity of generators for a
-    given year.
+    given year, read from {case}/ReEDS_Augur/augur_data/max_cap_{year}.csv.
 
     Parameters
     ----------
