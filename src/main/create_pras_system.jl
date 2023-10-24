@@ -72,8 +72,8 @@ function create_pras_system(
     ##
     storages, stor_idxs = get_sorted_components(storages, regions)
 
-    stor_names = length(get_name.(storages)) == 0 ? String[] : get_name.(storages)
-    stor_types = length(get_type.(storages)) == 0 ? String[] : get_type.(storages)
+    stor_names = isempty(get_name.(storages)) ? String[] : get_name.(storages)
+    stor_types = isempty(get_type.(storages)) ? String[] : get_type.(storages)
     stor_charge_cap_array = reduce(vcat, get_charge_capacity.(storages), init = Matrix{Int64}(undef,0,timesteps))
     stor_discharge_cap_array = reduce(vcat, get_discharge_capacity.(storages), init = Matrix{Int64}(undef,0,timesteps))
     stor_energy_cap_array = reduce(vcat, get_energy_capacity.(storages), init = Matrix{Int64}(undef,0,timesteps))
@@ -97,8 +97,8 @@ function create_pras_system(
     ##
     sorted_gen_stors, genstor_idxs = get_sorted_components(gen_stors, regions)
 
-    gen_stor_names = length(get_name.(sorted_gen_stors)) == 0 ? String[] : get_name.(sorted_gen_stors)
-    gen_stor_cats = length(get_category.(sorted_gen_stors)) == 0 ? String[] : get_category.(sorted_gen_stors)
+    gen_stor_names = isempty(get_name.(sorted_gen_stors)) ? String[] : get_name.(sorted_gen_stors)
+    gen_stor_cats = isempty(get_category.(sorted_gen_stors)) ? String[] : get_category.(sorted_gen_stors)
     gen_stor_cap_array = reduce(vcat, get_charge_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
     gen_stor_dis_cap_array = reduce(vcat, get_discharge_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
     gen_stor_enrgy_cap_array = reduce(vcat, get_energy_capacity.(sorted_gen_stors), init = Matrix{Int64}(undef,0,timesteps))
