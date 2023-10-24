@@ -480,14 +480,7 @@ end
         technologies for each region.
 """
 function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
-    gen_stors = [
-        Gen_Storage(
-            name = "GenStor_1",
-            timesteps = timesteps,
-            region_name = regions[1],
-            type = "blank_genstor",
-        ),
-    ] # empty for now
+    gen_stors = Gen_Storage[] # empty for now
 
     return gen_stors
 end
