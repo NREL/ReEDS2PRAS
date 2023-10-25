@@ -1,7 +1,7 @@
 name = "ReEDS2PRAS"
 uuid = "c1db39dc-6a9d-11ed-0c9a-05c3ea2a1475"
 authors = ["Luke Lavin <luke.lavin@nrel.gov>", "Surya Chandan Dhulipala <suryachandan.dhulipala@nrel.gov>", "Brandon Norton Benton <brandon.benton@nrel.gov"]
-version = "0.2.6"
+version = "0.3.0"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
