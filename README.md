@@ -43,6 +43,7 @@ provide a starting point for determining which version of the package to use:
  For this version of ReEDS... | ...use this version of ReEDS2PRAS
 ------------------------------|----------------------------------
 2023.0.0 | 0.2.5
+2023.40.3 | 0.3.0
 
 Unless indicated otherwise, ReEDS2PRAS should be expected to produce
 a PRAS v0.6 system.
