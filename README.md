@@ -96,10 +96,11 @@ The `output_filepath` specifies the location to save the pras model.
 ## Contributing Guidelines
 
 It is always a good practice to follow the Julia Style Guide (`https://docs.julialang.org/en/v1/manual/style-guide/`). 
-Please make sure you format your code to follow our guidelines using the snippet below
+Please make sure you format your code to follow our guidelines using the snippet below before you open a PR:
 ```
 julia  -e 'using Pkg; Pkg.add("JuliaFormatter"); using JuliaFormatter; include(".github/workflows/formatter-code.jl")'
 ```
+**NOTE: You have to run the snippet above at the repo folder level.
 
 ## Acknowledgements
 The developers are Luke Lavin, Surya Dhulipala, and Brandon Benton. They acknowlege Gord Stephen for many helpful comments for improving this package.
