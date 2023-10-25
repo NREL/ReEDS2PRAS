@@ -1,9 +1,7 @@
 # ReEDS2PRAS
-ReEDS2PRAS
+## Introduction
 
 The purpose of ReEDS2PRAS is to translate completed ReEDS runs into PRAS systems ready for probabilistic resource adequacy analysis.
-
-## Introduction
 
 ### Installation
 
@@ -55,33 +53,34 @@ If you have a completed ReEDS run and a REPL with ReEDS2PRAS (`using ReEDS2PRAS`
 ```
 using ReEDS2PRAS
 
-# path to completed ReEDS run
-reedscase = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs/ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core")
+reedscase = "/projects/ntps/llavin/ReEDS-2.0/runs/ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core" # path to completed ReEDS run
 solve_year = 2035 #need ReEDS Augur data for the input solve year
 weather_year = 2012 # must be 2007-2013
 timesteps = 8760
+user_descriptors = "your_user_descriptors_json_location_here" # Optional - if not passed uses default values
 
 # returns a parameterized PRAS system
-pras_system = ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, timesteps, weather_year)
+pras_system = ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, timesteps, weather_year, user_descriptors = user_descriptors)
 ```
 
 This will save out a pras system to the variable `pras_system` from the ReEDS2PRAS run. The user can also save a PRAS system to a specific location using `PRAS.savemodel(pras_system, joinpath("MYPATH"*".pras")`. The saved PRAS system may then be read in by other tools like PRAS Analytics (`https://github.nrel.gov/PRAS/PRAS-Analytics`) for further analysis, post-processing, and plotting.
 
 ## Multi-year usage
 
-ReEDS2PRAS can be run for multiple weather years of ra completed ReEDS run by passing more than 8760 hourly timestamps. For example running all 7 weather years can be accomplished as in the below example
+ReEDS2PRAS can be run for multiple weather years of a completed ReEDS run by passing more than 8760 hourly timestamps. For example running all 7 weather years can be accomplished as in the below example
 
 ```
 using ReEDS2PRAS
 
 # path to completed ReEDS run
-reedscase = joinpath("/projects/ntps/llavin/ReEDS-2.0/runs/ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core")
+reedscase = "/projects/ntps/llavin/ReEDS-2.0/runs/ntpsrerun_Xlim_DemHi_90by2035EarlyPhaseout__core"
 solve_year = 2035 #need ReEDS Augur data for the input solve year
 weather_year = 2007 # must be 2007-2013
 timesteps = 61320
+user_descriptors = "your_user_descriptors_json_location_here" # Optional - if not passed uses default values
 
 # returns a parameterized PRAS system
-pras_system = ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, timesteps, weather_year)
+pras_system = ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, timesteps, weather_year, user_descriptors = user_descriptors)
 ```
 
 Importantly, the timesteps count from the first hour of the first `weather_year`, so the user must input `2007` as the `weather_year` to run all 61320 hourly timesteps.
@@ -94,6 +93,15 @@ julia --project=. bin/run.jl <reedscase> <solve_year> <timesteps> <weather_year>
 
 The `output_filepath` specifies the location to save the pras model.
 
+## Contributing Guidelines
+
+It is always a good practice to follow the Julia Style Guide (`https://docs.julialang.org/en/v1/manual/style-guide/`). 
+Please make sure you format your code to follow our guidelines using the snippet below before you open a PR:
+```
+julia  -e 'using Pkg; Pkg.add("JuliaFormatter"); using JuliaFormatter; include(".github/workflows/formatter-code.jl")'
+```
+**NOTE: You have to run the snippet above at the repo folder level.
 
 ## Acknowledgements
 The developers are Luke Lavin, Surya Dhulipala, and Brandon Benton. They acknowlege Gord Stephen for many helpful comments for improving this package.
+
