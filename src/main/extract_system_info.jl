@@ -48,10 +48,9 @@ function extract_system_info(
 
     # Create Generator Objects
     # **TODO: Should 0 MW generators be allowed after disaggregation?
-    # **TODO: Should hydro be split out as a generator-storage?
     # **TODO: is it important to also handle planned outages?
     @info(
-        "splitting thermal, storage, vg generator, hydro types from installed " *
+        "splitting thermal, storage, vg generator, hydro generator types from installed " *
         "ReEDS capacities..."
     )
     # TODO: Obtain generator storages if exist/get placeholder
@@ -105,8 +104,8 @@ function extract_system_info(
         user_inputs,
     )
 
-    @info "Processing hydroelectric generation..."
-    gens_array, genstor_array = process_hd(
+    @info "Processing hydroelectric generators..."
+    gens_array, genstor_array = process_hydro(
         gens_array,
         hydro_disp_gens,
         hydro_non_disp_gens,
