@@ -329,7 +329,7 @@ function get_hydro_data(data::ReEDSdatapaths)
     # Subset to required run year, unclear if subset has to be 
     # the ReEDS target year or the weather data years
     hydcf = filter(x -> x.t == data.year, hydcf)
-    
+
     filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcapadj.csv")
 
     # TODO: Remove after PR1098 merged on ReEDS-2.0

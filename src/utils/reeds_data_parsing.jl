@@ -202,9 +202,11 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     @debug "vg_types is $(vg_types)"
     # Need union only if HYDRO does not encompass both ND and D
     # TODO: Verify if need all the separate types
-    hyd_disp_types = lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_D)[:, "Column1"])
-    hyd_non_disp_types = lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_ND)[:, "Column1"])
-    
+    hyd_disp_types =
+        lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_D)[:, "Column1"])
+    hyd_non_disp_types =
+        lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_ND)[:, "Column1"])
+
     @debug "hd_types is $(union(hyd_disp_types,hyd_non_disp_types))"
 
     storage_types =
@@ -223,7 +225,10 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     hyd_disp_capacity = filter(x -> x.i in hyd_disp_types, capacity_data)
     hyd_non_disp_capacity = filter(x -> x.i in hyd_non_disp_types, capacity_data)
 
-    thermal_capacity = filter(x -> ~(x.i in union(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types)), capacity_data)
+    thermal_capacity = filter(
+        x -> ~(x.i in union(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types)),
+        capacity_data,
+    )
 
     @debug "thermal_capacity is $(thermal_capacity)"
     return thermal_capacity,
@@ -428,7 +433,8 @@ function process_hydro(
     # For each month, (i) energy budget is calculated based on number of hours in the month, and the 
     # season the month belongs to; and (ii) dispatch limit is calculated based on the season of the month.
     for (idx, row) in enumerate(DataFrames.eachrow(disp_combined_caps))
-        reg_plant_subset = filter(x ->(x.r == row.r && x.i == row.i), hydcf)[:,[:szn, :value]]
+        reg_plant_subset =
+            filter(x -> (x.r == row.r && x.i == row.i), hydcf)[:, [:szn, :value]]
         monthly_energy = zeros(timesteps_year)
         dispatch_limit = zeros(timesteps_year)
         energy_cap = zeros(timesteps_year)
@@ -676,7 +682,6 @@ function process_genstors(gen_stors, regions::Vector{<:AbstractString}, timestep
         gen_stors = gen_stors
     else
         gen_stors = Gen_Storage[] # empty for now
-        
     end
 
     return gen_stors
