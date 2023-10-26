@@ -174,37 +174,6 @@ function process_lines(
 end
 
 """
-    Expand VG Types.
-
-    This function expands valid lookups in a vector of strings against a
-    second vector, and returns the expanded vector.
-
-    Parameters
-    ----------
-    vgl : Vector{<:AbstractString}
-        A vector of lookup keys.
-    vgt : Vector
-        A vector of values corresponding to the `vgl` keys.
-
-    Returns
-    -------
-    vec : Vector
-        An expanded vector based on the lookups provided by `vgl`.
-
-    Raises
-    ------
-    AssertionError
-        If `vgl` contains keys not found in `vgt`.
-"""
-function expand_vg_types!(vgl::Vector{<:AbstractString}, vgt::Vector)
-    #TODO: vgt/vgl check
-    for l in vgl
-        @assert occursin(l, join(vgt)) "$(l) is not in $(vgt)"
-    end
-    return vec(["$(a)" for a in vgt])
-end
-
-"""
     Split generator types into thermal, storage, and variable generation
     resources
 
@@ -221,14 +190,15 @@ end
         Thermal capacity, Storage capacity, Variable Generation capacity
 """
 function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
-    # TODO: Separate generator storages
-    tech_types_data = get_technology_types(ReEDS_data)
-    @debug "tech_types_data is $(tech_types_data)"
+    ## Read {case}/inputs_case/tech-subset-table.csv
+    tech_subset_table = get_technology_types(ReEDS_data)
+    @debug "tech_subset_table is $(tech_subset_table)"
+    ## Read {case}/ReEDS_Augur/augur_data/max_cap_{year}.csv
     capacity_data = get_ICAP_data(ReEDS_data)
-    vg_resource_types = get_valid_resources(ReEDS_data)
-    @debug "vg_resource_types is $(vg_resource_types)"
-
-    vg_types = DataFrames.dropmissing(tech_types_data, :VRE)[:, "Column1"]
+    ## Read {case}/inputs_case/resources.csv
+    resources = get_valid_resources(ReEDS_data)
+    @debug "resources is $(resources)"
+    vg_types = unique(resources.i)
     @debug "vg_types is $(vg_types)"
     # Need union only if HYDRO does not encompass both ND and D
     # TODO: Verify if need all the separate types
@@ -237,30 +207,22 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     hyd_non_disp_types = DataFrames.dropmissing(tech_types_data, :HYDRO_ND)[:, "Column1"]
     hyd_non_disp_types = lowercase.(hyd_non_disp_types)
     @debug "hd_types is $(union(hyd_disp_types,hyd_non_disp_types))"
-    # csp-ns causes problems, so delete for now
-    vg_types = vg_types[vg_types .!= "csp-ns"]
-    storage_types = DataFrames.dropmissing(tech_types_data, :STORAGE)[:, "Column1"]
+    storage_types =
+        unique(DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"])
 
-    #clean vg/storage capacity on a regex, though there might be a better
-    # way...
+    # clean vg/storage capacity on a regex, though there might be a better way...
     clean_names!(vg_types)
     @debug "vg_types is $(vg_types)"
     clean_names!(storage_types)
-    vg_types = expand_vg_types!(vg_types, unique(vg_resource_types.i))
-    @debug "vg_types is $(vg_types)"
 
-    vg_capacity = capacity_data[(findall(in(vg_types), capacity_data.i)), :]
-    storage_capacity = capacity_data[(findall(in(storage_types), capacity_data.i)), :]
-    hyd_disp_capacity = capacity_data[(findall(in(hyd_disp_types), capacity_data.i)), :]
-    hyd_non_disp_capacity =
-        capacity_data[(findall(in(hyd_non_disp_types), capacity_data.i)), :]
-    thermal_capacity = capacity_data[
-        (findall(
-            !in(vcat(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types)),
-            capacity_data.i,
-        )),
-        :,
-    ]
+    vg_capacity = filter(x -> x.i in vg_types, capacity_data)
+    storage_capacity = filter(x -> x.i in storage_types, capacity_data)
+
+    hyd_disp_capacity = filter(x -> x.i in hyd_disp_types, capacity_data)
+    hyd_non_disp_capacity = filter(x -> x.i in hyd_non_disp_types, capacity_data)
+
+    thermal_capacity = filter(x -> ~(x.i in union(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types)), capacity_data)
+
     @debug "thermal_capacity is $(thermal_capacity)"
     return thermal_capacity,
     storage_capacity,
@@ -634,8 +596,9 @@ function process_storages(
         :MWh => sum,
     )
 
-    tech_types_data = get_technology_types(ReEDS_data)
-    battery_types = DataFrames.dropmissing(tech_types_data, :BATTERY)[:, "Column1"]
+    ## Read {case}/inputs_case/tech-subset-table.csv
+    tech_subset_table = get_technology_types(ReEDS_data)
+    battery_types = DataFrames.dropmissing(tech_subset_table, :BATTERY)[:, "Column1"]
 
     storages_array = Storage[]
     for (idx, row) in enumerate(eachrow(storage_builds))
@@ -708,15 +671,8 @@ end
         a Gen_Storage struct containing information about generators/storage
         technologies for each region.
 """
-function process_genstors(gen_stors, regions::Vector{<:AbstractString}, timesteps::Int)
-    #gen_stors = [
-    #    Gen_Storage(
-    #        name = "GenStor_1",
-    #        timesteps = timesteps,
-    #        region_name = regions[1],
-    #        type = "blank_genstor",
-    #    ),
-    #] # empty for now
+function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
+    gen_stors = Gen_Storage[] # empty for now
 
     return gen_stors
 end
