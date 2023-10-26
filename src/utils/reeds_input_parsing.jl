@@ -318,6 +318,7 @@ end
     Error
         If the filepath for the for the two files do not exist.
 """
+# TODO: Include test for this function
 function get_hydro_data(data::ReEDSdatapaths)
     filepath_cf = joinpath(data.ReEDSfilepath, "inputs_case", "hydcf.csv")
     hydcf = DataFrames.DataFrame(CSV.File(filepath_cf))
@@ -327,8 +328,8 @@ function get_hydro_data(data::ReEDSdatapaths)
     hydcf.i = lowercase.(hydcf.i)
     # Subset to required run year, unclear if subset has to be 
     # the ReEDS target year or the weather data years
-    hydcf = hydcf[hydcf.t .== data.year, :]
-
+    hydcf = filter(x -> x.t == data.year, hydcf)
+    
     filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcapadj.csv")
 
     # TODO: Remove after PR1098 merged on ReEDS-2.0

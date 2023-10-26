@@ -14,15 +14,8 @@ const ReEDS_VRE_TYPES = [
 
 function check_reeds_vre_type(
     type::Union{STRING, String},
-) where {STRING <: InlineStrings.InlineString}
-    flag = 0
-    for vre_type in ReEDS_VRE_TYPES
-        if (occursin(vre_type, type))
-            flag += 1
-        end
-    end
-
-    if (flag > 0)
+    ) where {STRING <: InlineStrings.InlineString}
+    if (sum(occursin.(ReEDS_VRE_TYPES, type)) == 1)
         return true
     else
         return false

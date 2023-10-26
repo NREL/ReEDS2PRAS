@@ -39,7 +39,7 @@ include("utils/runchecks.jl")
 include("utils/reeds_data_parsing.jl")
 include("utils/user_descriptors_parsing.jl")
 #Main
-include("main/extract_system_info.jl")
+include("main/extract_build_info.jl")
 include("main/create_pras_system.jl")
 
 # Module

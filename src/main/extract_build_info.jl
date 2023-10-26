@@ -31,7 +31,7 @@
     genstor_array : Array{GeneratorStorage}
         contains GeneratorStorage objects
 """
-function extract_system_info(
+function extract_build_info(
     ReEDS_data::ReEDSdatapaths,
     WEATHERYEAR::Int,
     timesteps::Int,
@@ -118,9 +118,10 @@ function extract_system_info(
         user_inputs,
     )
 
-    # TODO: Pass in generator storage capacities if exist
-    @info "Processing GeneratorStorages"
-    genstor_array = process_genstors(genstor_array, get_name.(regions), timesteps)
+    # TODO: Check if generator storages other than dispatchable hydro exists
+    # TODO: Update process_genstors function accordingly
+    #@info "Processing GeneratorStorages"
+    #genstor_array = process_genstors(genstor_array, get_name.(regions), timesteps)
 
     return lines, regions, gens_array, storage_array, genstor_array
 end

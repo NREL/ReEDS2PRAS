@@ -202,13 +202,15 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     @debug "vg_types is $(vg_types)"
     # Need union only if HYDRO does not encompass both ND and D
     # TODO: Verify if need all the separate types
-    hyd_disp_types = DataFrames.dropmissing(tech_types_data, :HYDRO_D)[:, "Column1"]
-    hyd_disp_types = lowercase.(hyd_disp_types)
-    hyd_non_disp_types = DataFrames.dropmissing(tech_types_data, :HYDRO_ND)[:, "Column1"]
-    hyd_non_disp_types = lowercase.(hyd_non_disp_types)
+    hyd_disp_types = lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_D)[:, "Column1"])
+    hyd_non_disp_types = lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_ND)[:, "Column1"])
+    
     @debug "hd_types is $(union(hyd_disp_types,hyd_non_disp_types))"
+
     storage_types =
         unique(DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"])
+
+    @debug "storage type is $(storage_types)"
 
     # clean vg/storage capacity on a regex, though there might be a better way...
     clean_names!(vg_types)
@@ -397,8 +399,8 @@ end
 """
 # TODO: Incorporate multiple years (for ex. 2007 - 2013) of hydro data.
 # For now use the ReEDS year based CF data to repeat the same 8760 time series multiple times
-function process_hd(
-    generators_array::Vector{<:ReEDS2PRAS.Generator},
+function process_hydro(
+    generators_array::Vector{<:Generator},
     hydro_disp_capacities::DataFrames.DataFrame,
     hydro_non_disp_capacities::DataFrames.DataFrame,
     FOR_dict::Dict,
@@ -426,8 +428,7 @@ function process_hd(
     # For each month, (i) energy budget is calculated based on number of hours in the month, and the 
     # season the month belongs to; and (ii) dispatch limit is calculated based on the season of the month.
     for (idx, row) in enumerate(DataFrames.eachrow(disp_combined_caps))
-        reg_plant_subset =
-            hydcf[(hydcf.r .== row.r) .&& (hydcf.i .== row.i), [:szn, :value]]
+        reg_plant_subset = filter(x ->(x.r == row.r && x.i == row.i), hydcf)[:,[:szn, :value]]
         monthly_energy = zeros(timesteps_year)
         dispatch_limit = zeros(timesteps_year)
         energy_cap = zeros(timesteps_year)
@@ -467,7 +468,6 @@ function process_hd(
         else
             gen_for = 0.00 # make this 0 for vg if no match
         end
-        name = "$(name)_"
 
         # - Charging to genstore is limited by charge_capacity whether from grid or from 
         # inflows. So, that charge_capacity should be equal to the genflow timeseries.
@@ -671,8 +671,13 @@ end
         a Gen_Storage struct containing information about generators/storage
         technologies for each region.
 """
-function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
-    gen_stors = Gen_Storage[] # empty for now
+function process_genstors(gen_stors, regions::Vector{<:AbstractString}, timesteps::Int)
+    if length(gen_stors)
+        gen_stors = gen_stors
+    else
+        gen_stors = Gen_Storage[] # empty for now
+        
+    end
 
     return gen_stors
 end
