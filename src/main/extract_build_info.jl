@@ -38,6 +38,7 @@ function extract_build_info(
     year::Int,
     min_year::Int,
     user_inputs::Dict{Any, Any},
+    hd_existingplant_cf::Union{DataFrames.DataFrame,Nothing}
 )
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
@@ -104,7 +105,7 @@ function extract_build_info(
         user_inputs,
     )
 
-    @info "Processing hydroelectric generators..."
+    @info "Processing hydroelectric generators with disaggregation..."
     gens_array, genstor_array = process_hydro(
         gens_array,
         hydro_disp_gens,
@@ -116,6 +117,7 @@ function extract_build_info(
         timesteps,
         #        min_year,
         user_inputs,
+        hd_existingplant_cf
     )
 
     # TODO: Check if generator storages other than dispatchable hydro exists

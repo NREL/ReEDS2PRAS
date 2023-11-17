@@ -388,6 +388,116 @@ function process_vg(
     return generators_array
 end
 
+# - Charging to genstore is limited by charge_capacity whether from grid or from 
+# inflows. So, that charge_capacity should be equal to the genflow timeseries.
+# - Powerflow into grid is limited by grid_injection, which can come from discharge
+# and/or exogenous inflow. So discharge capacity can be the dispatch limit or 
+# arbitrarily high, while the grid_injection cap has to the dispatch limit.
+# - Energy capacity can be arbitrarily high in the absense of reservoir limit to 
+# ensure month to month energy energy carryover.
+function add_dispatchable_hd_genstor(genstor_array,capacity_reg,
+    capacity_adjust,reg_plant_subset_cf,timesteps_year,
+    name,category,region,num_years,mttr;capacity_plant=nothing)
+    
+    if isnothing(capacity_plant)
+        capacity_plant = capacity_reg
+    end 
+
+    monthhours = monhours()
+
+    monthly_energy = zeros(timesteps_year)
+    dispatch_limit = zeros(timesteps_year)
+    energy_cap = zeros(timesteps_year)
+    
+    for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
+        #try
+            season_cf = reg_plant_subset_cf[
+                    findall(x -> startswith(mon_row.season, x), reg_plant_subset_cf.szn),
+                    :value,
+                    ]
+
+            reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
+
+            monthly_energy[first(reqd_slice)] = (mon_row.numhrs * season_cf * capacity_reg)[1]
+
+            energy_cap[reqd_slice] .= (mon_row.numhrs * season_cf * capacity_reg)[1]
+
+            dispatch_limit[reqd_slice] .= (capacity_adjust[
+                findall(x -> startswith(mon_row.season, x), capacity_adjust.szn),
+                :value,
+            ] * capacity_plant)[1]
+        #catch e
+        #    @error "$(name),$(e)"       
+        #end
+    end
+
+    push!(
+        genstor_array,
+        Gen_Storage(name = name,
+            timesteps = timesteps_year*num_years,
+            region_name = region,
+            charge_cap = repeat(monthly_energy, num_years),
+            discharge_cap = repeat(dispatch_limit, num_years),
+            energy_cap = repeat(energy_cap, num_years),
+            inflow = repeat(monthly_energy, num_years),
+            grid_withdrawl_cap = zeros(timesteps_year*num_years),
+            grid_inj_cap = repeat(dispatch_limit, num_years),
+            type = category,
+            legacy = "New",
+            FOR = 0,
+            MTTR = mttr,
+        )
+    )
+
+    return genstor_array
+
+end
+
+# TODO: When capacity factors are available at the plant level from stream flows, 
+#       need to disaggregate and change to use those values rather than monthly values
+# For non dispatchable hydro plants, the seasonal capacity factor is used to determine
+# hourly capacity time series in each month by getting the season of the month. 
+function add_nondispatchable_hd_gen(generators_array,capacity_reg,
+    reg_plant_subset_cf,timesteps_year,
+    name,category,region,num_years,mttr;capacity_plant=nothing)
+
+    monthhours = monhours()
+
+    if capacity_plant == nothing
+        capacity_plant = capacity_reg
+    end 
+
+    hourly_capacity = zeros(timesteps_year)
+    
+    for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
+        try
+            reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
+            hourly_capacity[reqd_slice] .= (reg_plant_subset_cf[
+                findall(x -> startswith(mon_row.season, x), reg_plant_subset_cf.szn),
+                :value,
+            ] * capacity_plant)[1]
+        catch e
+            @error "$(name),$(e)"
+        end
+    end
+
+    push!(
+        generators_array,
+        Variable_Gen(
+            name = name,
+            timesteps = timesteps_year*num_years,
+            region_name = region,
+            installed_capacity = capacity_plant,
+            capacity = repeat(hourly_capacity, num_years),
+            type = category,
+            legacy = "New",
+            FOR = 0,
+            MTTR = mttr,
+        ),
+    )
+    return generators_array
+end
+
 """
     Parameters
     ----------
@@ -399,8 +509,7 @@ end
     Returns
     -------
     gen_stors : Gen_Storage
-        a Gen_Storage struct containing information about generators/storage
-        technologies for each region.
+    generators_array : Generators
 """
 # TODO: Incorporate multiple years (for ex. 2007 - 2013) of hydro data.
 # For now use the ReEDS year based CF data to repeat the same 8760 time series multiple times
@@ -414,9 +523,11 @@ function process_hydro(
     weather_year::Int,
     timesteps::Int,
     user_inputs::Dict{Any, Any},
+    plant_level_cf::Union{DataFrames.DataFrame,Nothing}
 )
     hydcf, hydcapadj = get_hydro_data(ReEDS_data)
-    monthhours = monhours()
+    eia_df = get_EIA_NEMS_DB(ReEDS_data)
+    eia_df.tech = lowercase.(eia_df.tech)
 
     timesteps_year = 8760
     num_years = Int(timesteps // timesteps_year)
@@ -433,73 +544,51 @@ function process_hydro(
     # For each month, (i) energy budget is calculated based on number of hours in the month, and the 
     # season the month belongs to; and (ii) dispatch limit is calculated based on the season of the month.
     for (idx, row) in enumerate(DataFrames.eachrow(disp_combined_caps))
-        reg_plant_subset =
-            filter(x -> (x.r == row.r && x.i == row.i), hydcf)[:, [:szn, :value]]
-        monthly_energy = zeros(timesteps_year)
-        dispatch_limit = zeros(timesteps_year)
-        energy_cap = zeros(timesteps_year)
-        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
-            #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
-            try
-                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
-                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * reg_plant_subset[
-                    findall(x -> startswith(mon_row.season, x), reg_plant_subset.szn),
-                    :value,
-                ] * row.MW_sum)[1]
 
-                energy_cap[reqd_slice] .= (mon_row.numhrs * reg_plant_subset[
-                    findall(x -> startswith(mon_row.season, x), reg_plant_subset.szn),
-                    :value,
-                ] * row.MW_sum)[1]
-
-                capacity_adjust = hydcapadj[
-                    (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
-                    [:szn, :value],
-                ]
-                dispatch_limit[reqd_slice] .= (capacity_adjust[
-                    findall(x -> startswith(mon_row.season, x), capacity_adjust.szn),
-                    :value,
-                ] * row.MW_sum)[1]
-            catch e
-                @error "$(row.r),$(row.i),$(e)"
-            end
-        end
-
-        category = string(row.i)
-        name = "$(category)_$(string(row.r))"
+        capacity_adjust = hydcapadj[
+            (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
+            [:szn, :value],
+            ]
+        
+        category = "$(string(row.i))_$(string(row.r))"
         region = string(row.r)
-
-        if category in keys(FOR_dict)
-            gen_for = FOR_dict[category]
-        else
-            gen_for = 0.00 # make this 0 for vg if no match
-        end
-
-        # - Charging to genstore is limited by charge_capacity whether from grid or from 
-        # inflows. So, that charge_capacity should be equal to the genflow timeseries.
-        # - Powerflow into grid is limited by grid_injection, which can come from discharge
-        # and/or exogenous inflow. So discharge capacity can be the dispatch limit or 
-        # arbitrarily high, while the grid_injection cap has to the dispatch limit.
-        # - Energy capacity can be arbitrarily high in the absense of reservoir limit to 
-        # ensure month to month energy energy carryover.
-        push!(
-            genstor_array,
-            Gen_Storage(
-                name = name,
-                timesteps = timesteps,
-                region_name = region,
-                charge_cap = repeat(monthly_energy, num_years),
-                discharge_cap = repeat(dispatch_limit, num_years),
-                energy_cap = repeat(energy_cap, num_years),
-                inflow = repeat(monthly_energy, num_years),
-                grid_withdrawl_cap = zeros(timesteps),
-                grid_inj_cap = repeat(dispatch_limit, num_years),
-                type = category,
-                legacy = "New",
-                FOR = gen_for,
-                MTTR = user_inputs["MTTR"],
-            ),
+        
+        tech_ba_year_existing = DataFrames.subset(
+            eia_df,
+            :tech => DataFrames.ByRow(==(row.i)),
+            :reeds_ba => DataFrames.ByRow(==(row.r)),
+            :RetireYear => DataFrames.ByRow(>=(year)),
+            :StartYear => DataFrames.ByRow(<=(year)),
         )
+        
+        if (DataFrames.nrow(tech_ba_year_existing)>0 && !isnothing(plant_level_cf))
+            if floor(sum(tech_ba_year_existing.cap)) != row.MW_sum
+                @info "Installed capacity from ReEDS does not match"*
+                      " EIA NEMS database capacity for $(string(row.i))"* 
+                      " in $(string(row.r)) region."
+            end
+            for row_pt in eachrow(tech_ba_year_existing)
+                reg_plant_subset_cf =  filter(x -> (x.EIA_PtID == row_pt.T_PID), 
+                                        plant_level_cf)[:, [:szn, :value]]
+
+                # TODO: get intersection of plant data and EIA NEMS data
+                if (DataFrames.nrow(reg_plant_subset_cf)>0)
+                    # TODO: Don't use the unique ID column and instead appropriately subset plants
+                    genstor_array = add_dispatchable_hd_genstor(genstor_array,row.MW_sum,
+                                        capacity_adjust,reg_plant_subset_cf,
+                                        timesteps_year,"$(string(row_pt.T_PID))_$(string(row_pt.T_UID))_$(row_pt["Unique ID"])",
+                                        category,region,num_years,user_inputs["MTTR"],capacity_plant=row_pt.cap)
+                end
+            end
+        else
+            reg_plant_subset_cf =
+            filter(x -> (x.r == row.r && x.i == row.i), hydcf)[:, [:szn, :value]]
+
+            genstor_array = add_dispatchable_hd_genstor(genstor_array,row.MW_sum,
+            capacity_adjust,reg_plant_subset_cf,
+            timesteps_year,"$(category)_$(string(row.r))",
+            category,region,num_years,user_inputs["MTTR"])
+        end
     end
 
     # Non-dispatchable hydro power plants
@@ -508,53 +597,45 @@ function process_hydro(
         :MW => sum,
     )
 
-    # TODO: When capacity factors are available at the plant level from stream flows, 
-    #       need to disaggregate and change to use those values rather than monthly values
-    # For non dispatchable hydro plants, the seasonal capacity factor is used to determine
-    # hourly capacity time series in each month by getting the season of the month. 
     for (idx, row) in enumerate(DataFrames.eachrow(non_disp_combined_caps))
-        reg_type = hydcf[
-            findall(x -> (x.r == row.r && x.i == row.i), eachrow(hydcf)),
-            [:szn, :value],
-        ]
-        hourly_capacity = zeros(timesteps_year)
-        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
-            try
-                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
-                hourly_capacity[reqd_slice] .= (reg_type[
-                    findall(x -> startswith(mon_row.season, x), reg_type.szn),
-                    :value,
-                ] * row.MW_sum)[1]
-            catch e
-                @error "$(row.r),$(row.i),$(e)"
-            end
-        end
-
-        category = string(row.i)
-        name = "$(category)_$(string(row.r))"
+        
+        category = "$(string(row.i))_$(string(row.r))"
         region = string(row.r)
 
-        if category in keys(FOR_dict)
-            gen_for = FOR_dict[category]
-        else
-            gen_for = 0.00 # make this 0 for vg if no match
-        end
-        name = "$(name)_"
-
-        push!(
-            generators_array,
-            Variable_Gen(
-                name = name,
-                timesteps = timesteps,
-                region_name = region,
-                installed_capacity = row.MW_sum,
-                capacity = repeat(hourly_capacity, num_years),
-                type = category,
-                legacy = "New",
-                FOR = gen_for,
-                MTTR = user_inputs["MTTR"],
-            ),
+        tech_ba_year_existing = DataFrames.subset(
+            eia_df,
+            :tech => DataFrames.ByRow(==(row.i)),
+            :reeds_ba => DataFrames.ByRow(==(row.r)),
+            :RetireYear => DataFrames.ByRow(>=(year)),
+            :StartYear => DataFrames.ByRow(<=(year)),
         )
+        
+        if (DataFrames.nrow(tech_ba_year_existing)>0 && !isnothing(plant_level_cf))
+            if floor(sum(tech_ba_year_existing.cap)) != row.MW_sum
+                @info "Installed capacity from ReEDS does not match"*
+                      " EIA NEMS database capacity for $(string(row.i))"* 
+                      " in $(string(row.r)) region."
+            end
+            for row_pt in eachrow(tech_ba_year_existing)
+                reg_plant_subset_cf =  filter(x -> (x.EIA_PtID == row_pt.T_PID), 
+                                        plant_level_cf)[:, [:szn, :value]]   
+                if (DataFrames.nrow(reg_plant_subset_cf)>0)
+                    generators_array = add_nondispatchable_hd_gen(generators_array,row.MW_sum,
+                                        reg_plant_subset_cf,timesteps_year,
+                                        "$(string(row_pt.T_PID))_$(string(row_pt.T_UID))_$(row_pt["Unique ID"])",
+                                        category,region,num_years,user_inputs["MTTR"],capacity_plant=row_pt.cap)
+                end
+            end
+        else
+            reg_plant_subset_cf =
+            filter(x -> (x.r == row.r && x.i == row.i), hydcf)[:, [:szn, :value]]
+
+            generators_array = add_nondispatchable_hd_gen(generators_array,row.MW_sum,
+                                reg_plant_subset_cf,timesteps_year,"$(category)_$(string(row.r))",
+                                category,region,num_years,user_inputs["MTTR"])
+
+
+        end
     end
 
     return generators_array, genstor_array

@@ -28,6 +28,7 @@ function reeds_to_pras(
     timesteps::Int,
     weather_year::Int;
     user_descriptors::Union{Nothing, String} = nothing,
+    hd_existingplant_cf::Union{Nothing, DataFrames.DataFrame} = nothing
 )
     if (user_descriptors === nothing)
         user_descriptors =
@@ -57,6 +58,7 @@ function reeds_to_pras(
         solve_year,
         2007,
         user_inputs,
+        hd_existingplant_cf
     )
     lines, regions, gens, storages, genstors = out
 
