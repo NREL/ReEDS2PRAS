@@ -539,8 +539,7 @@ function process_hydro(
         else
             gen_for = 0.00 # make this 0 for vg if no match
         end
-        name = "$(name)_"
-
+        
         push!(
             generators_array,
             Variable_Gen(
