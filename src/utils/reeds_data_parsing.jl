@@ -200,8 +200,7 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     @debug "resources is $(resources)"
     vg_types = unique(resources.i)
     @debug "vg_types is $(vg_types)"
-    # Need union only if HYDRO does not encompass both ND and D
-    # TODO: Verify if need all the separate types
+
     hyd_disp_types =
         lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_D)[:, "Column1"])
     hyd_non_disp_types =
@@ -496,7 +495,7 @@ function process_hydro(
                 grid_inj_cap = repeat(dispatch_limit, num_years),
                 type = category,
                 legacy = "New",
-                FOR = 0.0, #TODO update FORs. For now assuming no outages.
+                FOR = 0.0, #TODO: update FORs. For now assuming no outages.
                 MTTR = user_inputs["MTTR"],
             ),
         )
@@ -550,7 +549,7 @@ function process_hydro(
                 capacity = repeat(hourly_capacity, num_years),
                 type = category,
                 legacy = "New",
-                FOR = 0.0, #TODO update FORs. For now assuming no outages.
+                FOR = 0.0, #TODO: update FORs. For now assuming no outages.
                 MTTR = user_inputs["MTTR"],
             ),
         )
