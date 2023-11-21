@@ -496,7 +496,7 @@ function process_hydro(
                 grid_inj_cap = repeat(dispatch_limit, num_years),
                 type = category,
                 legacy = "New",
-                FOR = gen_for,
+                FOR = 0.0, #TODO update FORs. For now assuming no outages.
                 MTTR = user_inputs["MTTR"],
             ),
         )
@@ -550,7 +550,7 @@ function process_hydro(
                 capacity = repeat(hourly_capacity, num_years),
                 type = category,
                 legacy = "New",
-                FOR = gen_for,
+                FOR = 0.0, #TODO update FORs. For now assuming no outages.
                 MTTR = user_inputs["MTTR"],
             ),
         )
