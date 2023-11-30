@@ -17,7 +17,8 @@
 ## Validation / Comparison Report
 ### Link to compare report or example plots (if any)
 
-### ReEDS2PRAS+PRAS runtime for a ReEDS case/year before and after this PR
+### ReEDS2PRAS+PRAS runtime for a ReEDS case/year before and after this PR - use test/benchmark/run_benchmark.jl and follow instructions there
+
 
 ## Review
 ### Charge code for review
