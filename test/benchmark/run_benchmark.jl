@@ -23,7 +23,7 @@ using ReEDS2PRAS
 # Run ReEDS2PRAS
 
 # Update with path to your ReEDS result
-inpath = "/Users/ssundar/Library/CloudStorage/OneDrive-NREL/codes/ReEDS_nrelgit/runs/"
+inpath = "path/to/reedsoutput"
 
 ty = 2030
 
