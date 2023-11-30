@@ -282,7 +282,7 @@ function process_thermals_with_disaggregation(
             gen_for = FOR_dict[row.i]
         else
             gen_for = 0.00 #assume as 0 for gens dropped from ReEDS table
-            @warn(
+            @debug(
                 "CONVENTIONAL GENERATION: for $(row.i), and region " *
                 "$(row.r), no gen_for is found in ReEDS forced outage " *
                 "data, so $gen_for is used"
