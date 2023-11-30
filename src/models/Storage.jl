@@ -51,7 +51,7 @@ get_category(stor::STOR) where {STOR <: Storage} = "$(stor.legacy)_$(stor.type)"
 function get_storages_in_region(stors::Vector{<:Storage}, reg_name::String)
     reg_stors = filter(stor -> stor.region_name == reg_name, stors)
     if isempty(reg_stors)
-        @warn "No storages in region: $(reg_name)"
+        @debug "No storages in region: $(reg_name)"
         return Storage[]
     else
         return reg_stors
@@ -83,7 +83,7 @@ function get_legacy_storages(stors::Vector{<:Storage}, leg::String)
 
     leg_stors = filter(stor -> stor.legacy == leg, stors)
     if isempty(leg_stors)
-        @warn "No storages with legacy: $(leg)"
+        @debug "No storages with legacy: $(leg)"
         return Storage[]
     else
         return leg_stors
