@@ -28,10 +28,9 @@ inpath = "path/to/reedsoutput"
 ty = 2030
 
 tp = joinpath(inpath, "v20231130_stress_WECC") 
-WEATHERYEAR = 2007 #2007-2013
-
-# Create PRAS system for just one year to reduce computation time during benchmark
-n_timesteps = 8760
+# Hourly 2007-2013 = 7*8760 = 61320
+WEATHERYEAR = 2007
+n_timesteps = 61320
 
 benchmark_r2p = @benchmark pras_sys = ReEDS2PRAS.reeds_to_pras(tp, ty, n_timesteps, WEATHERYEAR)
 
