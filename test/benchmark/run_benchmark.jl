@@ -20,29 +20,25 @@ using ReEDS2PRAS
 # for both ReEDS2PRAS and PRAS
 # while submitting pull request with the PR template
 
+# Set up this test
+reedscase = "../reeds_cases/USA_VSC_2035"
+solve_year = 2035
+timesteps = 61320
+weather_year = 2007
+samples = 10
+seed = 1
+
 # Run ReEDS2PRAS
-
-# Update with path to your ReEDS result
-inpath = "path/to/reedsoutput"
-
-ty = 2030
-
-tp = joinpath(inpath, "v20231130_stress_WECC") 
-# Hourly 2007-2013 = 7*8760 = 61320
-WEATHERYEAR = 2007
-n_timesteps = 61320
-
-benchmark_r2p = @benchmark pras_sys = ReEDS2PRAS.reeds_to_pras(tp, ty, n_timesteps, WEATHERYEAR)
-
-
+benchmark_r2p = @benchmark pras_sys = ReEDS2PRAS.reeds_to_pras(
+    reedscase, solve_year, timesteps, weather_year)
 
 # Run PRAS
+pras_sys = ReEDS2PRAS.reeds_to_pras(
+    reedscase, solve_year, timesteps, weather_year)
 
-pras_sys = ReEDS2PRAS.reeds_to_pras(tp, ty, n_timesteps, WEATHERYEAR)
+simulation = SequentialMonteCarlo(samples=samples, seed=seed)
 
-simulation = SequentialMonteCarlo(samples=10, seed=100)
-
-benchmark_pras = @benchmark shortfall = assess(pras_sys,simulation,Shortfall())
+benchmark_pras = @benchmark shortfall = assess(pras_sys, simulation, Shortfall())
 
 println()
 println("ReEDS2PRAS benchmark")
@@ -52,7 +48,7 @@ show(io, "text/plain", benchmark_r2p)
 s = String(take!(io))
 println(s)
 
-println("\nPRAS benchmark with 10 samples")
+println("\nPRAS benchmark with $(samples) samples")
 
 io = IOBuffer()
 show(io, "text/plain", benchmark_pras)
