@@ -1,3 +1,5 @@
+using Revise
+
 using ReEDS2PRAS
 using PRAS
 using CSV
@@ -8,8 +10,18 @@ using Statistics
 using Test
 using TimeZones
 
+using BenchmarkTools
+
+rootfile = @__FILE__
+
 include("testutils.jl")
 
-@testset "ReEDS2PRAS" begin
-    include("ntptests/ntpscenarios.jl")
+if length(ARGS) == 0
+    required_tests = ["ReEDS2PRAS"]
+else
+    required_tests = ARGS
+end
+
+for test_name in required_tests
+    include("test_$(test_name).jl")
 end

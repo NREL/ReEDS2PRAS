@@ -1,27 +1,14 @@
-using PRAS
-using CSV
-using DataFrames
-using Dates
-using HDF5
-using Statistics
-using Test
-using TimeZones
+println("Running benchmark")
 
-using BenchmarkTools
-
-using ReEDS2PRAS
-
-# Use the main branch of R2P while running ReEDS 
-# with the cases_repbenchmark.csv file. 
-# update R2P path in the cases file before running ReEDS
-#
 # Then, run this file first with the main branch and 
-# then the feature branch, record the reported mean time taken
-# for both ReEDS2PRAS and PRAS
+# then the feature branch, record the reported mean time taken 
+# for both ReEDS2PRAS and PRAS, and the CONUS LOLE, nEUE output here 
 # while submitting pull request with the PR template
 
+# If making major changes to R2P model increase number of MC samples used
+
 # Set up this test
-reedscase = "../reeds_cases/USA_VSC_2035"
+reedscase = joinpath(dirname(rootfile),"reeds_cases","USA_VSC_2035")
 solve_year = 2035
 timesteps = 61320
 weather_year = 2007
