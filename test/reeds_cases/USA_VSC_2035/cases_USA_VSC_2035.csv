@@ -1,3 +1,7 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:db8300f8bad91921546d34df2c3119f2e761a234472ef0252a948e6d28b5111f
-size 111
+,USA_VSC_2035
+endyear,2035
+GSw_VSC,1
+GSw_TransScen,VSC_all
+pras,2
+keep_augur_files,1
+yearset_suffix,5yr

@@ -1,3 +1,2 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:63ea617964504e899f56e6c87c5458e42eb6572a409fc58ba4763f67084b77da
-size 166
+computer,repo,branch,commit,description
+el2,/lustre/eaglefs/projects/reedsweto/ReEDS-2.0/.git,pb/yam,28d8759796cbfb9df3a29c41103bb06d0aa7c48b,2023.47.1-39-g28d875979
