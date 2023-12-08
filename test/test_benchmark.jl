@@ -12,7 +12,7 @@ reedscase = joinpath(dirname(rootfile),"reeds_cases","USA_VSC_2035")
 solve_year = 2035
 timesteps = 61320
 weather_year = 2007
-samples = 10
+samples = 3
 seed = 1
 
 # Run ReEDS2PRAS
@@ -26,6 +26,8 @@ pras_sys = ReEDS2PRAS.reeds_to_pras(
 simulation = SequentialMonteCarlo(samples=samples, seed=seed)
 
 benchmark_pras = @benchmark shortfall = assess(pras_sys, simulation, Shortfall())
+
+shortfall = assess(pras_sys, simulation, Shortfall())
 
 println()
 println("ReEDS2PRAS benchmark")
@@ -41,3 +43,10 @@ io = IOBuffer()
 show(io, "text/plain", benchmark_pras)
 s = String(take!(io))
 println(s)
+
+LOLE = PRAS.LOLE(shortfall[1]).lole.estimate
+EUE = PRAS.EUE(shortfall[1]).eue.estimate
+nEUE = EUE/sum(pras_sys.regions.load)
+
+println("\nPRAS results")
+println("LOLE=$(LOLE), nEUE=$(nEUE)")
