@@ -31,7 +31,7 @@
     genstor_array : Array{GeneratorStorage}
         contains GeneratorStorage objects
 """
-function extract_build_info(
+function parse_reeds_data(
     ReEDS_data::ReEDSdatapaths,
     WEATHERYEAR::Int,
     timesteps::Int,
