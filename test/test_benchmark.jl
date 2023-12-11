@@ -16,7 +16,7 @@ println("Running benchmark")
 # If making major changes to R2P model, increase number of MC samples used
 
 # Set up this test
-reedscase = joinpath(dirname(rootfile),"reeds_cases","USA_VSC_2035")
+reedscase = joinpath(dirname(rootfile), "reeds_cases", "USA_VSC_2035")
 solve_year = 2035
 timesteps = 61320
 weather_year = 2007
@@ -24,14 +24,13 @@ samples = 3
 seed = 1
 
 # Run ReEDS2PRAS
-benchmark_r2p = @benchmark pras_sys = ReEDS2PRAS.reeds_to_pras(
-    reedscase, solve_year, timesteps, weather_year)
+benchmark_r2p = @benchmark pras_sys =
+    ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, timesteps, weather_year)
 
 # Run PRAS
-pras_sys = ReEDS2PRAS.reeds_to_pras(
-    reedscase, solve_year, timesteps, weather_year)
+pras_sys = ReEDS2PRAS.reeds_to_pras(reedscase, solve_year, timesteps, weather_year)
 
-simulation = SequentialMonteCarlo(samples=samples, seed=seed)
+simulation = SequentialMonteCarlo(samples = samples, seed = seed)
 
 benchmark_pras = @benchmark shortfall = assess(pras_sys, simulation, Shortfall())
 
@@ -54,7 +53,7 @@ println(s)
 
 LOLE = PRAS.LOLE(shortfall[1]).lole.estimate
 EUE = PRAS.EUE(shortfall[1]).eue.estimate
-nEUE = EUE*1e6/sum(pras_sys.regions.load)
+nEUE = EUE * 1e6 / sum(pras_sys.regions.load)
 
 println("\nPRAS results")
 println("LOLE=$(LOLE), nEUE=$(nEUE)")
