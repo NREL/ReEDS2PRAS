@@ -433,7 +433,7 @@ function process_hydro(
     # season the month belongs to; and (ii) dispatch limit is calculated based on the season of the month.
     for (idx, row) in enumerate(DataFrames.eachrow(disp_combined_caps))
         reg_plant_subset =
-            filter(x -> (x.r == row.r && x.i == row.i), hydcf)[:, [:szn, :value]]
+            filter(x -> (x.r == row.r && x.i == row.i), hydcf)[:, [:month, :value]]
         monthly_energy = zeros(timesteps_year)
         dispatch_limit = zeros(timesteps_year)
         energy_cap = zeros(timesteps_year)
@@ -441,15 +441,11 @@ function process_hydro(
             #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
             try
                 reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
-                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * reg_plant_subset[
-                    findall(x -> startswith(mon_row.season, x), reg_plant_subset.szn),
-                    :value,
-                ] * row.MW_sum)[1]
+                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * 
+                    filter(x-> (x.month == mon_row.month), reg_plant_subset)[:,:value] * row.MW_sum)[1]
 
-                energy_cap[reqd_slice] .= (mon_row.numhrs * reg_plant_subset[
-                    findall(x -> startswith(mon_row.season, x), reg_plant_subset.szn),
-                    :value,
-                ] * row.MW_sum)[1]
+                energy_cap[reqd_slice] .= (mon_row.numhrs * 
+                    filter(x-> (x.month == mon_row.month), reg_plant_subset)[:,:value] * row.MW_sum)[1]
 
                 capacity_adjust = hydcapadj[
                     (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
@@ -509,21 +505,19 @@ function process_hydro(
 
     # TODO: When capacity factors are available at the plant level from stream flows, 
     #       need to disaggregate and change to use those values rather than monthly values
-    # For non dispatchable hydro plants, the seasonal capacity factor is used to determine
-    # hourly capacity time series in each month by getting the season of the month. 
+    # For non dispatchable hydro plants, the monthly capacity factor is used to determine
+    # hourly capacity time series in each month. 
     for (idx, row) in enumerate(DataFrames.eachrow(non_disp_combined_caps))
         reg_type = hydcf[
             findall(x -> (x.r == row.r && x.i == row.i), eachrow(hydcf)),
-            [:szn, :value],
+            [:month, :value],
         ]
         hourly_capacity = zeros(timesteps_year)
         for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
             try
                 reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
-                hourly_capacity[reqd_slice] .= (reg_type[
-                    findall(x -> startswith(mon_row.season, x), reg_type.szn),
-                    :value,
-                ] * row.MW_sum)[1]
+                hourly_capacity[reqd_slice] .= (
+                    filter(x-> (x.month == mon_row.month), reg_type)[:,:value] * row.MW_sum)[1]
             catch e
                 @error "$(row.r),$(row.i),$(e)"
             end
