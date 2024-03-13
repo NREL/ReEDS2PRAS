@@ -600,7 +600,7 @@ function process_storages(
 
     storages_array = Storage[]
     for (idx, row) in enumerate(eachrow(storage_builds))
-        name = "$(string(row.i))_$(string(row.r))"
+        name = "$(string(row.i))|$(string(row.r))"
         if string(row.i) in keys(FOR_dict)
             gen_for = FOR_dict[string(row.i)]
         else
@@ -608,7 +608,7 @@ function process_storages(
             @info "STORAGE: did not find FOR for storage $name $(row.r)
                    $(row.i), so setting FOR to default value $gen_for"
         end
-        name = "$(name)_"#append for later matching
+        name = "$(name)|"#append for later matching
 
         #we need to know if the storage is battery or not
         #batteries will be deflated...
@@ -974,7 +974,7 @@ function add_new_capacity!(
         return push!(
             generators_array,
             Battery(
-                name = "$(tech)_$(pca)_new_1",
+                name = "$(tech)|$(pca)|new_1",
                 timesteps = timesteps,
                 region_name = pca,
                 type = tech,
@@ -995,7 +995,7 @@ function add_new_capacity!(
         push!(
             generators_array,
             Battery(
-                name = "$(tech)_$(pca)_new_$(i)",
+                name = "$(tech)|$(pca)|new_$(i)",
                 timesteps = timesteps,
                 region_name = pca,
                 type = tech,
@@ -1018,7 +1018,7 @@ function add_new_capacity!(
         push!(
             generators_array,
             Battery(
-                name = "$(tech)_$(pca)_new_$(n_gens+1)",
+                name = "$(tech)|$(pca)|new_$(n_gens+1)",
                 timesteps = timesteps,
                 region_name = pca,
                 type = tech,
