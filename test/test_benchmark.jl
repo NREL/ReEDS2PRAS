@@ -20,7 +20,7 @@ reedscase = joinpath(dirname(rootfile), "reeds_cases", "USA_VSC_2035")
 solve_year = 2035
 timesteps = 61320
 weather_year = 2007
-samples = 3
+samples = 10
 seed = 1
 
 # Run ReEDS2PRAS
