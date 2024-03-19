@@ -449,12 +449,10 @@ function process_hydro(
 
                 capacity_adjust = hydcapadj[
                     (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
-                    [:szn, :value],
+                    [:month, :value],
                 ]
-                dispatch_limit[reqd_slice] .= (capacity_adjust[
-                    findall(x -> startswith(mon_row.season, x), capacity_adjust.szn),
-                    :value,
-                ] * row.MW_sum)[1]
+                dispatch_limit[reqd_slice] .= (filter(x-> (x.month == mon_row.month), 
+                    capacity_adjust)[:,:value] * row.MW_sum)[1]
             catch e
                 @error "$(row.r),$(row.i),$(e)"
             end
