@@ -1,16 +1,21 @@
-const ReEDS_VRE_TYPES = ["wind-ons", "wind-ofs", "dupv", "upv", "distpv", "csp"]
+const ReEDS_VRE_TYPES = [
+    "wind-ons",
+    "wind-ofs",
+    "dupv",
+    "upv",
+    "distpv",
+    "csp",
+    "hydnd",
+    "hydsnd",
+    "hydund",
+    "hydnpnd",
+    "hydend",
+]
 
 function check_reeds_vre_type(
     type::Union{STRING, String},
 ) where {STRING <: InlineStrings.InlineString}
-    flag = 0
-    for vre_type in ReEDS_VRE_TYPES
-        if (occursin(vre_type, type))
-            flag += 1
-        end
-    end
-
-    if (flag > 0)
+    if (sum(occursin.(ReEDS_VRE_TYPES, type)) == 1)
         return true
     else
         return false
@@ -73,7 +78,10 @@ struct Variable_Gen <: Generator
         MTTR = 24,
     )
         all(0.0 .<= capacity .<= installed_capacity) ||
-            error("$(name) time series has values < 0 or > installed capacity
+        # TODO: This is a warning because some hydro capacity factors are > 1.0
+        #       giving an error here, but because of hydro budgets that is physically
+        #       ok, considering historical dispatches
+            @warn ("$(name) time series has values < 0 or > installed capacity
                    ($(installed_capacity))")
 
         length(capacity) == timesteps ||

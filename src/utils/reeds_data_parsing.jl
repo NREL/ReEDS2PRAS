@@ -200,19 +200,41 @@ function split_generator_types(ReEDS_data::ReEDSdatapaths, year::Int64)
     @debug "resources is $(resources)"
     vg_types = unique(resources.i)
     @debug "vg_types is $(vg_types)"
+
+    hyd_disp_types =
+        lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_D)[:, "Column1"])
+    hyd_non_disp_types =
+        lowercase.(DataFrames.dropmissing(tech_subset_table, :HYDRO_ND)[:, "Column1"])
+
+    @debug "hd_types is $(union(hyd_disp_types,hyd_non_disp_types))"
+
     storage_types =
         unique(DataFrames.dropmissing(tech_subset_table, :STORAGE_STANDALONE)[:, "Column1"])
 
+    @debug "storage type is $(storage_types)"
+
     # clean vg/storage capacity on a regex, though there might be a better way...
     clean_names!(vg_types)
+    @debug "vg_types is $(vg_types)"
     clean_names!(storage_types)
 
     vg_capacity = filter(x -> x.i in vg_types, capacity_data)
     storage_capacity = filter(x -> x.i in storage_types, capacity_data)
 
-    thermal_capacity = filter(x -> ~(x.i in union(vg_types, storage_types)), capacity_data)
+    hyd_disp_capacity = filter(x -> x.i in hyd_disp_types, capacity_data)
+    hyd_non_disp_capacity = filter(x -> x.i in hyd_non_disp_types, capacity_data)
 
-    return thermal_capacity, storage_capacity, vg_capacity
+    thermal_capacity = filter(
+        x -> ~(x.i in union(vg_types, storage_types, hyd_disp_types, hyd_non_disp_types)),
+        capacity_data,
+    )
+
+    @debug "thermal_capacity is $(thermal_capacity)"
+    return thermal_capacity,
+    storage_capacity,
+    vg_capacity,
+    hyd_disp_capacity,
+    hyd_non_disp_capacity
 end
 
 """
@@ -325,6 +347,8 @@ function process_vg(
     cf_info = get_vg_cf_data(ReEDS_data)
 
     vg_profiles = cf_info["block0_values"]
+    # TODO: (SSH) This logic will fail if timesteps != 8760
+    # and min_year != weather_year
     start_idx = (weather_year - min_year) * timesteps
 
     # split-apply-combine to handle differently vintaged entries
@@ -361,6 +385,185 @@ function process_vg(
         )
     end
     return generators_array
+end
+
+"""
+    Parameters
+    ----------
+    regions : Vector{<:AbstractString}
+        a vector of strings of distinct regions in the model
+    timesteps : Int
+        integer representing the number of time steps
+
+    Returns
+    -------
+    gen_stors : Gen_Storage
+        a Gen_Storage struct containing information about generators/storage
+        technologies for each region.
+"""
+# TODO: Incorporate multiple years (for ex. 2007 - 2013) of hydro data.
+# For now use the ReEDS year based CF data to repeat the same 8760 time series multiple times
+function process_hydro(
+    generators_array::Vector{<:Generator},
+    hydro_disp_capacities::DataFrames.DataFrame,
+    hydro_non_disp_capacities::DataFrames.DataFrame,
+    FOR_dict::Dict,
+    ReEDS_data,
+    year::Int64,
+    weather_year::Int,
+    timesteps::Int,
+    user_inputs::Dict{Any, Any},
+)
+    hydcf, hydcapadj = get_hydro_data(ReEDS_data)
+    monthhours = monhours()
+
+    timesteps_year = 8760
+    num_years = Int(timesteps // timesteps_year)
+
+    # Combine all plant vintages for each region and plant type for dispatchable plants
+    disp_combined_caps =
+        DataFrames.combine(DataFrames.groupby(hydro_disp_capacities, [:i, :r]), :MW => sum)
+
+    genstor_array = Gen_Storage[]
+
+    # We need the dispatch limit for each hour from each asset and each month's energy budget
+    # applied as an exogenous limit using inflow. We have seasonal capacity factors for energy budget
+    # and seasonal capacity adjustment factor on the nameplate capacity for dispatch limits. 
+    # For each month, (i) energy budget is calculated based on number of hours in the month, and the 
+    # season the month belongs to; and (ii) dispatch limit is calculated based on the season of the month.
+    for (idx, row) in enumerate(DataFrames.eachrow(disp_combined_caps))
+        reg_plant_subset =
+            filter(x -> (x.r == row.r && x.i == row.i), hydcf)[:, [:month, :value]]
+        monthly_energy = zeros(timesteps_year)
+        dispatch_limit = zeros(timesteps_year)
+        energy_cap = zeros(timesteps_year)
+        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
+            #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
+            try
+                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
+                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * filter(
+                    x -> (x.month == mon_row.month),
+                    reg_plant_subset,
+                )[
+                    :,
+                    :value,
+                ] * row.MW_sum)[1]
+
+                energy_cap[reqd_slice] .= (mon_row.numhrs * filter(
+                    x -> (x.month == mon_row.month),
+                    reg_plant_subset,
+                )[
+                    :,
+                    :value,
+                ] * row.MW_sum)[1]
+
+                capacity_adjust = hydcapadj[
+                    (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
+                    [:month, :value],
+                ]
+                dispatch_limit[reqd_slice] .=
+                    (filter(x -> (x.month == mon_row.month), capacity_adjust)[
+                        :,
+                        :value,
+                    ] * row.MW_sum)[1]
+            catch e
+                @error "$(row.r),$(row.i),$(e)"
+            end
+        end
+
+        category = string(row.i)
+        name = "$(category)_$(string(row.r))"
+        region = string(row.r)
+
+        if category in keys(FOR_dict)
+            gen_for = FOR_dict[category]
+        else
+            gen_for = 0.00 # make this 0 for vg if no match
+        end
+
+        # - Charging to genstore is limited by charge_capacity whether from grid or from 
+        # inflows. So, that charge_capacity should be equal to the genflow timeseries.
+        # - Powerflow into grid is limited by grid_injection, which can come from discharge
+        # and/or exogenous inflow. So discharge capacity can be the dispatch limit or 
+        # arbitrarily high, while the grid_injection cap has to the dispatch limit.
+        # - Energy capacity can be arbitrarily high in the absense of reservoir limit to 
+        # ensure month to month energy energy carryover.
+        push!(
+            genstor_array,
+            Gen_Storage(
+                name = name,
+                timesteps = timesteps,
+                region_name = region,
+                charge_cap = repeat(monthly_energy, num_years),
+                discharge_cap = repeat(dispatch_limit, num_years),
+                energy_cap = repeat(energy_cap, num_years),
+                inflow = repeat(monthly_energy, num_years),
+                grid_withdrawl_cap = zeros(timesteps),
+                grid_inj_cap = repeat(dispatch_limit, num_years),
+                type = category,
+                legacy = "New",
+                FOR = 0.0, #TODO: update FORs. For now assuming no outages.
+                MTTR = user_inputs["MTTR"],
+            ),
+        )
+    end
+
+    # Non-dispatchable hydro power plants
+    non_disp_combined_caps = DataFrames.combine(
+        DataFrames.groupby(hydro_non_disp_capacities, [:i, :r]),
+        :MW => sum,
+    )
+
+    # TODO: When capacity factors are available at the plant level from stream flows, 
+    #       need to disaggregate and change to use those values rather than monthly values
+    # For non dispatchable hydro plants, the monthly capacity factor is used to determine
+    # hourly capacity time series in each month. 
+    for (idx, row) in enumerate(DataFrames.eachrow(non_disp_combined_caps))
+        reg_type = hydcf[
+            findall(x -> (x.r == row.r && x.i == row.i), eachrow(hydcf)),
+            [:month, :value],
+        ]
+        hourly_capacity = zeros(timesteps_year)
+        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
+            try
+                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
+                hourly_capacity[reqd_slice] .=
+                    (filter(x -> (x.month == mon_row.month), reg_type)[
+                        :,
+                        :value,
+                    ] * row.MW_sum)[1]
+            catch e
+                @error "$(row.r),$(row.i),$(e)"
+            end
+        end
+
+        category = string(row.i)
+        name = "$(category)_$(string(row.r))"
+        region = string(row.r)
+
+        if category in keys(FOR_dict)
+            gen_for = FOR_dict[category]
+        else
+            gen_for = 0.00 # make this 0 for vg if no match
+        end
+
+        push!(
+            generators_array,
+            Variable_Gen(
+                name = name,
+                timesteps = timesteps,
+                region_name = region,
+                installed_capacity = row.MW_sum,
+                capacity = repeat(hourly_capacity, num_years),
+                type = category,
+                legacy = "New",
+                FOR = 0.0, #TODO: update FORs. For now assuming no outages.
+                MTTR = user_inputs["MTTR"],
+            ),
+        )
+    end
+
+    return generators_array, genstor_array
 end
 
 """
@@ -480,8 +683,12 @@ end
         a Gen_Storage struct containing information about generators/storage
         technologies for each region.
 """
-function process_genstors(regions::Vector{<:AbstractString}, timesteps::Int)
-    gen_stors = Gen_Storage[] # empty for now
+function process_genstors(gen_stors, regions::Vector{<:AbstractString}, timesteps::Int)
+    if length(gen_stors)
+        gen_stors = gen_stors
+    else
+        gen_stors = Gen_Storage[] # empty for now
+    end
 
     return gen_stors
 end

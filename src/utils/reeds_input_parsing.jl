@@ -294,6 +294,60 @@ function get_ICAP_data(data::ReEDSdatapaths)
 end
 
 """
+    Returns DataFrames containing hydroelectric plants capacity factors
+
+    Parameters
+    ----------
+    data : ReEDSdatapaths
+        A ReEDSdatapaths object containing the year and filepath.
+
+    Returns
+    -------
+    hydcf: DataFrame
+        A DataFrame containing the seasonal capacity factors for both 
+        dispatchable and non-dispatchable hydroelectric plants, subsetted
+        to the required output year. 
+    
+    hydcapadj: DataFrame
+        A DataFrame containing seasonal capacity adjustment factors for
+        dispatchable hydroelectric plants which limits the maximum hourly 
+        dispatch (MW) in each season.
+
+    Raises
+    ------
+    Error
+        If the filepath for the for the two files do not exist.
+"""
+# TODO: Include test for this function
+function get_hydro_data(data::ReEDSdatapaths)
+    filepath_cf = joinpath(data.ReEDSfilepath, "inputs_case", "hydcf.csv")
+    hydcf = DataFrames.DataFrame(CSV.File(filepath_cf))
+
+    # Rename plant types as techtypes and capacity are lowercase
+    DataFrames.rename!(hydcf, [:"*i"] .=> [:i])
+    hydcf.i = lowercase.(hydcf.i)
+    # Subset to required run year, unclear if subset has to be 
+    # the ReEDS target year or the weather data years
+    hydcf = filter(x -> x.t == data.year, hydcf)
+
+    filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcapadj.csv")
+
+    # TODO: Remove after PR1098 merged on ReEDS-2.0
+    #       and future ReEDS runs use that version
+    if !(isfile(filepath_capadj))
+        filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcfadj.csv")
+    end
+
+    hydcapadj = DataFrames.DataFrame(CSV.File(filepath_capadj))
+
+    # Rename plant types as techtypes and capacity are lowercase
+    DataFrames.rename!(hydcapadj, [:"*i"] .=> [:i])
+    hydcapadj.i = lowercase.(hydcapadj.i)
+
+    return hydcf, hydcapadj
+end
+
+"""
     Returns a DataFrame containing the installed storage energy capacity data
     for the year specified in the ReEDSdatapaths object.
 
@@ -320,4 +374,40 @@ function get_storage_energy_capacity_data(data::ReEDSdatapaths)
         "energy_cap_$(string(data.year)).csv",
     )
     return DataFrames.DataFrame(CSV.File(filepath))
+end
+
+# get dataframe of hours in each month
+"""
+    This function is used to get info on the number of hours in each month
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    monhours: DataFrame
+"""
+function monhours()
+    monhours = DataFrames.DataFrame(
+        [
+            ["JAN" 744 "winter"]
+            ["FEB" 672 "winter"]
+            ["MAR" 744 "spring"]
+            ["APR" 720 "spring"]
+            ["MAY" 744 "spring"]
+            ["JUN" 720 "summer"]
+            ["JUL" 744 "summer"]
+            ["AUG" 744 "summer"]
+            ["SEP" 720 "fall"]
+            ["OCT" 744 "fall"]
+            ["NOV" 720 "winter"]
+            ["DEC" 744 "winter"]
+        ],
+        Vector(["month", "numhrs", "season"]),
+    )
+
+    monhours.cumhrs = cumsum(monhours.numhrs)
+
+    return monhours
 end

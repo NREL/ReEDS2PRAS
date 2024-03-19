@@ -1,3 +1,4 @@
+# Run following from the repo base directory
 main_paths = ["./src", "./test"]
 for main_path in main_paths
     for (root, dir, files) in walkdir(main_path)
