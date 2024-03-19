@@ -441,18 +441,31 @@ function process_hydro(
             #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
             try
                 reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
-                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * 
-                    filter(x-> (x.month == mon_row.month), reg_plant_subset)[:,:value] * row.MW_sum)[1]
+                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * filter(
+                    x -> (x.month == mon_row.month),
+                    reg_plant_subset,
+                )[
+                    :,
+                    :value,
+                ] * row.MW_sum)[1]
 
-                energy_cap[reqd_slice] .= (mon_row.numhrs * 
-                    filter(x-> (x.month == mon_row.month), reg_plant_subset)[:,:value] * row.MW_sum)[1]
+                energy_cap[reqd_slice] .= (mon_row.numhrs * filter(
+                    x -> (x.month == mon_row.month),
+                    reg_plant_subset,
+                )[
+                    :,
+                    :value,
+                ] * row.MW_sum)[1]
 
                 capacity_adjust = hydcapadj[
                     (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
                     [:month, :value],
                 ]
-                dispatch_limit[reqd_slice] .= (filter(x-> (x.month == mon_row.month), 
-                    capacity_adjust)[:,:value] * row.MW_sum)[1]
+                dispatch_limit[reqd_slice] .=
+                    (filter(x -> (x.month == mon_row.month), capacity_adjust)[
+                        :,
+                        :value,
+                    ] * row.MW_sum)[1]
             catch e
                 @error "$(row.r),$(row.i),$(e)"
             end
@@ -514,8 +527,11 @@ function process_hydro(
         for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
             try
                 reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
-                hourly_capacity[reqd_slice] .= (
-                    filter(x-> (x.month == mon_row.month), reg_type)[:,:value] * row.MW_sum)[1]
+                hourly_capacity[reqd_slice] .=
+                    (filter(x -> (x.month == mon_row.month), reg_type)[
+                        :,
+                        :value,
+                    ] * row.MW_sum)[1]
             catch e
                 @error "$(row.r),$(row.i),$(e)"
             end
