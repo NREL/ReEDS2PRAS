@@ -28,6 +28,7 @@ function reeds_to_pras(
     timesteps::Int,
     weather_year::Int;
     user_descriptors::Union{Nothing, String} = nothing,
+    proc_hd_as_convcap=false
 )
     if (user_descriptors === nothing)
         user_descriptors =
@@ -56,7 +57,8 @@ function reeds_to_pras(
         timesteps,
         solve_year,
         2007,
-        user_inputs,
+        user_inputs;
+        proc_hd_as_convcap=proc_hd_as_convcap
     )
     lines, regions, gens, storages, genstors = out
 

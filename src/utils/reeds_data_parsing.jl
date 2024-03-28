@@ -266,7 +266,8 @@ function process_thermals_with_disaggregation(
     unitsize_dict::Dict,
     timesteps::Int,
     year::Int,
-    user_inputs::Dict{Any, Any},
+    user_inputs::Dict{Any, Any};
+    all_generators=Generator[]
 ) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]
@@ -275,7 +276,6 @@ function process_thermals_with_disaggregation(
         DataFrames.combine(DataFrames.groupby(thermal_builds, ["i", "r"]), :MW => sum)
     EIA_db = get_EIA_NEMS_DB(ReEDS_data)
 
-    all_generators = Generator[]
     # this loop gets the FOR for each build/tech
     for row in eachrow(thermal_builds)
         if row.i in keys(FOR_dict)
@@ -412,8 +412,42 @@ function process_hydro(
     year::Int64,
     weather_year::Int,
     timesteps::Int,
-    user_inputs::Dict{Any, Any},
+    user_inputs::Dict{Any, Any};
+    proc_hd_as_convcap=false,
+    unitsize_dict=nothing
 )
+
+    if proc_hd_as_convcap && !isnothing(unitsize_dict)
+
+        @info "Processing HD generators as thermal generators..."
+
+        process_thermals_with_disaggregation(
+            ReEDS_data,
+            hydro_disp_capacities,
+            FOR_dict,
+            unitsize_dict,
+            timesteps,
+            year,
+            user_inputs;
+            all_generators=generators_array
+        )
+
+        process_thermals_with_disaggregation(
+            ReEDS_data,
+            hydro_non_disp_capacities,
+            FOR_dict,
+            unitsize_dict,
+            timesteps,
+            year,
+            user_inputs;
+            all_generators=generators_array
+        )
+        genstor_array = Gen_Storage[]
+
+        return generators_array, genstor_array
+
+    end
+
     hydcf, hydcapadj = get_hydro_data(ReEDS_data)
     monthhours = monhours()
 

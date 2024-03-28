@@ -37,7 +37,8 @@ function parse_reeds_data(
     timesteps::Int,
     year::Int,
     min_year::Int,
-    user_inputs::Dict{Any, Any},
+    user_inputs::Dict{Any, Any};
+    proc_hd_as_convcap=false
 )
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
@@ -115,7 +116,9 @@ function parse_reeds_data(
         WEATHERYEAR,
         timesteps,
         #        min_year,
-        user_inputs,
+        user_inputs;
+        proc_hd_as_convcap=proc_hd_as_convcap,
+        unitsize_dict=unitsize_dict
     )
 
     # TODO: Check if generator storages other than dispatchable hydro exists
