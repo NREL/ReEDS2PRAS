@@ -305,6 +305,76 @@ function process_thermals_with_disaggregation(
     return all_generators
 end
 
+
+"""
+    We use this function if we want to proces hydroelectric generators as fixed capacities.
+    It is a replication of the process thermal functions to retain the older way of
+    handling hydro plants, where we do not use hydro capacity factors, and distinguish
+    dispatchable and non dispatchable hydroelectric generators.
+
+    Parameters
+    ----------
+    all_generators : Generator[]
+        Array of Generator objects containing the capacity for
+        each resource, and it is modified in place.
+    ReEDS_data : object
+        The ReEDS data object
+    hd_builds : DataFrames.DataFrame
+        Data frame containing the hydro plant information
+    FOR_dict : dict
+        Dictionary of Forced Outage Rates (FORs) for each resource
+    timesteps : int
+        Number of slices to disaggregate the capacity
+    year : int
+        Year associated with the capacity
+
+    Returns
+    -------
+"""
+function process_hd_as_generator!(
+    all_generators,
+    ReEDS_data,
+    hd_builds::DataFrames.DataFrame,
+    FOR_dict::Dict,
+    unitsize_dict::Dict,
+    timesteps::Int,
+    year::Int,
+    user_inputs::Dict{Any, Any};
+) # FOR_data::DataFrames.DataFrame,
+
+    # split-apply-combine to handle differently vintaged entries
+    hd_builds =
+        DataFrames.combine(DataFrames.groupby(hd_builds, ["i", "r"]), :MW => sum)
+    EIA_db = get_EIA_NEMS_DB(ReEDS_data)
+
+    # this loop gets the FOR for each build/tech
+    for row in eachrow(hd_builds)
+        if row.i in keys(FOR_dict)
+            gen_for = FOR_dict[row.i]
+        else
+            gen_for = 0.00 #assume as 0 for gens dropped from ReEDS table
+            @debug(
+                "CONVENTIONAL GENERATION: for $(row.i), and region " *
+                "$(row.r), no gen_for is found in ReEDS forced outage " *
+                "data, so $gen_for is used"
+            )
+        end
+
+        generator_array = disagg_existing_capacity(
+            EIA_db,
+            unitsize_dict,
+            floor(Int, row.MW_sum),
+            String(row.i),
+            String(row.r),
+            gen_for,
+            timesteps,
+            year,
+            user_inputs,
+        )
+        append!(all_generators, generator_array)
+    end
+end
+
 """
     This function is used to process variable generation (VG) builds, taking
     into account different vintages.
@@ -413,15 +483,16 @@ function process_hydro(
     weather_year::Int,
     timesteps::Int,
     user_inputs::Dict{Any, Any};
-    proc_hd_as_convcap=false,
+    hydro_no_energylim=false,
     unitsize_dict=nothing
 )
 
-    if proc_hd_as_convcap && !isnothing(unitsize_dict)
+    if hydro_no_energylim && !isnothing(unitsize_dict)
 
-        @info "Processing HD generators as thermal generators..."
+        @info "Processing HD generators as generator with fixed capacities..."
 
-        process_thermals_with_disaggregation(
+        process_hd_as_generator!(
+            generators_array,
             ReEDS_data,
             hydro_disp_capacities,
             FOR_dict,
@@ -429,10 +500,10 @@ function process_hydro(
             timesteps,
             year,
             user_inputs;
-            all_generators=generators_array
         )
 
-        process_thermals_with_disaggregation(
+        process_hd_as_generator!(
+            generators_array,
             ReEDS_data,
             hydro_non_disp_capacities,
             FOR_dict,
@@ -440,7 +511,6 @@ function process_hydro(
             timesteps,
             year,
             user_inputs;
-            all_generators=generators_array
         )
         genstor_array = Gen_Storage[]
 

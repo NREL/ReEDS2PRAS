@@ -332,12 +332,6 @@ function get_hydro_data(data::ReEDSdatapaths)
 
     filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcapadj.csv")
 
-    # TODO: Remove after PR1098 merged on ReEDS-2.0
-    #       and future ReEDS runs use that version
-    if !(isfile(filepath_capadj))
-        filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcfadj.csv")
-    end
-
     hydcapadj = DataFrames.DataFrame(CSV.File(filepath_capadj))
 
     # Rename plant types as techtypes and capacity are lowercase

@@ -78,11 +78,13 @@ struct Variable_Gen <: Generator
         MTTR = 24,
     )
         all(0.0 .<= capacity .<= installed_capacity) ||
-        # TODO: This is a warning because some hydro capacity factors are > 1.0
-        #       giving an error here, but because of hydro budgets that is physically
-        #       ok, considering historical dispatches
-            @warn ("$(name) time series has values < 0 or > installed capacity
+            if  ~(startswith(type,"hyd"))
+                # We do not need to ensure that capacity is < installed capacity
+                # for hydroelectric plants because we sometimes have 
+                # capacity factors > 1
+                error("$(name) time series has values < 0 or > installed capacity
                    ($(installed_capacity))")
+            end
 
         length(capacity) == timesteps ||
             error("The length of the $(name) time series data is $(length(capacity))

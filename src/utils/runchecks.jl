@@ -214,20 +214,13 @@ function run_checks(data::ReEDSdatapaths)
     # Hydro capacity adjustment data
     filepath = joinpath(data.ReEDSfilepath, "inputs_case", "hydcapadj.csv")
 
-    # TODO: Remove after PR1098 merged on ReEDS-2.0
-    #       and future ReEDS runs use that version
-    filepath_cfadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcfadj.csv")
-
     io, bool = check_file(filepath)
-    io_cfadj, bool_cfadj = check_file(filepath_cfadj)
 
     if (bool)
         close(io)
-    elseif (bool)
-        close(io_cfadj)
     else
         error(
-            "Hydro capacity adjustment data is not available in ReEDS results. You are either using a ReEDS version not compatible with ReEDS2PRAS (or) the ReEDS case results location passed is erroneous (or) you don't have access to the file/ deleted it.",
+            "Hydro capacity adjustment data is not available in ReEDS results. You are either using a ReEDS version not compatible with ReEDS2PRAS (or) the ReEDS case results location passed is erroneous (or) you don't have access to the hydcapadj.csv file/ deleted it.",
         )
     end
 end
