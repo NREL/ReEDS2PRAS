@@ -578,6 +578,8 @@ function process_hydro(
                                         capacity_adjust,reg_plant_subset_cf,
                                         timesteps_year,"$(string(row_pt.T_PID))_$(string(row_pt.T_UID))_$(row_pt["Unique ID"])",
                                         category,region,num_years,user_inputs["MTTR"],capacity_plant=row_pt.cap)
+                else
+                    @info "Plant CF does not exist for plant ID $(string(row_pt.T_PID))_$(row_pt["Unique ID"]), with cap $(row_pt.cap)"
                 end
             end
         else
@@ -616,7 +618,9 @@ function process_hydro(
                       " EIA NEMS database capacity for $(string(row.i))"* 
                       " in $(string(row.r)) region."
             end
+
             for row_pt in eachrow(tech_ba_year_existing)
+
                 reg_plant_subset_cf =  filter(x -> (x.EIA_PtID == row_pt.T_PID), 
                                         plant_level_cf)[:, [:szn, :value]]   
                 if (DataFrames.nrow(reg_plant_subset_cf)>0)
@@ -624,6 +628,8 @@ function process_hydro(
                                         reg_plant_subset_cf,timesteps_year,
                                         "$(string(row_pt.T_PID))_$(string(row_pt.T_UID))_$(row_pt["Unique ID"])",
                                         category,region,num_years,user_inputs["MTTR"],capacity_plant=row_pt.cap)
+                else
+                    @info "Plant CF does not exist for plant ID $(string(row_pt.T_PID))_$(row_pt["Unique ID"]), with cap $(row_pt.cap)"
                 end
             end
         else
