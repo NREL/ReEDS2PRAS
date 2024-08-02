@@ -115,7 +115,6 @@ function parse_reeds_data(
         year,
         WEATHERYEAR,
         timesteps,
-        #        min_year,
         user_inputs;
         hydro_no_energylim=hydro_no_energylim,
         unitsize_dict=unitsize_dict
