@@ -25,19 +25,9 @@ function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
     # slices based on input weather year
     slicer = findfirst(isequal(weather_year), load_info["axis1_level1"])
     # I think b/c julia indexes from 1 we need -1 here
-    indices = findall(i -> (i == (slicer - 1)), load_info["axis1_label1"])
-
-    # should be regionsX8760, which is now just enforced
-    if timesteps > 8760
-        load_year = load_data[:, indices[1:8760]]
-        load_timesteps = repeat(load_year, 1, floor(Int, timesteps / 8760))
-        if timesteps % 8760 > 0
-            load_timesteps =
-                hcat(load_timesteps, load_data[:, indices[1:(timesteps % 8760)]])
-        end
-    else
-        load_timesteps = load_data[:, indices[1:timesteps]]
-    end
+    indices = findfirst(i -> (i == (slicer - 1)), load_info["axis1_label1"])
+    slice_reqd = first(indices):first(indices)+timesteps-1
+    load_timesteps = load_data[:, slice_reqd]
 
     return [
         Region(r, timesteps, floor.(Int, load_timesteps[idx, :])) for
