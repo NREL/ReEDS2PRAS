@@ -473,11 +473,12 @@ function process_hydro(
     weather_year::Int,
     timesteps::Int,
     user_inputs::Dict{Any, Any};
-    hydro_no_energylim=false,
+    hydro_energylim=false,
     unitsize_dict=nothing
 )
 
-    if hydro_no_energylim && !isnothing(unitsize_dict)
+    # If we do not impose energy limits on hydro and model it as fixed capacity
+    if !(hydro_energylim) && !isnothing(unitsize_dict)
 
         @info "Processing HD generators as generator with fixed capacities..."
 

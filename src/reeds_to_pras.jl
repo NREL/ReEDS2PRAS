@@ -13,6 +13,11 @@
         Number of timesteps
     WEATHERYEAR : Int
         The weather year for variable gen profiles and load
+    hydro_energylim : Bool
+        If this is false we process hydro with fixed capacity based one
+        name plate from the max_cap file. If true, we process non-dispatchable
+        hydro as a VRE with varying capacity and dispatchable hydro as
+        a generator storage with monthly inflows
 
     Returns
     -------
@@ -28,7 +33,7 @@ function reeds_to_pras(
     timesteps::Int,
     weather_year::Int;
     user_descriptors::Union{Nothing, String} = nothing,
-    hydro_no_energylim=false
+    hydro_energylim=false
 )
     if (user_descriptors === nothing)
         user_descriptors =
@@ -58,7 +63,7 @@ function reeds_to_pras(
         solve_year,
         2007,
         user_inputs;
-        hydro_no_energylim=hydro_no_energylim
+        hydro_energylim=hydro_energylim
     )
     lines, regions, gens, storages, genstors = out
 

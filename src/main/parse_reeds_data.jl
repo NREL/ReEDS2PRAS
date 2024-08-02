@@ -38,7 +38,7 @@ function parse_reeds_data(
     year::Int,
     min_year::Int,
     user_inputs::Dict{Any, Any};
-    hydro_no_energylim=false
+    hydro_energylim=false
 )
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
@@ -116,7 +116,7 @@ function parse_reeds_data(
         WEATHERYEAR,
         timesteps,
         user_inputs;
-        hydro_no_energylim=hydro_no_energylim,
+        hydro_energylim=hydro_energylim,
         unitsize_dict=unitsize_dict
     )
 
