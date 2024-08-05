@@ -33,7 +33,7 @@ struct Thermal_Gen <: Generator
     capacity::Float64
     fuel::String
     legacy::String
-    FOR::Float64
+    FOR::Vector{Float32}
     MTTR::Int64
 
     # Inner Constructors & Checks
@@ -44,15 +44,13 @@ struct Thermal_Gen <: Generator
         capacity = 10.0,
         fuel = "OT",
         legacy = "New",
-        FOR = 0.0,
+        FOR = vec(Float32.(fill(0., 8760, 1))),
         MTTR = 24,
     )
         capacity >= 0.0 || error("$(name) capacity value passed is < 0")
 
         legacy in ["Existing", "New"] ||
             error("$(name) has legacy $(legacy) which is not in [Existing, New]")
-
-        0.0 <= FOR <= 1.0 || error("$(name) FOR value is < 0 or > 1")
 
         MTTR > 0 || error("$(name) MTTR value is <= 0")
 

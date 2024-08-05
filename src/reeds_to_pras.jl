@@ -11,7 +11,7 @@
         ReEDS solve year
     timesteps : Int
         Number of timesteps
-    WEATHERYEAR : Int
+    weather_year : Int
         The weather year for variable gen profiles and load
 
     Returns
@@ -43,14 +43,14 @@ function reeds_to_pras(
         )
     end
 
-    ReEDS_data_filepaths = ReEDSdatapaths(reedscase, solve_year)
+    ReEDS_data = ReEDSdatapaths(reedscase, solve_year)
 
     @info "Running checks on input data..."
-    run_checks(ReEDS_data_filepaths)
+    run_checks(ReEDS_data)
 
     @info "Parsing ReEDS data and creating ReEDS2PRAS objects..."
     out = parse_reeds_data(
-        ReEDS_data_filepaths,
+        ReEDS_data,
         weather_year,
         timesteps,
         solve_year,

@@ -132,12 +132,7 @@ function run_checks(data::ReEDSdatapaths)
     end
 
     # Foreced Outage Rate
-    filepath = joinpath(
-        data.ReEDSfilepath,
-        "ReEDS_Augur",
-        "augur_data",
-        "forced_outage_$(string(data.year)).csv",
-    )
+    filepath = joinpath(data.ReEDSfilepath, "inputs_case", "outage_forced_static.csv")
 
     io, bool = check_file(filepath)
 
