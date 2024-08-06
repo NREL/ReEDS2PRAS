@@ -26,7 +26,7 @@ function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
     slicer = findfirst(isequal(weather_year), load_info["axis1_level1"])
     # I think b/c julia indexes from 1 we need -1 here
     indices = findfirst(i -> (i == (slicer - 1)), load_info["axis1_label1"])
-    slice_reqd = first(indices):first(indices)+timesteps-1
+    slice_reqd = first(indices):(first(indices) + timesteps - 1)
     load_timesteps = load_data[:, slice_reqd]
 
     return [
@@ -257,7 +257,7 @@ function process_thermals_with_disaggregation(
     timesteps::Int,
     year::Int,
     user_inputs::Dict{Any, Any};
-    all_generators=Generator[]
+    all_generators = Generator[],
 ) # FOR_data::DataFrames.DataFrame,
     # csp-ns is not a thermal; just drop in for now
     thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]
@@ -294,7 +294,6 @@ function process_thermals_with_disaggregation(
     end
     return all_generators
 end
-
 
 """
     We use this function if we want to proces hydroelectric generators as fixed capacities.
@@ -333,8 +332,7 @@ function process_hd_as_generator!(
 ) # FOR_data::DataFrames.DataFrame,
 
     # split-apply-combine to handle differently vintaged entries
-    hd_builds =
-        DataFrames.combine(DataFrames.groupby(hd_builds, ["i", "r"]), :MW => sum)
+    hd_builds = DataFrames.combine(DataFrames.groupby(hd_builds, ["i", "r"]), :MW => sum)
     EIA_db = get_EIA_NEMS_DB(ReEDS_data)
 
     # this loop gets the FOR for each build/tech
@@ -473,13 +471,12 @@ function process_hydro(
     weather_year::Int,
     timesteps::Int,
     user_inputs::Dict{Any, Any};
-    hydro_energylim=false,
-    unitsize_dict=nothing
+    hydro_energylim = false,
+    unitsize_dict = nothing,
 )
 
     # If we do not impose energy limits on hydro and model it as fixed capacity
     if !(hydro_energylim) && !isnothing(unitsize_dict)
-
         @info "Processing HD generators as generator with fixed capacities..."
 
         process_hd_as_generator!(
@@ -506,7 +503,6 @@ function process_hydro(
         genstor_array = Gen_Storage[]
 
         return generators_array, genstor_array
-
     end
 
     hydcf, hydcapadj = get_hydro_data(ReEDS_data)
