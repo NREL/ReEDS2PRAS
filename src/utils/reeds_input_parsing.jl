@@ -326,8 +326,7 @@ function get_hydro_data(data::ReEDSdatapaths)
     # Rename plant types as techtypes and capacity are lowercase
     DataFrames.rename!(hydcf, [:"*i"] .=> [:i])
     hydcf.i = lowercase.(hydcf.i)
-    # Subset to required run year, unclear if subset has to be 
-    # the ReEDS target year or the weather data years
+    # Subset to ReEDS model year
     hydcf = filter(x -> x.t == data.year, hydcf)
 
     filepath_capadj = joinpath(data.ReEDSfilepath, "inputs_case", "hydcapadj.csv")
