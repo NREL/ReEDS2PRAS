@@ -77,14 +77,13 @@ struct Variable_Gen <: Generator
         FOR = 0.0,
         MTTR = 24,
     )
-        all(0.0 .<= capacity .<= installed_capacity) ||
-            if  ~(startswith(type,"hyd"))
-                # We do not need to ensure that capacity is < installed capacity
-                # for hydroelectric plants because we sometimes have 
-                # capacity factors > 1
-                error("$(name) time series has values < 0 or > installed capacity
-                   ($(installed_capacity))")
-            end
+        all(0.0 .<= capacity .<= installed_capacity) || if ~(startswith(type, "hyd"))
+            # We do not need to ensure that capacity is < installed capacity
+            # for hydroelectric plants because we sometimes have 
+            # capacity factors > 1
+            error("$(name) time series has values < 0 or > installed capacity
+               ($(installed_capacity))")
+        end
 
         length(capacity) == timesteps ||
             error("The length of the $(name) time series data is $(length(capacity))
