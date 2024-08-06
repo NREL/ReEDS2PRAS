@@ -1,9 +1,11 @@
 """
 Copyright 2022 Alliance for Sustainable Energy and other
 NTP Project Developers. See the top-level COPYRIGHT file for details.
-Author: Luke Lavin, Surya Chandan Dhulipala, Brandon Norton Benton, Hari Sundar
+Author: Luke Lavin, Surya Chandan Dhulipala, Brandon Norton Benton, 
+       Patrick Brown, Hari Sundar
 Email: luke.lavin@nrel.gov, suryachandan.dhulipala@nrel.gov, 
-       brandon.benton@nrel.gov, hari.sundar@nrel.gov
+       brandon.benton@nrel.gov, patrick.brown@nrel.gov, 
+       hari.sundar@nrel.gov
 """
 module ReEDS2PRAS
 
