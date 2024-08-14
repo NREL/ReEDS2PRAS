@@ -44,7 +44,7 @@ function parse_reeds_data(
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
 
     @info "Processing lines and adding VSC-related regions, if applicable..."
-    lines = process_lines(ReEDS_data, get_name.(region_array), year, timesteps, user_inputs)
+    lines = process_lines(ReEDS_data, get_name.(region_array), ReEDS_data.year, timesteps, user_inputs)
     lines, regions = process_vsc_lines(lines, region_array)
 
     # Create Generator Objects
