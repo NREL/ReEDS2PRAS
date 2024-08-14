@@ -77,17 +77,15 @@ function process_lines(
         convert.(String, converter_capacity_data[!, "r"]) .=>
             converter_capacity_data[!, "MW"],
     )
-    #=
     # add 0 converter capacity for regions that lack a converter
     if length(keys(converter_capacity_dict)) > 0
-        for reg in regions
+        for reg in filter(x -> x.trtype == "VSC", line_base_cap_data)[!,"r"] ∪ filter(x -> x.trtype == "VSC", line_base_cap_data)[!,"rr"]
             if !(reg in keys(converter_capacity_dict))
-                @info("$reg does not have VSC converter capacity, so adding" * " a 0")
+                @info("$reg does not have VSC converter capacity, updating the converter capacity data to include a 0.0 capacity")
                 converter_capacity_dict[reg] = 0.0
             end
         end
     end
-    =#
 
     function keep_line(from_pca, to_pca)
         from_idx = findfirst(x -> x == from_pca, regions)
