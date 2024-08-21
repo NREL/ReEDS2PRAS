@@ -369,38 +369,61 @@ function get_storage_energy_capacity_data(data::ReEDSdatapaths)
     return DataFrames.DataFrame(CSV.File(filepath))
 end
 
-# get dataframe of hours in each month
-"""
-    This function is used to get info on the number of hours in each month
+# Structs and functions to handle hydro limits data avaialable
+# Includes mapping of months --> seasons to be compatible with 
+# avaialable ReEDS data
 
-    Parameters
-    ----------
-    None
+# Month Number to Season Mapping
+monthnum_to_season_mapping = Dict(
+    [1,2,11,12] => "winter",
+    [3,4,5] => "spring",
+    [6,7,8] => "summer",
+    [9,10] => "fall"
+)
 
-    Returns
-    -------
-    monhours: DataFrame
-"""
-function monhours()
-    monhours = DataFrames.DataFrame(
-        [
-            ["JAN" 744 "winter"]
-            ["FEB" 672 "winter"]
-            ["MAR" 744 "spring"]
-            ["APR" 720 "spring"]
-            ["MAY" 744 "spring"]
-            ["JUN" 720 "summer"]
-            ["JUL" 744 "summer"]
-            ["AUG" 744 "summer"]
-            ["SEP" 720 "fall"]
-            ["OCT" 744 "fall"]
-            ["NOV" 720 "winter"]
-            ["DEC" 744 "winter"]
-        ],
-        Vector(["month", "numhrs", "season"]),
+# Struct to define monthhour values
+mutable struct monthhour
+    month::String
+    numhrs::Int64
+    season::String
+    cumsum::Int64
+    slice::UnitRange{Int64}
+    
+    # Inner Constructors & Checks
+    function monthhour(
+        month = "month",
+        numhrs = 10,
+        season = "season";
+        cumsum = 0,
+        slice = range(1,length=10)
     )
-
-    monhours.cumhrs = cumsum(monhours.numhrs)
-
-    return monhours
+        return new(month,numhrs,season,cumsum,slice)
+    end
 end
+
+# Functions to augment collection of monthour
+function cumsum!(collection::Vector{monthhour})
+    sum = 0
+    for element in collection
+        sum = sum+element.numhrs
+        element.cumsum = sum
+    end
+end
+
+function addslices!(collection::Vector{monthhour})
+    for element in collection
+        element.slice = (element.cumsum - element.numhrs + 1):(element.cumsum)
+    end
+end
+
+# Generating necessary data 
+monthours = monthhour[]
+start_date = Dates.Date("2021-01", "yyyy-mm")
+for i in range(0,length=12)
+    new_date = start_date + Dates.Month(i)
+    season = collect(values(monthnum_to_season_mapping))[findfirst(in.(i+1,keys(monthnum_to_season_mapping)))]
+    push!(monthours, monthhour(uppercase(Dates.monthabbr(i+1)), Dates.daysinmonth(new_date)*24, season))
+end
+
+cumsum!(monthours)
+addslices!(monthours)
