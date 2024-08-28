@@ -528,32 +528,32 @@ function process_hydro(
         monthly_energy = zeros(timesteps_year)
         dispatch_limit = zeros(timesteps_year)
         energy_cap = zeros(timesteps_year)
-        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
+        for  monhr in monthhours
             #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
             try
-                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
-                monthly_energy[first(reqd_slice)] = (mon_row.numhrs * filter(
-                    x -> (x.month == mon_row.month),
+                reqd_slice = monhr.slice
+                monthly_energy[first(reqd_slice)] = (monhr.numhrs * filter(
+                    x -> (x.month == monhr.month),
                     reg_plant_subset,
                 )[
                     :,
                     :value,
                 ] * row.MW_sum)[1]
-
-                energy_cap[reqd_slice] .= (mon_row.numhrs * filter(
-                    x -> (x.month == mon_row.month),
+        
+                energy_cap[reqd_slice] .= (monhr.numhrs * filter(
+                    x -> (x.month == monhr.month),
                     reg_plant_subset,
                 )[
                     :,
                     :value,
                 ] * row.MW_sum)[1]
-
+        
                 capacity_adjust = hydcapadj[
                     (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
                     [:month, :value],
                 ]
                 dispatch_limit[reqd_slice] .=
-                    (filter(x -> (x.month == mon_row.month), capacity_adjust)[
+                    (filter(x -> (x.month == monhr.month), capacity_adjust)[
                         :,
                         :value,
                     ] * row.MW_sum)[1]
@@ -615,11 +615,11 @@ function process_hydro(
             [:month, :value],
         ]
         hourly_capacity = zeros(timesteps_year)
-        for (idx_mon, mon_row) in enumerate(DataFrames.eachrow(monthhours))
+        for  monhr in monthhours
             try
-                reqd_slice = (mon_row.cumhrs - mon_row.numhrs + 1):(mon_row.cumhrs)
+                reqd_slice = monhr.slice
                 hourly_capacity[reqd_slice] .=
-                    (filter(x -> (x.month == mon_row.month), reg_type)[
+                    (filter(x -> (x.month == monhr.month), reg_type)[
                         :,
                         :value,
                     ] * row.MW_sum)[1]
@@ -1142,3 +1142,5 @@ function add_new_capacity!(
 
     return generators_array
 end
+
+

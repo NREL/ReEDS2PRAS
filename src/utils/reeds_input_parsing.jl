@@ -417,13 +417,17 @@ function addslices!(collection::Vector{monthhour})
 end
 
 # Generating necessary data 
-monthours = monthhour[]
-start_date = Dates.Date("2021-01", "yyyy-mm")
-for i in range(0,length=12)
-    new_date = start_date + Dates.Month(i)
-    season = collect(values(monthnum_to_season_mapping))[findfirst(in.(i+1,keys(monthnum_to_season_mapping)))]
-    push!(monthours, monthhour(uppercase(Dates.monthabbr(i+1)), Dates.daysinmonth(new_date)*24, season))
-end
+function monhours()
+    monthours = monthhour[]
+    start_date = Dates.Date("2021-01", "yyyy-mm")
+    for i in range(0,length=12)
+        new_date = start_date + Dates.Month(i)
+        season = collect(values(monthnum_to_season_mapping))[findfirst(in.(i+1,keys(monthnum_to_season_mapping)))]
+        push!(monthours, monthhour(uppercase(Dates.monthabbr(i+1)), Dates.daysinmonth(new_date)*24, season))
+    end
 
-cumsum!(monthours)
-addslices!(monthours)
+    cumsum!(monthours)
+    addslices!(monthours)
+
+    return monthours
+end
