@@ -375,10 +375,10 @@ end
 
 # Month Number to Season Mapping
 monthnum_to_season_mapping = Dict(
-    [1,2,11,12] => "winter",
-    [3,4,5] => "spring",
-    [6,7,8] => "summer",
-    [9,10] => "fall"
+    [1, 2, 11, 12] => "winter",
+    [3, 4, 5] => "spring",
+    [6, 7, 8] => "summer",
+    [9, 10] => "fall",
 )
 
 # Struct to define monthhour values
@@ -388,16 +388,16 @@ mutable struct monthhour
     season::String
     cumsum::Int64
     slice::UnitRange{Int64}
-    
+
     # Inner Constructors & Checks
     function monthhour(
         month = "month",
         numhrs = 10,
         season = "season";
         cumsum = 0,
-        slice = range(1,length=10)
+        slice = range(1, length = 10),
     )
-        return new(month,numhrs,season,cumsum,slice)
+        return new(month, numhrs, season, cumsum, slice)
     end
 end
 
@@ -405,7 +405,7 @@ end
 function cumsum!(collection::Vector{monthhour})
     sum = 0
     for element in collection
-        sum = sum+element.numhrs
+        sum = sum + element.numhrs
         element.cumsum = sum
     end
 end
@@ -420,10 +420,19 @@ end
 function monhours()
     monthours = monthhour[]
     start_date = Dates.Date("2021-01", "yyyy-mm")
-    for i in range(0,length=12)
+    for i in range(0, length = 12)
         new_date = start_date + Dates.Month(i)
-        season = collect(values(monthnum_to_season_mapping))[findfirst(in.(i+1,keys(monthnum_to_season_mapping)))]
-        push!(monthours, monthhour(uppercase(Dates.monthabbr(i+1)), Dates.daysinmonth(new_date)*24, season))
+        season = collect(values(monthnum_to_season_mapping))[findfirst(
+            in.(i + 1, keys(monthnum_to_season_mapping)),
+        )]
+        push!(
+            monthours,
+            monthhour(
+                uppercase(Dates.monthabbr(i + 1)),
+                Dates.daysinmonth(new_date) * 24,
+                season,
+            ),
+        )
     end
 
     cumsum!(monthours)

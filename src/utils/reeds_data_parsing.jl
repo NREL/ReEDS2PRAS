@@ -26,7 +26,7 @@ function process_regions_and_load(ReEDS_data, weather_year::Int, timesteps::Int)
     slicer = findfirst(isequal(weather_year), load_info["axis1_level1"])
     # I think b/c julia indexes from 1 we need -1 here
     indices = findall(i -> (i == (slicer - 1)), load_info["axis1_label1"])
-    slice_reqd = first(indices):first(indices)+timesteps-1
+    slice_reqd = first(indices):(first(indices) + timesteps - 1)
     load_timesteps = load_data[:, slice_reqd]
 
     return [
@@ -528,26 +528,22 @@ function process_hydro(
         monthly_energy = zeros(timesteps_year)
         dispatch_limit = zeros(timesteps_year)
         energy_cap = zeros(timesteps_year)
-        for  monhr in monthhours
+        for monhr in monthhours
             #@debug reg_plant_subset[findall(x->startswith(mon_row.season,x),reg_plant_subset.szn),:value]
             try
                 reqd_slice = monhr.slice
-                monthly_energy[first(reqd_slice)] = (monhr.numhrs * filter(
-                    x -> (x.month == monhr.month),
-                    reg_plant_subset,
-                )[
-                    :,
-                    :value,
-                ] * row.MW_sum)[1]
-        
-                energy_cap[reqd_slice] .= (monhr.numhrs * filter(
-                    x -> (x.month == monhr.month),
-                    reg_plant_subset,
-                )[
-                    :,
-                    :value,
-                ] * row.MW_sum)[1]
-        
+                monthly_energy[first(reqd_slice)] =
+                    (monhr.numhrs * filter(x -> (x.month == monhr.month), reg_plant_subset)[
+                        :,
+                        :value,
+                    ] * row.MW_sum)[1]
+
+                energy_cap[reqd_slice] .=
+                    (monhr.numhrs * filter(x -> (x.month == monhr.month), reg_plant_subset)[
+                        :,
+                        :value,
+                    ] * row.MW_sum)[1]
+
                 capacity_adjust = hydcapadj[
                     (hydcapadj.i .== row.i) .&& (hydcapadj.r .== row.r),
                     [:month, :value],
@@ -615,7 +611,7 @@ function process_hydro(
             [:month, :value],
         ]
         hourly_capacity = zeros(timesteps_year)
-        for  monhr in monthhours
+        for monhr in monthhours
             try
                 reqd_slice = monhr.slice
                 hourly_capacity[reqd_slice] .=
@@ -1142,5 +1138,3 @@ function add_new_capacity!(
 
     return generators_array
 end
-
-
