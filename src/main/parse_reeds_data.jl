@@ -51,7 +51,7 @@ function parse_reeds_data(
     # **TODO: Should 0 MW generators be allowed after disaggregation?
     # **TODO: is it important to also handle planned outages?
     @info(
-        "splitting thermal, storage, vg generator, hydro generator types from installed " *
+        "splitting thermal, storage, variable and hydro generator types from installed " *
         "ReEDS capacities..."
     )
     # TODO: Obtain generator storages if exist/get placeholder
@@ -113,11 +113,10 @@ function parse_reeds_data(
         forced_outage_dict,
         ReEDS_data,
         year,
-        WEATHERYEAR,
         timesteps,
-        user_inputs;
+        user_inputs,
+        unitsize_dict,
         hydro_energylim = hydro_energylim,
-        unitsize_dict = unitsize_dict,
     )
 
     # TODO: Check if generator storages other than dispatchable hydro exists

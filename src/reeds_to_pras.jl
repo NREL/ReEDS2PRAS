@@ -62,7 +62,7 @@ function reeds_to_pras(
         timesteps,
         solve_year,
         2007,
-        user_inputs;
+        user_inputs,
         hydro_energylim = hydro_energylim,
     )
     lines, regions, gens, storages, genstors = out

@@ -296,7 +296,7 @@ function process_thermals_with_disaggregation(
 end
 
 """
-    We use this function if we want to proces hydroelectric generators as fixed capacities.
+    We use this function if we want to process hydroelectric generators as fixed capacities.
     It is a replication of the process thermal functions to retain the older way of
     handling hydro plants, where we do not use hydro capacity factors, and distinguish
     dispatchable and non dispatchable hydroelectric generators.
@@ -448,16 +448,41 @@ end
 """
     Parameters
     ----------
-    regions : Vector{<:AbstractString}
+    generators_array : Vector{<:Generator}
         a vector of strings of distinct regions in the model
+    hydro_disp_capacities : DataFrame
+        a dataframe containing details of dispatchable (reservoir)
+        HD generators
+    hydro_non_disp_capacities : DataFrame
+        a dataframe containing details of non-dispatchable 
+        (run-of-river) HD generators
+    FOR_dict : Dict
+        a dictionary of forced outage rates, not applied to HD 
+        devices for now
+    ReEDS_data
+        input data from ReEDS
     timesteps : Int
-        integer representing the number of time steps
-
+        number of timesteps
+    year : Int64
+        ReEDS target simulation year
+    user_inputs : Dict{Any, Any}
+        a dictionary with user inputs
+    hydro_energylim : Bool
+        a flag which allows users to choose whether to model HD 
+        devices as flat generators, or as variable generator for 
+        run-of-river plants and generatorstorage for reservoir 
+        plants
+    unitsize_dict = nothing,
     Returns
     -------
+    generators_array : Vector{<:Generator}
+        Generators array updated with hydro generators, either all 
+        generators as static capacity, or run-of-river generators
+        as variable generators
     gen_stors : Gen_Storage
-        a Gen_Storage struct containing information about generators/storage
-        technologies for each region.
+        Generator_storages array returned as empty if we don't 
+        process energy limits, or returned with reservoir hydro
+        plants (dispatchable type)
 """
 # TODO: Incorporate multiple years (for ex. 2007 - 2013) of hydro data.
 # For now use the ReEDS year based CF data to repeat the same 8760 time series multiple times
@@ -468,15 +493,14 @@ function process_hydro(
     FOR_dict::Dict,
     ReEDS_data,
     year::Int64,
-    weather_year::Int,
     timesteps::Int,
-    user_inputs::Dict{Any, Any};
+    user_inputs::Dict{Any, Any},
+    unitsize_dict;
     hydro_energylim = false,
-    unitsize_dict = nothing,
 )
 
     # If we do not impose energy limits on hydro and model it as fixed capacity
-    if !(hydro_energylim) && !isnothing(unitsize_dict)
+    if !(hydro_energylim)
         @info "Processing HD generators as generator with fixed capacities..."
 
         process_hd_as_generator!(
@@ -554,7 +578,14 @@ function process_hydro(
                         :value,
                     ] * row.MW_sum)[1]
             catch e
-                @error "$(row.r),$(row.i),$(e)"
+                if isa(e, BoundsError)
+                    #TODO This is added to prevent the code from exiting because p80, hydUD does 
+                    # not have hydcf but is a prescribed addition. This needs to be sorted out
+                    # upstream in ReEDS-Inputprocessing.
+                    @error "$(row.r),$(row.i),$(e)"
+                else
+                    error()
+                end
             end
         end
 
