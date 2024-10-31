@@ -44,6 +44,7 @@ emptyvec(::Vector{<:Generator}) = Generator[]
 
 get_components(comps::Vector{<:Generator}, region_name::String) =
     get_generators_in_region(comps, region_name)
+
 # Functions for processing ReEDS2PRAS generators and storages to prepare
 # them for PRAS System generation
 """

@@ -124,8 +124,7 @@ function create_pras_system(
     gen_stor_names =
         isempty(get_name.(sorted_gen_stors)) ? String[] : get_name.(sorted_gen_stors)
     gen_stor_cats =
-        isempty(get_category.(sorted_gen_stors)) ? String[] :
-        get_category.(sorted_gen_stors)
+        isempty(get_type.(sorted_gen_stors)) ? String[] : get_type.(sorted_gen_stors)
     gen_stor_cap_array = reduce(
         vcat,
         get_charge_capacity.(sorted_gen_stors),

@@ -104,5 +104,4 @@ julia  -e 'using Pkg; Pkg.add("JuliaFormatter"); using JuliaFormatter; include("
 **NOTE: You have to run the snippet above at the repo folder level.
 
 ## Acknowledgements
-The developers are Luke Lavin, Surya Dhulipala, and Brandon Benton. They acknowlege Gord Stephen for many helpful comments for improving this package.
-
+The developers are Luke Lavin, Surya Dhulipala, Brandon Benton, Patrick Brown, and Hari Sundar. They acknowledge Gord Stephen for many helpful comments for improving this package.

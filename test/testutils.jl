@@ -119,6 +119,7 @@ function compare_line_capacities(pras_system::PRAS.SystemModel, ReEDSfilepath, y
         end
         mw_out_fwd, mw_out_bck = get_pras_line_capacity(pras_system, Int.(retained_lines))
 
+        # TODO: Maybe some problems with using floor, round, and neither in different cases 
         if row.r < row.rr #actually want to compare strings to get proper ordering
             @info "forward in MW is $mw_sum out forward is $mw_out_fwd, for $(row.r) to $(row.rr), $(row.trtype)"
             @assert abs(mw_sum - mw_out_fwd) <= 1
