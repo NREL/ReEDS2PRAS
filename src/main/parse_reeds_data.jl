@@ -39,7 +39,9 @@ function parse_reeds_data(
     min_year::Int,
     user_inputs::Dict{Any, Any};
     hydro_energylim = false,
+    r2x_defaults = Dict(),
 )
+
     @info "Processing regions and associating load profiles..."
     region_array = process_regions_and_load(ReEDS_data, WEATHERYEAR, timesteps)
 
@@ -69,15 +71,27 @@ function parse_reeds_data(
     unitsize_dict = Dict(unitsize_data[!, "tech"] .=> unitsize_data[!, "atb_capacity_MW"])
 
     @info "Processing conventional/thermal generators..."
-    thermal_gens = process_thermals_with_disaggregation(
-        ReEDS_data,
-        thermal,
-        forced_outage_dict,
-        unitsize_dict,
-        timesteps,
-        year,
-        user_inputs,
-    )
+    if length(keys(r2x_defaults)) == 0 #empty so full disagg
+        thermal_gens = process_thermals_with_disaggregation(
+            ReEDS_data,
+            thermal,
+            forced_outage_dict,
+            unitsize_dict,
+            timesteps,
+            year,
+            user_inputs,
+        )
+    else
+        @info "r2x disagg defaults in use, so use those to process thermal generator unit sizes"
+        thermal_gens = process_thermals_r2x_disaggregation(
+            ReEDS_data,
+            thermal,
+            r2x_defaults,
+            timesteps,
+            year,
+            user_inputs,
+        )
+    end
 
     @info "Processing variable generation..."
     gens_array = process_vg(

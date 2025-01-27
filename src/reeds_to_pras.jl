@@ -46,6 +46,8 @@ function reeds_to_pras(
         r2x_descriptors = 
             joinpath(@__DIR__, "utils", "Descriptors", "pcm_defaults.json")
         r2x_default_inputs = parse_pcm_default_descriptors(r2x_descriptors)
+    else
+        r2x_default_inputs = Dict()
     end
     # assume valid weather years as hardcode for now. These should eventually
     # be read in from ReEDS
@@ -71,6 +73,7 @@ function reeds_to_pras(
         2007,
         user_inputs,
         hydro_energylim = hydro_energylim,
+        r2x_defaults = r2x_default_inputs,
     )
     lines, regions, gens, storages, genstors = out
 

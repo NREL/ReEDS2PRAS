@@ -1,5 +1,6 @@
 isjson = endswith(".json");
 
+#TODO: these keys should be validated when the file is read
 inner_keys = ["avg_capacity_MW","mean_time_to_repair","forced_outage_rate"]
 
 function parse_pcm_default_descriptors(file::String)

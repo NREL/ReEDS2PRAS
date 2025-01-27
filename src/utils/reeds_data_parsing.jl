@@ -295,6 +295,75 @@ function process_thermals_with_disaggregation(
     return all_generators
 end
 
+function process_thermals_r2x_disaggregation(
+    ReEDS_data,
+    thermal_builds::DataFrames.DataFrame,
+    r2x_defaults::Dict,
+    timesteps::Int,
+    year::Int,
+    user_inputs::Dict{Any, Any};
+    all_generators = Generator[],
+)
+    # csp-ns is not a thermal; just drop in for now
+    thermal_builds = thermal_builds[(thermal_builds.i .!= "csp-ns"), :]
+    # split-apply-combine to handle differently vintaged entries
+    thermal_builds =
+        DataFrames.combine(DataFrames.groupby(thermal_builds, ["i", "r"]), :MW => sum)
+    # EIA_db = get_EIA_NEMS_DB(ReEDS_data)
+    
+    # this loop gets the FOR for each build/tech
+    for row in eachrow(thermal_builds)
+        if row.i in keys(r2x_defaults)
+            gen_for = r2x_defaults[row.i]["forced_outage_rate"]/100.
+        else
+            gen_for = 0.00 #assume as 0 for gens dropped from ReEDS table
+            @debug(
+                "CONVENTIONAL GENERATION: for $(row.i), and region " *
+                "$(row.r), no gen_for is found in R2X forced outage " *
+                "data, so $gen_for is used"
+            )
+        end
+
+        #process out non-matched zero FOR generators, disagg unnecessary
+        if gen_for == 0.00
+            tech = String(row.i)
+            pca = String(row.r)
+            append!(all_generators,[
+                    Thermal_Gen(
+                        name = "$(tech)_$(pca)_1",
+                        timesteps = timesteps,
+                        region_name = pca,
+                        capacity = floor(Int, row.MW_sum),
+                        fuel = tech,
+                        legacy = "New",
+                        FOR = gen_for,
+                        MTTR = user_inputs["MTTR"],
+                    ),
+                ]
+            )
+        else
+            generator_array = []
+            average_capacity = r2x_defaults[String(row.i)]["avg_capacity_MW"]
+            mttr = round(Int,r2x_defaults[String(row.i)]["mean_time_to_repair"])
+            add_new_capacity!(
+                generator_array,
+                floor(Int, row.MW_sum),
+                0,
+                0,
+                Dict(String(row.i) => average_capacity),#unitsize_dict,
+                String(row.i),
+                String(row.r),
+                gen_for,
+                timesteps,
+                year,
+                mttr,
+            )    
+            append!(all_generators, generator_array)
+        end
+    end
+    return all_generators
+end
+
 """
     We use this function if we want to process hydroelectric generators as fixed capacities.
     It is a replication of the process thermal functions to retain the older way of
