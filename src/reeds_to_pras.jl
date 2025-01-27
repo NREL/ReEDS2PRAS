@@ -33,6 +33,7 @@ function reeds_to_pras(
     timesteps::Int,
     weather_year::Int;
     user_descriptors::Union{Nothing, String} = nothing,
+    r2x_defaults = false,
     hydro_energylim = false,
 )
     if (user_descriptors === nothing)
@@ -40,6 +41,12 @@ function reeds_to_pras(
             joinpath(@__DIR__, "utils", "Descriptors", "user_descriptors.json")
     end
     user_inputs = parse_user_descriptors(user_descriptors)
+
+    if (r2x_defaults == true)
+        r2x_descriptors = 
+            joinpath(@__DIR__, "utils", "Descriptors", "pcm_defaults.json")
+        r2x_default_inputs = parse_pcm_default_descriptors(r2x_descriptors)
+    end
     # assume valid weather years as hardcode for now. These should eventually
     # be read in from ReEDS
     if weather_year ∉ user_inputs["weather_years"]

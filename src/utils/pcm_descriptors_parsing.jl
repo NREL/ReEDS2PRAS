@@ -18,6 +18,5 @@ function parse_pcm_default_descriptors(file::String)
     #         )
     #     end
     # end
-    println("yay")
     return JSON.parsefile(file)
 end
