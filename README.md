@@ -1,3 +1,6 @@
+# ACTIVE DEVELOPMENT HAS MOVED
+As of ~Jan 2025, active development of ReEDS2PRAS continues as part of ReEDS, available internally at https://github.nrel.gov/ReEDS/ReEDS-2.0 and externally at https://github.com/NREL/ReEDS-2.0
+
 # ReEDS2PRAS
 ## Introduction
 
